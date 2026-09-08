@@ -200,7 +200,7 @@ export default function AttendanceApprovalPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50">
+    <main className="min-h-screen bg-slate-50 text-slate-900">
       <header className="bg-slate-900 text-white">
         <div className="max-w-7xl mx-auto px-5 py-5 flex justify-between items-center gap-4">
           <div>
@@ -245,7 +245,7 @@ export default function AttendanceApprovalPage() {
             <button
               type="button"
               onClick={loadRecords}
-              className="border px-4 py-2 rounded-xl font-semibold hover:bg-slate-50"
+              className="border border-slate-300 bg-white text-slate-900 px-4 py-2 rounded-xl font-bold hover:bg-slate-100"
             >
               Refresh
             </button>
@@ -331,7 +331,7 @@ export default function AttendanceApprovalPage() {
                           }))
                         }
                         placeholder="Admin Note (optional)"
-                        className="w-full border rounded-lg px-3 py-2 text-sm"
+                        className="w-full bg-white text-slate-900 placeholder:text-slate-500 border border-slate-300 rounded-lg px-3 py-2 text-sm"
                       />
 
                       <div className="flex gap-2 mt-3">
@@ -365,7 +365,7 @@ export default function AttendanceApprovalPage() {
                   <tr>
                     <td
                       colSpan={8}
-                      className="px-5 py-12 text-center text-slate-400"
+                      className="px-5 py-12 text-center text-slate-600 font-semibold"
                     >
                       કોઈ Pending Attendance નથી ✅
                     </td>

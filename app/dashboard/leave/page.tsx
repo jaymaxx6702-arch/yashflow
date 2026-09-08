@@ -118,7 +118,9 @@ export default function LeavePage() {
     }
 
     if (endDate < startDate) {
-      setMessage("End Date, Start Date કરતાં પહેલાં હોઈ શકતી નથી.");
+      setMessage(
+        "End Date, Start Date કરતાં પહેલાં હોઈ શકતી નથી."
+      );
       return;
     }
 
@@ -148,12 +150,16 @@ export default function LeavePage() {
       });
 
     if (error) {
-      setMessage(`Leave Request Error: ${error.message}`);
+      setMessage(
+        `Leave Request Error: ${error.message}`
+      );
       setSaving(false);
       return;
     }
 
-    setMessage("Leave Request સફળતાપૂર્વક મોકલાઈ ✅");
+    setMessage(
+      "Leave Request સફળતાપૂર્વક મોકલાઈ ✅"
+    );
 
     setLeaveType("full_day");
     setStartDate("");
@@ -179,18 +185,18 @@ export default function LeavePage() {
 
   function getStatusStyle(status: string) {
     if (status === "approved") {
-      return "bg-green-100 text-green-700";
+      return "bg-green-100 text-green-800";
     }
 
     if (status === "rejected") {
-      return "bg-red-100 text-red-700";
+      return "bg-red-100 text-red-800";
     }
 
     if (status === "cancelled") {
-      return "bg-slate-100 text-slate-600";
+      return "bg-slate-200 text-slate-800";
     }
 
-    return "bg-orange-100 text-orange-700";
+    return "bg-orange-100 text-orange-800";
   }
 
   function getStatusLabel(status: string) {
@@ -204,7 +210,7 @@ export default function LeavePage() {
   if (loading) {
     return (
       <main className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <p className="font-semibold text-slate-500">
+        <p className="font-semibold text-slate-700">
           Leave page લોડ થઈ રહ્યું છે...
         </p>
       </main>
@@ -212,15 +218,15 @@ export default function LeavePage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50">
+    <main className="min-h-screen bg-slate-50 text-slate-900">
       <header className="bg-blue-600 text-white">
         <div className="max-w-5xl mx-auto px-5 py-5 flex items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-black">
+            <h1 className="text-2xl font-black text-white">
               YashFlow
             </h1>
 
-            <p className="text-blue-100 text-sm">
+            <p className="text-blue-100 text-sm font-medium">
               Leave Management
             </p>
           </div>
@@ -228,7 +234,7 @@ export default function LeavePage() {
           <button
             type="button"
             onClick={() => router.push("/dashboard")}
-            className="bg-white/15 hover:bg-white/25 px-4 py-2 rounded-xl font-semibold"
+            className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-xl font-bold"
           >
             ← Dashboard
           </button>
@@ -236,17 +242,17 @@ export default function LeavePage() {
       </header>
 
       <div className="max-w-5xl mx-auto p-5">
-        <section className="bg-white border border-slate-200 rounded-2xl p-6">
+        <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
           <h2 className="text-2xl font-black text-slate-900">
             Leave Request
           </h2>
 
-          <p className="text-slate-500 mt-1">
+          <p className="text-slate-700 font-semibold mt-1">
             {employee?.full_name}
           </p>
 
           {message && (
-            <div className="mt-5 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl p-4 font-semibold">
+            <div className="mt-5 bg-blue-50 border border-blue-200 text-blue-900 rounded-xl p-4 font-semibold">
               {message}
             </div>
           )}
@@ -256,7 +262,7 @@ export default function LeavePage() {
             className="mt-6 grid md:grid-cols-2 gap-5"
           >
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">
+              <label className="block text-sm font-bold text-slate-800 mb-2">
                 Leave Type
               </label>
 
@@ -265,7 +271,7 @@ export default function LeavePage() {
                 onChange={(e) =>
                   setLeaveType(e.target.value)
                 }
-                className="w-full border border-slate-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full bg-white text-slate-900 border border-slate-400 rounded-xl px-4 py-3 font-medium outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="full_day">
                   Full Day
@@ -284,7 +290,7 @@ export default function LeavePage() {
             <div className="hidden md:block" />
 
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">
+              <label className="block text-sm font-bold text-slate-800 mb-2">
                 Start Date
               </label>
 
@@ -298,12 +304,12 @@ export default function LeavePage() {
                     setEndDate(e.target.value);
                   }
                 }}
-                className="w-full border border-slate-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full bg-white text-slate-900 border border-slate-400 rounded-xl px-4 py-3 font-medium outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">
+              <label className="block text-sm font-bold text-slate-800 mb-2">
                 End Date
               </label>
 
@@ -314,12 +320,12 @@ export default function LeavePage() {
                 onChange={(e) =>
                   setEndDate(e.target.value)
                 }
-                className="w-full border border-slate-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
+                className="w-full bg-white text-slate-900 border border-slate-400 rounded-xl px-4 py-3 font-medium outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-700 disabled:opacity-100"
               />
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-sm font-bold text-slate-700 mb-2">
+              <label className="block text-sm font-bold text-slate-800 mb-2">
                 Reason
               </label>
 
@@ -330,7 +336,7 @@ export default function LeavePage() {
                 }
                 rows={4}
                 placeholder="Leave માટે કારણ લખો..."
-                className="w-full border border-slate-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                className="w-full bg-white text-slate-900 placeholder:text-slate-500 border border-slate-400 rounded-xl px-4 py-3 font-medium outline-none focus:ring-2 focus:ring-blue-500 resize-none"
               />
             </div>
 
@@ -338,7 +344,7 @@ export default function LeavePage() {
               <button
                 type="submit"
                 disabled={saving}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold disabled:opacity-50"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold disabled:opacity-60"
               >
                 {saving
                   ? "મોકલી રહ્યા છીએ..."
@@ -348,34 +354,34 @@ export default function LeavePage() {
           </form>
         </section>
 
-        <section className="bg-white border border-slate-200 rounded-2xl mt-5 overflow-hidden">
-          <div className="p-5 border-b">
-            <h3 className="text-xl font-black">
+        <section className="bg-white border border-slate-200 rounded-2xl mt-5 overflow-hidden shadow-sm">
+          <div className="p-5 border-b border-slate-200">
+            <h3 className="text-xl font-black text-slate-900">
               My Leave Requests
             </h3>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[800px]">
+            <table className="w-full min-w-[800px] text-slate-800">
               <thead className="bg-slate-100">
                 <tr>
-                  <th className="text-left px-5 py-4 text-sm">
+                  <th className="text-left px-5 py-4 text-sm font-black text-slate-800">
                     Type
                   </th>
 
-                  <th className="text-left px-5 py-4 text-sm">
+                  <th className="text-left px-5 py-4 text-sm font-black text-slate-800">
                     Date
                   </th>
 
-                  <th className="text-left px-5 py-4 text-sm">
+                  <th className="text-left px-5 py-4 text-sm font-black text-slate-800">
                     Reason
                   </th>
 
-                  <th className="text-left px-5 py-4 text-sm">
+                  <th className="text-left px-5 py-4 text-sm font-black text-slate-800">
                     Status
                   </th>
 
-                  <th className="text-left px-5 py-4 text-sm">
+                  <th className="text-left px-5 py-4 text-sm font-black text-slate-800">
                     Admin Note
                   </th>
                 </tr>
@@ -385,22 +391,22 @@ export default function LeavePage() {
                 {leaves.map((leave) => (
                   <tr
                     key={leave.id}
-                    className="border-t border-slate-100"
+                    className="border-t border-slate-200"
                   >
-                    <td className="px-5 py-4 font-semibold">
+                    <td className="px-5 py-4 font-bold text-slate-900">
                       {getLeaveTypeLabel(
                         leave.leave_type
                       )}
                     </td>
 
-                    <td className="px-5 py-4">
+                    <td className="px-5 py-4 font-medium text-slate-800">
                       {leave.start_date ===
                       leave.end_date
                         ? leave.start_date
                         : `${leave.start_date} → ${leave.end_date}`}
                     </td>
 
-                    <td className="px-5 py-4">
+                    <td className="px-5 py-4 font-medium text-slate-800">
                       {leave.reason}
                     </td>
 
@@ -416,7 +422,7 @@ export default function LeavePage() {
                       </span>
                     </td>
 
-                    <td className="px-5 py-4 text-slate-600">
+                    <td className="px-5 py-4 font-medium text-slate-700">
                       {leave.admin_note || "-"}
                     </td>
                   </tr>
@@ -426,7 +432,7 @@ export default function LeavePage() {
                   <tr>
                     <td
                       colSpan={5}
-                      className="px-5 py-10 text-center text-slate-400"
+                      className="px-5 py-10 text-center font-medium text-slate-600"
                     >
                       હજી કોઈ Leave Request નથી.
                     </td>

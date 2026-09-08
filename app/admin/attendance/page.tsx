@@ -455,7 +455,7 @@ const rejectedCount = rows.filter(
   }
 
   return (
-    <main className="min-h-screen bg-slate-50">
+    <main className="min-h-screen bg-slate-50 text-slate-900">
       <header className="bg-slate-900 text-white">
         <div className="max-w-7xl mx-auto px-5 py-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
@@ -502,7 +502,7 @@ const rejectedCount = rows.filter(
                 onChange={(e) =>
                   setSelectedDate(e.target.value)
                 }
-                className="border border-slate-300 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500"
+                className="bg-white text-slate-900 border border-slate-400 rounded-xl px-4 py-2.5 font-semibold outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
@@ -569,7 +569,7 @@ const rejectedCount = rows.filter(
 
         <section className="bg-white border border-slate-200 rounded-2xl mt-5 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[950px]">
+            <table className="w-full min-w-[950px] text-slate-800">
               <thead className="bg-slate-100">
                 <tr>
                   <th className="text-left px-5 py-4 text-sm">
@@ -619,7 +619,7 @@ const rejectedCount = rows.filter(
                           {row.employee.full_name}
                         </p>
 
-                        <p className="text-xs text-slate-400 mt-1">
+                        <p className="text-xs text-slate-600 font-medium mt-1">
                           +91 {row.employee.mobile}
                         </p>
                       </td>
@@ -720,8 +720,8 @@ function SummaryCard({
   valueClass?: string;
 }) {
   return (
-    <div className="bg-white border rounded-2xl p-5">
-      <p className="text-sm text-slate-500">
+    <div className="bg-white border border-slate-200 rounded-2xl p-5 text-slate-900">
+      <p className="text-sm font-semibold text-slate-700">
         {label}
       </p>
 

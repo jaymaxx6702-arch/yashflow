@@ -168,7 +168,7 @@ export default function EmployeeDashboard() {
         check_in,
         check_out,
         status,
-           attendance_type,
+        attendance_type,
         late_minutes,
         working_minutes,
         approval_required,
@@ -259,119 +259,119 @@ export default function EmployeeDashboard() {
     loadDashboard();
   }, [router]);
 
-async function handleCheckIn() {
-  if (!employee || !officeSettings) return;
+  async function handleCheckIn() {
+    if (!employee || !officeSettings) return;
 
-  setAttendanceLoading(true);
-  setMessage("");
+    setAttendanceLoading(true);
+    setMessage("");
 
-  const supabase = createClient();
+    const supabase = createClient();
 
-  const now = new Date();
+    const now = new Date();
 
-  const today = getDateInTimeZone(
-    officeSettings.timezone
-  );
-
-  const currentMinutes = getMinutesFromDate(
-    now,
-    officeSettings.timezone
-  );
-
-  const officeStartMinutes = timeStringToMinutes(
-    officeSettings.office_start_time
-  );
-
-  const graceEndMinutes =
-    officeStartMinutes + officeSettings.grace_minutes;
-
-  const halfDayMinutes = timeStringToMinutes(
-    officeSettings.half_day_checkin_time
-  );
-
-  let attendanceType = "present";
-
-  if (currentMinutes >= halfDayMinutes) {
-    attendanceType = "half_day";
-  } else if (currentMinutes > graceEndMinutes) {
-    attendanceType = "late";
-  }
-
-  const lateMinutes =
-    currentMinutes > graceEndMinutes
-      ? currentMinutes - graceEndMinutes
-      : 0;
-
-  const approvalRequired =
-    attendanceType === "late" ||
-    attendanceType === "half_day";
-
-  const { error } = await supabase
-    .from("attendance")
-    .insert({
-      employee_id: employee.id,
-      attendance_date: today,
-      check_in: now.toISOString(),
-
-      status:
-        attendanceType === "half_day"
-          ? "half_day"
-          : "present",
-
-      attendance_type: attendanceType,
-
-      late_minutes: lateMinutes,
-
-      working_minutes: 0,
-
-      approval_required: approvalRequired,
-
-      approval_status: approvalRequired
-        ? "pending"
-        : "approved",
-
-      approved_by: null,
-
-      approved_at: approvalRequired
-        ? null
-        : now.toISOString(),
-
-      admin_note: null,
-    });
-
-  if (error) {
-    setMessage(
-      error.code === "23505"
-        ? "આજની હાજરી પહેલેથી નોંધાઈ ગઈ છે."
-        : `Check In Error: ${error.message}`
+    const today = getDateInTimeZone(
+      officeSettings.timezone
     );
+
+    const currentMinutes = getMinutesFromDate(
+      now,
+      officeSettings.timezone
+    );
+
+    const officeStartMinutes = timeStringToMinutes(
+      officeSettings.office_start_time
+    );
+
+    const graceEndMinutes =
+      officeStartMinutes + officeSettings.grace_minutes;
+
+    const halfDayMinutes = timeStringToMinutes(
+      officeSettings.half_day_checkin_time
+    );
+
+    let attendanceType = "present";
+
+    if (currentMinutes >= halfDayMinutes) {
+      attendanceType = "half_day";
+    } else if (currentMinutes > graceEndMinutes) {
+      attendanceType = "late";
+    }
+
+    const lateMinutes =
+      currentMinutes > graceEndMinutes
+        ? currentMinutes - graceEndMinutes
+        : 0;
+
+    const approvalRequired =
+      attendanceType === "late" ||
+      attendanceType === "half_day";
+
+    const { error } = await supabase
+      .from("attendance")
+      .insert({
+        employee_id: employee.id,
+        attendance_date: today,
+        check_in: now.toISOString(),
+
+        status:
+          attendanceType === "half_day"
+            ? "half_day"
+            : "present",
+
+        attendance_type: attendanceType,
+
+        late_minutes: lateMinutes,
+
+        working_minutes: 0,
+
+        approval_required: approvalRequired,
+
+        approval_status: approvalRequired
+          ? "pending"
+          : "approved",
+
+        approved_by: null,
+
+        approved_at: approvalRequired
+          ? null
+          : now.toISOString(),
+
+        admin_note: null,
+      });
+
+    if (error) {
+      setMessage(
+        error.code === "23505"
+          ? "આજની હાજરી પહેલેથી નોંધાઈ ગઈ છે."
+          : `Check In Error: ${error.message}`
+      );
+
+      setAttendanceLoading(false);
+
+      return;
+    }
+
+    await loadAttendance(
+      employee.id,
+      officeSettings
+    );
+
+    if (attendanceType === "half_day") {
+      setMessage(
+        "Check In સફળ ✅ Half Day તરીકે નોંધાયું અને Admin Approval માટે મોકલાયું."
+      );
+    } else if (attendanceType === "late") {
+      setMessage(
+        `Check In સફળ ✅ તમે ${lateMinutes} મિનિટ મોડા આવ્યા છો. Admin Approval Pending છે.`
+      );
+    } else {
+      setMessage(
+        "Check In સફળ ✅ તમે સમયસર આવ્યા છો. Attendance Approved છે."
+      );
+    }
 
     setAttendanceLoading(false);
-
-    return;
   }
-
-  await loadAttendance(
-    employee.id,
-    officeSettings
-  );
-
-  if (attendanceType === "half_day") {
-    setMessage(
-      "Check In સફળ ✅ Half Day તરીકે નોંધાયું અને Admin Approval માટે મોકલાયું."
-    );
-  } else if (attendanceType === "late") {
-    setMessage(
-      `Check In સફળ ✅ તમે ${lateMinutes} મિનિટ મોડા આવ્યા છો. Admin Approval Pending છે.`
-    );
-  } else {
-    setMessage(
-      "Check In સફળ ✅ તમે સમયસર આવ્યા છો. Attendance Approved છે."
-    );
-  }
-
-  setAttendanceLoading(false);
-}
 
   async function handleCheckOut() {
     if (
@@ -411,16 +411,6 @@ async function handleCheckIn() {
       totalMinutes = 0;
     }
 
-    /*
-      Recess overlap calculate કરીએ.
-      Example:
-      Check In 9:00
-      Check Out 6:00
-      Total = 540 minutes
-      Recess = 60 minutes
-      Working = 480 minutes
-    */
-
     const recessStartMinutes =
       timeStringToMinutes(
         officeSettings.recess_start_time
@@ -453,7 +443,6 @@ async function handleCheckIn() {
       .from("attendance")
       .update({
         check_out: checkOutTime.toISOString(),
-
         working_minutes: workingMinutes,
       })
       .eq("id", attendance.id);
@@ -494,7 +483,7 @@ async function handleCheckIn() {
   if (loading) {
     return (
       <main className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <p className="font-semibold text-slate-500">
+        <p className="font-semibold text-slate-700">
           Dashboard લોડ થઈ રહ્યું છે...
         </p>
       </main>
@@ -506,15 +495,15 @@ async function handleCheckIn() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50">
+    <main className="min-h-screen bg-slate-50 text-slate-900">
       <header className="bg-blue-600 text-white">
         <div className="max-w-6xl mx-auto px-5 py-5 flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-black">
+            <h1 className="text-2xl font-black text-white">
               YashFlow
             </h1>
 
-            <p className="text-blue-100 text-sm">
+            <p className="text-blue-100 text-sm font-medium">
               Yash Laser Work Management
             </p>
           </div>
@@ -522,7 +511,7 @@ async function handleCheckIn() {
           <button
             type="button"
             onClick={handleLogout}
-            className="bg-white/15 px-4 py-2 rounded-xl font-semibold"
+            className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-xl font-bold"
           >
             Logout
           </button>
@@ -530,40 +519,40 @@ async function handleCheckIn() {
       </header>
 
       <div className="max-w-6xl mx-auto p-5">
-        <section className="bg-white border rounded-2xl p-6">
-          <p className="text-sm text-slate-500">
+        <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+          <p className="text-sm font-semibold text-slate-600">
             સ્વાગત છે
           </p>
 
-          <h2 className="text-2xl font-black mt-1">
+          <h2 className="text-2xl font-black mt-1 text-slate-900">
             {employee.full_name}
           </h2>
 
-          <div className="flex gap-2 mt-4">
-            <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold">
+          <div className="flex flex-wrap gap-2 mt-4">
+            <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-bold">
               {employee.department}
             </span>
 
-            <span className="bg-green-50 text-green-700 px-3 py-1 rounded-full text-sm font-semibold">
+            <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-bold">
               Active
             </span>
           </div>
         </section>
 
         {message && (
-          <div className="mt-5 bg-blue-50 border border-blue-200 rounded-xl p-4 font-semibold text-blue-800">
+          <div className="mt-5 bg-blue-50 border border-blue-200 rounded-xl p-4 font-semibold text-blue-900">
             {message}
           </div>
         )}
 
-        <section className="bg-white border rounded-2xl p-6 mt-5">
+        <section className="bg-white border border-slate-200 rounded-2xl p-6 mt-5 shadow-sm">
           <div className="flex flex-col lg:flex-row lg:justify-between gap-5">
             <div>
-              <h3 className="text-xl font-black">
+              <h3 className="text-xl font-black text-slate-900">
                 આજની હાજરી
               </h3>
 
-              <p className="text-sm text-slate-500 mt-2">
+              <p className="text-sm text-slate-700 font-medium mt-2">
                 Office:{" "}
                 {formatOfficeTime(
                   officeSettings.office_start_time
@@ -574,7 +563,7 @@ async function handleCheckIn() {
                 )}
               </p>
 
-              <p className="text-sm text-slate-500 mt-1">
+              <p className="text-sm text-slate-700 font-medium mt-1">
                 Grace:{" "}
                 {officeSettings.grace_minutes} મિનિટ
                 {" • "}
@@ -588,7 +577,7 @@ async function handleCheckIn() {
                 )}
               </p>
 
-              <p className="text-sm text-slate-500 mt-1">
+              <p className="text-sm text-slate-700 font-medium mt-1">
                 Standard Working Time:{" "}
                 {formatWorkingMinutes(
                   officeSettings.standard_work_minutes
@@ -602,7 +591,7 @@ async function handleCheckIn() {
                   type="button"
                   onClick={handleCheckIn}
                   disabled={attendanceLoading}
-                  className="bg-green-600 text-white px-6 py-3 rounded-xl font-bold disabled:opacity-50"
+                  className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-bold disabled:opacity-60"
                 >
                   {attendanceLoading
                     ? "Please Wait..."
@@ -616,7 +605,7 @@ async function handleCheckIn() {
                     type="button"
                     onClick={handleCheckOut}
                     disabled={attendanceLoading}
-                    className="bg-red-600 text-white px-6 py-3 rounded-xl font-bold disabled:opacity-50"
+                    className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl font-bold disabled:opacity-60"
                   >
                     {attendanceLoading
                       ? "Please Wait..."
@@ -625,7 +614,7 @@ async function handleCheckIn() {
                 )}
 
               {attendance?.check_out && (
-                <span className="bg-green-100 text-green-700 px-5 py-3 rounded-xl font-bold inline-block">
+                <span className="bg-green-100 text-green-800 px-5 py-3 rounded-xl font-bold inline-block">
                   આજની હાજરી પૂર્ણ ✅
                 </span>
               )}
@@ -633,12 +622,12 @@ async function handleCheckIn() {
           </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-6 gap-4 mt-6">
-            <div className="bg-slate-50 rounded-xl p-4">
-              <p className="text-xs text-slate-400">
+            <div className="bg-slate-100 rounded-xl p-4">
+              <p className="text-xs font-bold text-slate-600">
                 Status
               </p>
 
-              <p className="font-bold mt-1">
+              <p className="font-black mt-1 text-slate-900">
                 {!attendance
                   ? "Not Checked In"
                   : getAttendanceLabel(
@@ -647,222 +636,226 @@ async function handleCheckIn() {
               </p>
             </div>
 
-            <div className="bg-slate-50 rounded-xl p-4">
-              <p className="text-xs text-slate-400">
+            <div className="bg-slate-100 rounded-xl p-4">
+              <p className="text-xs font-bold text-slate-600">
                 Check In
               </p>
 
-              <p className="font-bold mt-1">
+              <p className="font-black mt-1 text-slate-900">
                 {formatTime(
                   attendance?.check_in || null
                 )}
               </p>
             </div>
 
-            <div className="bg-slate-50 rounded-xl p-4">
-              <p className="text-xs text-slate-400">
+            <div className="bg-slate-100 rounded-xl p-4">
+              <p className="text-xs font-bold text-slate-600">
                 Late
               </p>
 
-              <p className="font-bold mt-1">
+              <p className="font-black mt-1 text-slate-900">
                 {attendance
                   ? `${attendance.late_minutes} મિનિટ`
                   : "-"}
               </p>
             </div>
 
-            <div className="bg-slate-50 rounded-xl p-4">
-              <p className="text-xs text-slate-400">
+            <div className="bg-slate-100 rounded-xl p-4">
+              <p className="text-xs font-bold text-slate-600">
                 Check Out
               </p>
 
-              <p className="font-bold mt-1">
+              <p className="font-black mt-1 text-slate-900">
                 {formatTime(
                   attendance?.check_out || null
                 )}
               </p>
             </div>
 
-            <div className="bg-slate-50 rounded-xl p-4">
-              <p className="text-xs text-slate-400">
+            <div className="bg-slate-100 rounded-xl p-4">
+              <p className="text-xs font-bold text-slate-600">
                 Actual Working
               </p>
 
-              <p className="font-bold mt-1">
+              <p className="font-black mt-1 text-slate-900">
                 {formatWorkingMinutes(
                   attendance?.working_minutes || 0
                 )}
               </p>
             </div>
-            <div className="bg-slate-50 rounded-xl p-4">
-  <p className="text-xs text-slate-400">
-    Approval
-  </p>
 
-  <div className="mt-1">
-    {!attendance ? (
-      <span className="font-bold text-slate-400">
-        -
-      </span>
-    ) : !attendance.approval_required ? (
-      <span className="font-bold text-green-700">
-        Auto Approved ✓
-      </span>
-    ) : attendance.approval_status === "pending" ? (
-      <span className="font-bold text-amber-600">
-        Pending ⏳
-      </span>
-    ) : attendance.approval_status === "approved" ? (
-      <span className="font-bold text-green-700">
-        Approved ✓
-      </span>
-    ) : (
-      <span className="font-bold text-red-600">
-        Rejected ✕
-      </span>
-    )}
-  </div>
-</div>
-{attendance?.admin_note && (
-  <div className="lg:col-span-6 bg-blue-50 border border-blue-100 rounded-xl p-4">
-    <p className="text-xs font-bold text-blue-600">
-      Admin Note
-    </p>
+            <div className="bg-slate-100 rounded-xl p-4">
+              <p className="text-xs font-bold text-slate-600">
+                Approval
+              </p>
 
-    <p className="font-semibold text-slate-800 mt-1">
-      {attendance.admin_note}
-    </p>
-  </div>
-)}
+              <div className="mt-1">
+                {!attendance ? (
+                  <span className="font-black text-slate-700">
+                    -
+                  </span>
+                ) : !attendance.approval_required ? (
+                  <span className="font-black text-green-800">
+                    Auto Approved ✓
+                  </span>
+                ) : attendance.approval_status === "pending" ? (
+                  <span className="font-black text-amber-700">
+                    Pending ⏳
+                  </span>
+                ) : attendance.approval_status === "approved" ? (
+                  <span className="font-black text-green-800">
+                    Approved ✓
+                  </span>
+                ) : (
+                  <span className="font-black text-red-700">
+                    Rejected ✕
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {attendance?.admin_note && (
+              <div className="lg:col-span-6 bg-blue-50 border border-blue-200 rounded-xl p-4">
+                <p className="text-xs font-black text-blue-700">
+                  Admin Note
+                </p>
+
+                <p className="font-semibold text-slate-900 mt-1">
+                  {attendance.admin_note}
+                </p>
+              </div>
+            )}
           </div>
         </section>
-<section className="mt-5">
-  <button
-    type="button"
-    onClick={() => router.push("/dashboard/leave")}
-    className="w-full bg-white border border-slate-200 rounded-2xl p-6 text-left hover:border-purple-300 hover:shadow-md transition"
-  >
-    <div className="flex items-center justify-between gap-4">
-      <div>
-        <p className="text-sm font-bold text-purple-600">
-          LEAVE MANAGEMENT
-        </p>
 
-        <h3 className="text-xl font-black text-slate-900 mt-1">
-          Leave Request
-        </h3>
+        <section className="mt-5">
+          <button
+            type="button"
+            onClick={() => router.push("/dashboard/leave")}
+            className="w-full bg-white border border-slate-200 rounded-2xl p-6 text-left hover:border-purple-300 hover:shadow-md transition shadow-sm"
+          >
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-bold text-purple-700">
+                  LEAVE MANAGEMENT
+                </p>
 
-        <p className="text-sm text-slate-500 mt-2">
-          નવી રજા માટે Request મોકલો અને તમારી જૂની Leave Requestsનું Status જુઓ.
-        </p>
+                <h3 className="text-xl font-black text-slate-900 mt-1">
+                  Leave Request
+                </h3>
 
-        <p className="text-purple-600 font-bold mt-4">
-          Leave Request ખોલો →
-        </p>
-      </div>
+                <p className="text-sm text-slate-700 font-medium mt-2">
+                  નવી રજા માટે Request મોકલો અને તમારી જૂની Leave Requestsનું Status જુઓ.
+                </p>
 
-      <div className="w-14 h-14 shrink-0 rounded-2xl bg-purple-50 flex items-center justify-center text-2xl">
-        🗓️
-      </div>
-    </div>
-  </button>
-</section>
-<section className="mt-5">
-  <button
-    type="button"
-    onClick={() => router.push("/dashboard/tasks")}
-    className="w-full bg-white border border-slate-200 rounded-2xl p-6 text-left hover:border-violet-300 hover:shadow-md transition"
-  >
-    <div className="flex items-center justify-between gap-4">
-      <div>
-        <p className="text-sm font-bold text-violet-600">
-          TASK MANAGEMENT
-        </p>
+                <p className="text-purple-700 font-bold mt-4">
+                  Leave Request ખોલો →
+                </p>
+              </div>
 
-        <h3 className="text-xl font-black text-slate-900 mt-1">
-          My Tasks
-        </h3>
+              <div className="w-14 h-14 shrink-0 rounded-2xl bg-purple-100 flex items-center justify-center text-2xl">
+                🗓️
+              </div>
+            </div>
+          </button>
+        </section>
 
-        <p className="text-slate-500 mt-2 text-sm">
-          Assigned Tasks જુઓ અને Progress Update કરો.
-        </p>
+        <section className="mt-5">
+          <button
+            type="button"
+            onClick={() => router.push("/dashboard/tasks")}
+            className="w-full bg-white border border-slate-200 rounded-2xl p-6 text-left hover:border-violet-300 hover:shadow-md transition shadow-sm"
+          >
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-bold text-violet-700">
+                  TASK MANAGEMENT
+                </p>
 
-        <p className="text-violet-600 font-bold mt-4">
-          My Tasks જુઓ →
-        </p>
-      </div>
+                <h3 className="text-xl font-black text-slate-900 mt-1">
+                  My Tasks
+                </h3>
 
-      <div className="w-14 h-14 shrink-0 rounded-2xl bg-violet-50 flex items-center justify-center text-2xl">
-        📋
-      </div>
-    </div>
-  </button>
-</section>
+                <p className="text-slate-700 font-medium mt-2 text-sm">
+                  Assigned Tasks જુઓ અને Progress Update કરો.
+                </p>
 
-<section className="mt-5">
-  <button
-    type="button"
-    onClick={() => router.push("/dashboard/orders")}
-    className="w-full bg-white border border-slate-200 rounded-2xl p-6 text-left hover:border-cyan-300 hover:shadow-md transition"
-  >
-    <div className="flex items-center justify-between gap-4">
-      <div>
-        <p className="text-sm font-bold text-cyan-600">
-          PRODUCTION WORKFLOW
-        </p>
+                <p className="text-violet-700 font-bold mt-4">
+                  My Tasks જુઓ →
+                </p>
+              </div>
 
-        <h3 className="text-xl font-black text-slate-900 mt-1">
-          Department Orders
-        </h3>
+              <div className="w-14 h-14 shrink-0 rounded-2xl bg-violet-100 flex items-center justify-center text-2xl">
+                📋
+              </div>
+            </div>
+          </button>
+        </section>
 
-        <p className="text-slate-500 mt-2 text-sm">
-          તમારા Departmentના Orders જુઓ અને Next Stageમાં મોકલો.
-        </p>
+        <section className="mt-5">
+          <button
+            type="button"
+            onClick={() => router.push("/dashboard/orders")}
+            className="w-full bg-white border border-slate-200 rounded-2xl p-6 text-left hover:border-cyan-300 hover:shadow-md transition shadow-sm"
+          >
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-bold text-cyan-700">
+                  PRODUCTION WORKFLOW
+                </p>
 
-        <p className="text-cyan-600 font-bold mt-4">
-          Department Orders જુઓ →
-        </p>
-      </div>
+                <h3 className="text-xl font-black text-slate-900 mt-1">
+                  Department Orders
+                </h3>
 
-      <div className="w-14 h-14 shrink-0 rounded-2xl bg-cyan-50 flex items-center justify-center text-2xl">
-        📦
-      </div>
-    </div>
-  </button>
-</section>
+                <p className="text-slate-700 font-medium mt-2 text-sm">
+                  તમારા Departmentના Orders જુઓ અને Next Stageમાં મોકલો.
+                </p>
 
-        <section className="bg-white border rounded-2xl p-6 mt-5">
-          <h3 className="font-black text-lg">
+                <p className="text-cyan-700 font-bold mt-4">
+                  Department Orders જુઓ →
+                </p>
+              </div>
+
+              <div className="w-14 h-14 shrink-0 rounded-2xl bg-cyan-100 flex items-center justify-center text-2xl">
+                📦
+              </div>
+            </div>
+          </button>
+        </section>
+
+        <section className="bg-white border border-slate-200 rounded-2xl p-6 mt-5 shadow-sm">
+          <h3 className="font-black text-lg text-slate-900">
             Attendance Rules
           </h3>
 
           <div className="grid md:grid-cols-3 gap-4 mt-4">
-            <div className="bg-green-50 rounded-xl p-4">
-              <p className="font-bold text-green-700">
+            <div className="bg-green-50 border border-green-100 rounded-xl p-4">
+              <p className="font-black text-green-800">
                 On Time
               </p>
 
-              <p className="text-sm text-slate-600 mt-1">
+              <p className="text-sm font-medium text-slate-700 mt-1">
                 9:15 AM સુધી
               </p>
             </div>
 
-            <div className="bg-orange-50 rounded-xl p-4">
-              <p className="font-bold text-orange-700">
+            <div className="bg-orange-50 border border-orange-100 rounded-xl p-4">
+              <p className="font-black text-orange-800">
                 Late
               </p>
 
-              <p className="text-sm text-slate-600 mt-1">
+              <p className="text-sm font-medium text-slate-700 mt-1">
                 9:15 AM પછી અને 1:00 PM પહેલાં
               </p>
             </div>
 
-            <div className="bg-red-50 rounded-xl p-4">
-              <p className="font-bold text-red-700">
+            <div className="bg-red-50 border border-red-100 rounded-xl p-4">
+              <p className="font-black text-red-800">
                 Half Day
               </p>
 
-              <p className="text-sm text-slate-600 mt-1">
+              <p className="text-sm font-medium text-slate-700 mt-1">
                 1:00 PM કે ત્યાર પછી Check In
               </p>
             </div>
