@@ -60,6 +60,10 @@ export default function EmployeeDashboard() {
   const [officeSettings, setOfficeSettings] =
     useState<OfficeSettings | null>(null);
 
+  const [departmentOrderCount, setDepartmentOrderCount] = useState(0);
+  const [pendingLeaveCount, setPendingLeaveCount] = useState(0);
+  const [currentDateTime, setCurrentDateTime] = useState(new Date());
+
   const [loading, setLoading] = useState(true);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -144,6 +148,39 @@ export default function EmployeeDashboard() {
     return `${hours} કલાક ${mins} મિનિટ`;
   }
 
+  function formatLateMinutes(minutes: number) {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+
+    return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")} Min`;
+  }
+
+  function formatTodayDate(date: Date) {
+    return new Intl.DateTimeFormat("en-IN", {
+      timeZone: officeSettings?.timezone || "Asia/Kolkata",
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    }).format(date);
+  }
+
+  function formatTodayDay(date: Date) {
+    return new Intl.DateTimeFormat("en-IN", {
+      timeZone: officeSettings?.timezone || "Asia/Kolkata",
+      weekday: "long",
+    }).format(date);
+  }
+
+  function formatCurrentTime(date: Date) {
+    return new Intl.DateTimeFormat("en-IN", {
+      timeZone: officeSettings?.timezone || "Asia/Kolkata",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true,
+    }).format(date);
+  }
+
   function getAttendanceLabel(type: string) {
     switch (type) {
       case "late":
@@ -181,10 +218,23 @@ export default function EmployeeDashboard() {
 
     if (error) {
       setMessage(`Department Load Error: ${error.message}`);
-      return;
+      return [] as string[];
     }
 
-    setEmployeeDepartments((data || []) as unknown as EmployeeDepartment[]);
+    const assignments =
+      (data || []) as unknown as EmployeeDepartment[];
+
+    setEmployeeDepartments(assignments);
+
+    return assignments
+      .map((item) => {
+        const departmentData = Array.isArray(item.departments)
+          ? item.departments[0] || null
+          : item.departments;
+
+        return departmentData?.name || null;
+      })
+      .filter(Boolean) as string[];
   }
 
   function getDepartmentFromAssignment(item: EmployeeDepartment) {
@@ -203,6 +253,55 @@ export default function EmployeeDashboard() {
     if (names.length > 0) return names;
 
     return employee?.department ? [employee.department] : [];
+  }
+
+  async function loadLiveSummary(
+    employeeId: string,
+    departmentNames: string[]
+  ) {
+    const supabase = createClient();
+
+    const stageMap: Record<string, string | null> = {
+      Design: "design",
+      Cutting: "cutting",
+      Production: "production",
+      Packing: "packing",
+      "Transportation/Dispatch": "transportation_dispatch",
+      Dispatch: "transportation_dispatch",
+      Transportation: "transportation_dispatch",
+    };
+
+    const departmentStages = Array.from(
+      new Set(
+        departmentNames
+          .map((name) => stageMap[name] || null)
+          .filter(Boolean) as string[]
+      )
+    );
+
+    const leaveResult = await supabase
+      .from("leave_requests")
+      .select("id", { count: "exact", head: true })
+      .eq("employee_id", employeeId)
+      .eq("status", "pending");
+
+    if (!leaveResult.error) {
+      setPendingLeaveCount(leaveResult.count || 0);
+    }
+
+    if (departmentStages.length === 0) {
+      setDepartmentOrderCount(0);
+      return;
+    }
+
+    const orderResult = await supabase
+      .from("orders")
+      .select("id", { count: "exact", head: true })
+      .in("current_stage", departmentStages);
+
+    if (!orderResult.error) {
+      setDepartmentOrderCount(orderResult.count || 0);
+    }
   }
 
   async function loadAttendance(
@@ -239,6 +338,14 @@ export default function EmployeeDashboard() {
       setAttendance(data);
     }
   }
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setCurrentDateTime(new Date());
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     async function loadDashboard() {
@@ -305,10 +412,22 @@ export default function EmployeeDashboard() {
       setEmployee(empData);
       setOfficeSettings(settingsData);
 
-      await Promise.all([
-        loadAttendance(empData.id, settingsData),
-        loadEmployeeDepartments(empData.id),
-      ]);
+      await loadAttendance(empData.id, settingsData);
+
+      const departmentNames =
+        await loadEmployeeDepartments(empData.id);
+
+      const summaryDepartments =
+        departmentNames.length > 0
+          ? departmentNames
+          : empData.department
+          ? [empData.department]
+          : [];
+
+      await loadLiveSummary(
+        empData.id,
+        summaryDepartments
+      );
 
       setLoading(false);
     }
@@ -614,42 +733,22 @@ export default function EmployeeDashboard() {
 
         <section className="bg-white border border-slate-200 rounded-2xl p-6 mt-5 shadow-sm">
           <div className="flex flex-col lg:flex-row lg:justify-between gap-5">
-            <div>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 w-full">
               <h3 className="text-xl font-black text-slate-900">
                 આજની હાજરી
               </h3>
 
-              <p className="text-sm text-slate-700 font-medium mt-2">
-                Office:{" "}
-                {formatOfficeTime(
-                  officeSettings.office_start_time
-                )}
-                {" → "}
-                {formatOfficeTime(
-                  officeSettings.office_end_time
-                )}
-              </p>
+              <div className="sm:text-right">
+                <p className="text-sm font-black text-slate-900">
+                  {formatTodayDay(currentDateTime)}
+                </p>
 
-              <p className="text-sm text-slate-700 font-medium mt-1">
-                Grace:{" "}
-                {officeSettings.grace_minutes} મિનિટ
-                {" • "}
-                Recess:{" "}
-                {formatOfficeTime(
-                  officeSettings.recess_start_time
-                )}
-                {" → "}
-                {formatOfficeTime(
-                  officeSettings.recess_end_time
-                )}
-              </p>
-
-              <p className="text-sm text-slate-700 font-medium mt-1">
-                Standard Working Time:{" "}
-                {formatWorkingMinutes(
-                  officeSettings.standard_work_minutes
-                )}
-              </p>
+                <p className="text-sm font-semibold text-slate-600 mt-0.5">
+                  {formatTodayDate(currentDateTime)}
+                  {" • "}
+                  {formatCurrentTime(currentDateTime)}
+                </p>
+              </div>
             </div>
 
             <div>
@@ -681,9 +780,22 @@ export default function EmployeeDashboard() {
                 )}
 
               {attendance?.check_out && (
-                <span className="bg-green-100 text-green-800 px-5 py-3 rounded-xl font-bold inline-block">
-                  આજની હાજરી પૂર્ણ ✅
-                </span>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                  <span className="bg-green-100 text-green-800 px-5 py-3 rounded-xl font-bold inline-block">
+                    Punch Out: {formatTime(attendance.check_out)} ✅
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={handleCheckOut}
+                    disabled={attendanceLoading}
+                    className="bg-amber-500 hover:bg-amber-600 text-white px-5 py-3 rounded-xl font-bold disabled:opacity-60"
+                  >
+                    {attendanceLoading
+                      ? "Please Wait..."
+                      : "Punch Out Again"}
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -722,7 +834,7 @@ export default function EmployeeDashboard() {
 
               <p className="font-black mt-1 text-slate-900">
                 {attendance
-                  ? `${attendance.late_minutes} મિનિટ`
+                  ? formatLateMinutes(attendance.late_minutes)
                   : "-"}
               </p>
             </div>
@@ -796,32 +908,106 @@ export default function EmployeeDashboard() {
         </section>
 
         <section className="mt-5">
+          <div className="flex items-center justify-between gap-4 mb-4">
+            <div>
+              <p className="text-sm font-bold text-blue-700">
+                LIVE SUMMARY
+              </p>
+
+              <h3 className="text-xl font-black text-slate-900 mt-1">
+                આજનું Work Summary
+              </h3>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+              <p className="text-xs font-bold text-slate-500">
+                Attendance
+              </p>
+
+              <p className="text-xl font-black text-slate-900 mt-2">
+                {!attendance
+                  ? "Not Checked In"
+                  : getAttendanceLabel(attendance.attendance_type)}
+              </p>
+            </div>
+
+            <div className="bg-white border border-cyan-200 rounded-2xl p-5 shadow-sm">
+              <p className="text-xs font-bold text-cyan-700">
+                Department Orders
+              </p>
+
+              <p className="text-3xl font-black text-cyan-800 mt-2">
+                {departmentOrderCount}
+              </p>
+
+              <p className="text-xs font-semibold text-slate-500 mt-1">
+                Current work stage
+              </p>
+            </div>
+
+            <div className="bg-white border border-purple-200 rounded-2xl p-5 shadow-sm">
+              <p className="text-xs font-bold text-purple-700">
+                Pending Leave
+              </p>
+
+              <p className="text-3xl font-black text-purple-800 mt-2">
+                {pendingLeaveCount}
+              </p>
+
+              <p className="text-xs font-semibold text-slate-500 mt-1">
+                Awaiting approval
+              </p>
+            </div>
+
+            <div className="bg-white border border-green-200 rounded-2xl p-5 shadow-sm">
+              <p className="text-xs font-bold text-green-700">
+                Working Today
+              </p>
+
+              <p className="text-lg font-black text-green-800 mt-2">
+                {attendance?.check_out
+                  ? formatWorkingMinutes(attendance.working_minutes)
+                  : attendance?.check_in
+                  ? "Running"
+                  : "-"}
+              </p>
+
+              <p className="text-xs font-semibold text-slate-500 mt-1">
+                Actual working time
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-5">
           <button
             type="button"
-            onClick={() => router.push("/dashboard/leave")}
-            className="w-full bg-white border border-slate-200 rounded-2xl p-6 text-left hover:border-purple-300 hover:shadow-md transition shadow-sm"
+            onClick={() => router.push("/dashboard/orders")}
+            className="w-full bg-white border border-slate-200 rounded-2xl p-6 text-left hover:border-cyan-300 hover:shadow-md transition shadow-sm"
           >
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-sm font-bold text-purple-700">
-                  LEAVE MANAGEMENT
+                <p className="text-sm font-bold text-cyan-700">
+                  PRODUCTION WORKFLOW
                 </p>
 
                 <h3 className="text-xl font-black text-slate-900 mt-1">
-                  Leave Request
+                  Department Orders
                 </h3>
 
-                <p className="text-sm text-slate-700 font-medium mt-2">
-                  નવી રજા માટે Request મોકલો અને તમારી જૂની Leave Requestsનું Status જુઓ.
+                <p className="text-slate-700 font-medium mt-2 text-sm">
+                  તમારા Primary + Additional Departmentsના Orders જુઓ અને Next Stageમાં મોકલો.
                 </p>
 
-                <p className="text-purple-700 font-bold mt-4">
-                  Leave Request ખોલો →
+                <p className="text-cyan-700 font-bold mt-4">
+                  Department Orders જુઓ →
                 </p>
               </div>
 
-              <div className="w-14 h-14 shrink-0 rounded-2xl bg-purple-100 flex items-center justify-center text-2xl">
-                🗓️
+              <div className="w-14 h-14 shrink-0 rounded-2xl bg-cyan-100 flex items-center justify-center text-2xl">
+                📦
               </div>
             </div>
           </button>
@@ -862,30 +1048,30 @@ export default function EmployeeDashboard() {
         <section className="mt-5">
           <button
             type="button"
-            onClick={() => router.push("/dashboard/orders")}
-            className="w-full bg-white border border-slate-200 rounded-2xl p-6 text-left hover:border-cyan-300 hover:shadow-md transition shadow-sm"
+            onClick={() => router.push("/dashboard/leave")}
+            className="w-full bg-white border border-slate-200 rounded-2xl p-6 text-left hover:border-purple-300 hover:shadow-md transition shadow-sm"
           >
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-sm font-bold text-cyan-700">
-                  PRODUCTION WORKFLOW
+                <p className="text-sm font-bold text-purple-700">
+                  LEAVE MANAGEMENT
                 </p>
 
                 <h3 className="text-xl font-black text-slate-900 mt-1">
-                  Department Orders
+                  Leave Request
                 </h3>
 
-                <p className="text-slate-700 font-medium mt-2 text-sm">
-                  તમારા Primary + Additional Departmentsના Orders જુઓ અને Next Stageમાં મોકલો.
+                <p className="text-sm text-slate-700 font-medium mt-2">
+                  નવી રજા માટે Request મોકલો અને તમારી જૂની Leave Requestsનું Status જુઓ.
                 </p>
 
-                <p className="text-cyan-700 font-bold mt-4">
-                  Department Orders જુઓ →
+                <p className="text-purple-700 font-bold mt-4">
+                  Leave Request ખોલો →
                 </p>
               </div>
 
-              <div className="w-14 h-14 shrink-0 rounded-2xl bg-cyan-100 flex items-center justify-center text-2xl">
-                📦
+              <div className="w-14 h-14 shrink-0 rounded-2xl bg-purple-100 flex items-center justify-center text-2xl">
+                🗓️
               </div>
             </div>
           </button>
