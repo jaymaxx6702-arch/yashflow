@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 
@@ -20,6 +21,14 @@ type DashboardCounts = {
   packing: number;
   transportation: number;
 };
+
+type Tone =
+  | "blue"
+  | "green"
+  | "purple"
+  | "orange"
+  | "cyan"
+  | "slate";
 
 const initialCounts: DashboardCounts = {
   totalStaff: 0,
@@ -52,32 +61,232 @@ function getIndiaDate() {
   return `${year}-${month}-${day}`;
 }
 
+function getIndiaDisplayDate() {
+  return new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
+    weekday: "long",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(new Date());
+}
+
+const toneStyles: Record<
+  Tone,
+  {
+    shell: string;
+    icon: string;
+    value: string;
+    label: string;
+    line: string;
+  }
+> = {
+  blue: {
+    shell: "border-blue-100 bg-gradient-to-br from-white to-blue-50/70",
+    icon: "bg-blue-100 text-blue-700",
+    value: "text-blue-700",
+    label: "text-blue-700",
+    line: "bg-blue-500",
+  },
+  green: {
+    shell: "border-green-100 bg-gradient-to-br from-white to-green-50/70",
+    icon: "bg-green-100 text-green-700",
+    value: "text-green-700",
+    label: "text-green-700",
+    line: "bg-green-500",
+  },
+  purple: {
+    shell: "border-purple-100 bg-gradient-to-br from-white to-purple-50/70",
+    icon: "bg-purple-100 text-purple-700",
+    value: "text-purple-700",
+    label: "text-purple-700",
+    line: "bg-purple-500",
+  },
+  orange: {
+    shell: "border-orange-100 bg-gradient-to-br from-white to-orange-50/70",
+    icon: "bg-orange-100 text-orange-700",
+    value: "text-orange-700",
+    label: "text-orange-700",
+    line: "bg-orange-500",
+  },
+  cyan: {
+    shell: "border-cyan-100 bg-gradient-to-br from-white to-cyan-50/70",
+    icon: "bg-cyan-100 text-cyan-700",
+    value: "text-cyan-700",
+    label: "text-cyan-700",
+    line: "bg-cyan-500",
+  },
+  slate: {
+    shell: "border-slate-200 bg-gradient-to-br from-white to-slate-50",
+    icon: "bg-slate-100 text-slate-700",
+    value: "text-slate-800",
+    label: "text-slate-700",
+    line: "bg-slate-500",
+  },
+};
+
 function SummaryCard({
   title,
   value,
   subtitle,
   tone,
+  icon,
 }: {
   title: string;
   value: number;
   subtitle: string;
-  tone: "blue" | "green" | "purple" | "orange" | "cyan" | "slate";
+  tone: Tone;
+  icon: string;
 }) {
-  const toneClass = {
-    blue: "bg-blue-50 border-blue-100 text-blue-700",
-    green: "bg-green-50 border-green-100 text-green-700",
-    purple: "bg-purple-50 border-purple-100 text-purple-700",
-    orange: "bg-orange-50 border-orange-100 text-orange-700",
-    cyan: "bg-cyan-50 border-cyan-100 text-cyan-700",
-    slate: "bg-slate-50 border-slate-200 text-slate-700",
-  }[tone];
+  const styles = toneStyles[tone];
 
   return (
-    <div className={`rounded-2xl border p-5 ${toneClass}`}>
-      <p className="text-sm font-bold opacity-80">{title}</p>
-      <p className="text-3xl font-black mt-2">{value}</p>
-      <p className="text-xs font-semibold mt-2 opacity-70">{subtitle}</p>
+    <div
+      className={`yf-card yf-card-hover relative overflow-hidden p-5 ${styles.shell}`}
+    >
+      <div className={`absolute left-0 top-0 h-full w-1 ${styles.line}`} />
+
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className={`text-xs font-black tracking-wide ${styles.label}`}>
+            {title.toUpperCase()}
+          </p>
+
+          <p className={`text-3xl font-black mt-2 ${styles.value}`}>
+            {value}
+          </p>
+        </div>
+
+        <div
+          className={`w-11 h-11 rounded-2xl flex items-center justify-center text-xl ${styles.icon}`}
+        >
+          {icon}
+        </div>
+      </div>
+
+      <p className="text-xs font-semibold text-slate-500 mt-3">
+        {subtitle}
+      </p>
     </div>
+  );
+}
+
+function WorkflowCard({
+  title,
+  value,
+  tone,
+  icon,
+  subtitle,
+}: {
+  title: string;
+  value: number;
+  tone: Tone;
+  icon: string;
+  subtitle: string;
+}) {
+  const styles = toneStyles[tone];
+
+  return (
+    <div
+      className={`yf-card yf-card-hover p-4 ${styles.shell}`}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div
+          className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${styles.icon}`}
+        >
+          {icon}
+        </div>
+
+        <span className={`text-2xl font-black ${styles.value}`}>
+          {value}
+        </span>
+      </div>
+
+      <h3 className="font-black text-slate-900 mt-4">{title}</h3>
+
+      <p className="text-xs font-semibold text-slate-500 mt-1">
+        {subtitle}
+      </p>
+    </div>
+  );
+}
+
+function ModuleCard({
+  href,
+  label,
+  title,
+  description,
+  icon,
+  tone,
+  badge,
+}: {
+  href: Route;
+  label: string;
+  title: string;
+  description: string;
+  icon: string;
+  tone: Tone;
+  badge?: string;
+}) {
+  const styles = toneStyles[tone];
+
+  return (
+    <Link
+      href={href}
+      className={`yf-card yf-card-hover group relative overflow-hidden p-5 ${styles.shell}`}
+    >
+      <div className={`absolute left-0 top-0 h-full w-1 ${styles.line}`} />
+
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className={`text-xs font-black tracking-wide ${styles.label}`}>
+            {label}
+          </p>
+
+          <h3 className="text-lg font-black text-slate-900 mt-1">
+            {title}
+          </h3>
+
+          <p className="text-sm text-slate-600 mt-2 leading-6">
+            {description}
+          </p>
+
+          {badge && (
+            <span
+              className={`yf-badge mt-4 ${
+                tone === "green"
+                  ? "yf-badge-green"
+                  : tone === "orange"
+                  ? "yf-badge-orange"
+                  : tone === "purple"
+                  ? "yf-badge-purple"
+                  : "yf-badge-blue"
+              }`}
+            >
+              {badge}
+            </span>
+          )}
+        </div>
+
+        <div
+          className={`w-12 h-12 shrink-0 rounded-2xl flex items-center justify-center text-2xl ${styles.icon}`}
+        >
+          {icon}
+        </div>
+      </div>
+
+      <div className="mt-5 flex items-center justify-between border-t border-slate-200/70 pt-4">
+        <span className={`text-sm font-black ${styles.label}`}>
+          Open Module
+        </span>
+
+        <span
+          className={`text-lg font-black transition-transform group-hover:translate-x-1 ${styles.label}`}
+        >
+          →
+        </span>
+      </div>
+    </Link>
   );
 }
 
@@ -90,6 +299,7 @@ export default function AdminPage() {
   const [message, setMessage] = useState("");
 
   const today = useMemo(() => getIndiaDate(), []);
+  const displayDate = useMemo(() => getIndiaDisplayDate(), []);
 
   async function loadDashboardCounts() {
     const supabase = createClient();
@@ -167,7 +377,9 @@ export default function AdminPage() {
     const orderRows = ordersResult.data || [];
 
     const stageCount = (stage: string) =>
-      orderRows.filter((order) => order.current_stage === stage).length;
+      orderRows.filter(
+        (order) => order.current_stage === stage
+      ).length;
 
     const openOrders = orderRows.filter(
       (order) =>
@@ -208,11 +420,12 @@ export default function AdminPage() {
         return;
       }
 
-      const { data: adminProfile, error: adminError } = await supabase
-        .from("employees")
-        .select("id, role, approval_status, is_active")
-        .eq("auth_user_id", user.id)
-        .single();
+      const { data: adminProfile, error: adminError } =
+        await supabase
+          .from("employees")
+          .select("id, role, approval_status, is_active")
+          .eq("auth_user_id", user.id)
+          .single();
 
       if (
         adminError ||
@@ -234,388 +447,388 @@ export default function AdminPage() {
 
   async function handleLogout() {
     const supabase = createClient();
+
     await supabase.auth.signOut();
+
     router.replace("/");
     router.refresh();
   }
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <p className="font-semibold text-slate-600">
-          Admin Dashboard લોડ થઈ રહ્યું છે...
-        </p>
+      <main className="yf-page flex items-center justify-center">
+        <div className="yf-card px-6 py-5 flex items-center gap-3">
+          <div className="w-3 h-3 rounded-full bg-blue-600 animate-pulse" />
+          <p className="font-bold text-slate-700">
+            Admin Dashboard લોડ થઈ રહ્યું છે...
+          </p>
+        </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900">
-      <header className="bg-blue-600 text-white">
-        <div className="max-w-7xl mx-auto px-5 py-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-black">YashFlow Admin</h1>
-            <p className="text-blue-100 text-sm mt-1">
-              Yash Laser Management Dashboard
-            </p>
-          </div>
+    <main className="yf-page">
+      <header className="yf-header">
+        <div className="yf-container py-5">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-white/15 border border-white/20 flex items-center justify-center text-2xl shadow-sm">
+                ⚡
+              </div>
 
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={loadDashboardCounts}
-              disabled={refreshing}
-              className="bg-white/15 hover:bg-white/25 px-4 py-2 rounded-xl font-bold disabled:opacity-60"
-            >
-              {refreshing ? "Refreshing..." : "Refresh"}
-            </button>
+              <div>
+                <p className="text-xs font-black tracking-[0.18em] text-blue-100">
+                  YASH LASER
+                </p>
 
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="bg-white/15 hover:bg-white/25 px-4 py-2 rounded-xl font-bold"
-            >
-              Logout
-            </button>
+                <h1 className="text-2xl sm:text-3xl font-black text-white mt-0.5">
+                  YashFlow Admin
+                </h1>
+
+                <p className="text-blue-100 text-sm font-semibold mt-1">
+                  Management Control Center
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="rounded-xl bg-white/10 border border-white/15 px-4 py-2.5">
+                <p className="text-[11px] font-bold text-blue-100">
+                  TODAY
+                </p>
+
+                <p className="text-sm font-black text-white mt-0.5">
+                  {displayDate}
+                </p>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={loadDashboardCounts}
+                  disabled={refreshing}
+                  className="yf-btn bg-white/15 border-white/20 text-white hover:bg-white/25 disabled:opacity-60"
+                >
+                  <span>↻</span>
+                  {refreshing ? "Refreshing..." : "Refresh"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="yf-btn bg-white text-blue-700 hover:bg-blue-50"
+                >
+                  Logout
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto p-5">
+      <div className="yf-container">
         {message && (
-          <div className="mb-5 bg-red-50 border border-red-200 text-red-800 rounded-xl p-4 font-semibold">
+          <div className="mb-5 bg-red-50 border border-red-200 text-red-800 rounded-2xl p-4 font-bold shadow-sm">
             {message}
           </div>
         )}
 
-        <section>
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
-            <div>
-              <p className="text-sm font-bold text-blue-600">TODAY</p>
-              <h2 className="text-2xl font-black mt-1">Live Summary</h2>
+        <section className="yf-card overflow-hidden">
+          <div className="p-5 sm:p-6 border-b border-slate-200 bg-gradient-to-r from-slate-900 to-slate-800 text-white">
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+              <div>
+                <p className="text-xs font-black tracking-[0.15em] text-blue-300">
+                  LIVE OPERATIONS
+                </p>
+
+                <h2 className="text-2xl font-black mt-1">
+                  Today at a Glance
+                </h2>
+
+                <p className="text-sm text-slate-300 mt-1">
+                  Staff, attendance, leave and production status in one view.
+                </p>
+              </div>
+
+              <span className="yf-badge bg-white/10 text-white border border-white/15">
+                Live Data
+              </span>
             </div>
-
-            <p className="text-sm font-semibold text-slate-500">{today}</p>
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-5">
-            <SummaryCard
-              title="Total Staff"
-              value={counts.totalStaff}
-              subtitle={`${counts.pendingEmployees} approval pending`}
-              tone="blue"
-            />
+          <div className="p-5 sm:p-6">
+            <div className="yf-summary-grid">
+              <SummaryCard
+                title="Total Staff"
+                value={counts.totalStaff}
+                subtitle={`${counts.pendingEmployees} approval pending`}
+                tone="blue"
+                icon="👥"
+              />
 
-            <SummaryCard
-              title="Present Today"
-              value={counts.presentToday}
-              subtitle="Checked-in staff"
-              tone="green"
-            />
+              <SummaryCard
+                title="Present Today"
+                value={counts.presentToday}
+                subtitle="Checked-in staff"
+                tone="green"
+                icon="🟢"
+              />
 
-            <SummaryCard
-              title="Leave Today"
-              value={counts.leaveToday}
-              subtitle={`${counts.pendingLeave} leave request pending`}
-              tone="purple"
-            />
+              <SummaryCard
+                title="Leave Today"
+                value={counts.leaveToday}
+                subtitle={`${counts.pendingLeave} leave request pending`}
+                tone="purple"
+                icon="🗓️"
+              />
 
-            <SummaryCard
-              title="Pending Approval"
-              value={counts.pendingAttendance}
-              subtitle="Late / Half Day attendance"
-              tone="orange"
-            />
+              <SummaryCard
+                title="Pending Approval"
+                value={counts.pendingAttendance}
+                subtitle="Late / Half Day attendance"
+                tone="orange"
+                icon="✅"
+              />
 
-            <SummaryCard
-              title="Open Orders"
-              value={counts.openOrders}
-              subtitle="Current production work"
-              tone="cyan"
-            />
+              <SummaryCard
+                title="Open Orders"
+                value={counts.openOrders}
+                subtitle="Current production work"
+                tone="cyan"
+                icon="📦"
+              />
 
-            <SummaryCard
-              title="Completed Orders"
-              value={counts.completedOrders}
-              subtitle="Total completed"
-              tone="green"
-            />
+              <SummaryCard
+                title="Completed Orders"
+                value={counts.completedOrders}
+                subtitle="Total completed"
+                tone="green"
+                icon="🏁"
+              />
 
-            <SummaryCard
-              title="Pending Employees"
-              value={counts.pendingEmployees}
-              subtitle="Registration approval"
-              tone="blue"
-            />
+              <SummaryCard
+                title="Pending Employees"
+                value={counts.pendingEmployees}
+                subtitle="Registration approval"
+                tone="blue"
+                icon="🪪"
+              />
 
-            <SummaryCard
-              title="Pending Leave"
-              value={counts.pendingLeave}
-              subtitle="Awaiting admin action"
-              tone="purple"
-            />
-          </div>
-        </section>
-
-        <section className="mt-7">
-          <div>
-            <p className="text-sm font-bold text-cyan-600">PRODUCTION</p>
-            <h2 className="text-2xl font-black mt-1">Order Workflow</h2>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mt-5">
-            <SummaryCard
-              title="Design"
-              value={counts.design}
-              subtitle="Current stage"
-              tone="blue"
-            />
-            <SummaryCard
-              title="Cutting"
-              value={counts.cutting}
-              subtitle="Current stage"
-              tone="orange"
-            />
-            <SummaryCard
-              title="Production"
-              value={counts.production}
-              subtitle="Current stage"
-              tone="purple"
-            />
-            <SummaryCard
-              title="Packing"
-              value={counts.packing}
-              subtitle="Current stage"
-              tone="slate"
-            />
-            <SummaryCard
-              title="Transportation"
-              value={counts.transportation}
-              subtitle="Transportation / Dispatch"
-              tone="cyan"
-            />
+              <SummaryCard
+                title="Pending Leave"
+                value={counts.pendingLeave}
+                subtitle="Awaiting admin action"
+                tone="purple"
+                icon="⏳"
+              />
+            </div>
           </div>
         </section>
 
-        <section className="bg-white border border-slate-200 rounded-2xl p-6 mt-7 shadow-sm">
-          <div>
-            <h2 className="text-xl font-black">Management Modules</h2>
-            <p className="text-sm text-slate-500 mt-1">
-              YashFlowના બધા Admin modules અહીંથી ખોલો.
-            </p>
-          </div>
+        <section className="mt-6 yf-card p-5 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+            <div>
+              <p className="text-xs font-black tracking-[0.15em] text-cyan-700">
+                PRODUCTION FLOW
+              </p>
 
-          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-5 mt-6">
+              <h2 className="yf-section-title mt-1">
+                Order Workflow
+              </h2>
+
+              <p className="yf-section-subtitle mt-1">
+                Orders currently waiting at each production stage.
+              </p>
+            </div>
 
             <Link
               href="/admin/orders"
-              className="block rounded-2xl border border-slate-200 p-5 hover:border-cyan-300 hover:shadow-md transition"
+              className="yf-btn yf-btn-primary"
             >
-              <div className="flex justify-between gap-4">
-                <div>
-                  <p className="text-xs font-black text-cyan-600">ORDERS</p>
-                  <h3 className="text-lg font-black mt-1">Order Management</h3>
-                  <p className="text-sm text-slate-500 mt-2">
-                    Orders create કરો અને production workflow track કરો.
-                  </p>
-                  <span className="inline-block mt-3 bg-cyan-100 text-cyan-700 px-3 py-1 rounded-full text-xs font-black">
-                    {counts.openOrders} Open
-                  </span>
-                </div>
-                <div className="w-12 h-12 shrink-0 rounded-xl bg-cyan-50 flex items-center justify-center text-2xl">
-                  📦
-                </div>
-              </div>
-            </Link>
-
-            <Link
-              href="/admin/tasks"
-              className="block rounded-2xl border border-slate-200 p-5 hover:border-violet-300 hover:shadow-md transition"
-            >
-              <div className="flex justify-between gap-4">
-                <div>
-                  <p className="text-xs font-black text-violet-600">TASKS</p>
-                  <h3 className="text-lg font-black mt-1">Task Management</h3>
-                  <p className="text-sm text-slate-500 mt-2">
-                    Employeeને task assign કરો અને progress track કરો.
-                  </p>
-                </div>
-                <div className="w-12 h-12 shrink-0 rounded-xl bg-violet-50 flex items-center justify-center text-2xl">
-                  📋
-                </div>
-              </div>
-            </Link>
-            <Link
-              href="/admin/employees"
-              className="block rounded-2xl border border-slate-200 p-5 hover:border-blue-300 hover:shadow-md transition"
-            >
-              <div className="flex justify-between gap-4">
-                <div>
-                  <p className="text-xs font-black text-blue-600">STAFF</p>
-                  <h3 className="text-lg font-black mt-1">Employee Approval</h3>
-                  <p className="text-sm text-slate-500 mt-2">
-                    Employee approve/reject અને departments manage કરો.
-                  </p>
-                  {counts.pendingEmployees > 0 && (
-                    <span className="inline-block mt-3 bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-xs font-black">
-                      {counts.pendingEmployees} Pending
-                    </span>
-                  )}
-                </div>
-                <div className="w-12 h-12 shrink-0 rounded-xl bg-blue-50 flex items-center justify-center text-2xl">
-                  👥
-                </div>
-              </div>
-            </Link>
-
-            <Link
-              href="/admin/attendance"
-              className="block rounded-2xl border border-slate-200 p-5 hover:border-green-300 hover:shadow-md transition"
-            >
-              <div className="flex justify-between gap-4">
-                <div>
-                  <p className="text-xs font-black text-green-600">ATTENDANCE</p>
-                  <h3 className="text-lg font-black mt-1">
-                    Attendance Management
-                  </h3>
-                  <p className="text-sm text-slate-500 mt-2">
-                    Check In/Out, Manual Punch અને daily status જુઓ.
-                  </p>
-                  <span className="inline-block mt-3 bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-black">
-                    {counts.presentToday} Present
-                  </span>
-                </div>
-                <div className="w-12 h-12 shrink-0 rounded-xl bg-green-50 flex items-center justify-center text-2xl">
-                  🕘
-                </div>
-              </div>
-            </Link>
-
-            <Link
-              href="/admin/attendance-approval"
-              className="block rounded-2xl border border-slate-200 p-5 hover:border-orange-300 hover:shadow-md transition"
-            >
-              <div className="flex justify-between gap-4">
-                <div>
-                  <p className="text-xs font-black text-orange-600">APPROVAL</p>
-                  <h3 className="text-lg font-black mt-1">
-                    Attendance Approval
-                  </h3>
-                  <p className="text-sm text-slate-500 mt-2">
-                    Late અને Half Day attendance approve/reject કરો.
-                  </p>
-                  {counts.pendingAttendance > 0 && (
-                    <span className="inline-block mt-3 bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-xs font-black">
-                      {counts.pendingAttendance} Pending
-                    </span>
-                  )}
-                </div>
-                <div className="w-12 h-12 shrink-0 rounded-xl bg-orange-50 flex items-center justify-center text-2xl">
-                  ✅
-                </div>
-              </div>
-            </Link>
-
-            <Link
-              href="/admin/leave"
-              className="block rounded-2xl border border-slate-200 p-5 hover:border-purple-300 hover:shadow-md transition"
-            >
-              <div className="flex justify-between gap-4">
-                <div>
-                  <p className="text-xs font-black text-purple-600">LEAVE</p>
-                  <h3 className="text-lg font-black mt-1">Leave Management</h3>
-                  <p className="text-sm text-slate-500 mt-2">
-                    Leave requests approve/reject કરો.
-                  </p>
-                  {counts.pendingLeave > 0 && (
-                    <span className="inline-block mt-3 bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs font-black">
-                      {counts.pendingLeave} Pending
-                    </span>
-                  )}
-                </div>
-                <div className="w-12 h-12 shrink-0 rounded-xl bg-purple-50 flex items-center justify-center text-2xl">
-                  🗓️
-                </div>
-              </div>
-            </Link>
-
-            <Link
-              href="/admin/holidays"
-              className="block rounded-2xl border border-slate-200 p-5 hover:border-emerald-300 hover:shadow-md transition"
-            >
-              <div className="flex justify-between gap-4">
-                <div>
-                  <p className="text-xs font-black text-emerald-600">HOLIDAYS</p>
-                  <h3 className="text-lg font-black mt-1">Holiday Management</h3>
-                  <p className="text-sm text-slate-500 mt-2">
-                    Company holidays add/edit/activate કરો.
-                  </p>
-                </div>
-                <div className="w-12 h-12 shrink-0 rounded-xl bg-emerald-50 flex items-center justify-center text-2xl">
-                  📅
-                </div>
-              </div>
-            </Link>
-
-            <Link
-              href="/admin/attendance-report"
-              className="block rounded-2xl border border-slate-200 p-5 hover:border-sky-300 hover:shadow-md transition"
-            >
-              <div className="flex justify-between gap-4">
-                <div>
-                  <p className="text-xs font-black text-sky-600">REPORTS</p>
-                  <h3 className="text-lg font-black mt-1">
-                    Monthly Attendance Report
-                  </h3>
-                  <p className="text-sm text-slate-500 mt-2">
-                    Monthly attendance, leave અને working hours જુઓ.
-                  </p>
-                </div>
-                <div className="w-12 h-12 shrink-0 rounded-xl bg-sky-50 flex items-center justify-center text-2xl">
-                  📊
-                </div>
-              </div>
-            </Link>
-
-            <Link
-              href="/admin/products"
-              className="block rounded-2xl border border-slate-200 p-5 hover:border-indigo-300 hover:shadow-md transition"
-            >
-              <div className="flex justify-between gap-4">
-                <div>
-                  <p className="text-xs font-black text-indigo-600">PRODUCTS</p>
-                  <h3 className="text-lg font-black mt-1">Product Master</h3>
-                  <p className="text-sm text-slate-500 mt-2">
-                    Products અને dynamic customization options manage કરો.
-                  </p>
-                </div>
-                <div className="w-12 h-12 shrink-0 rounded-xl bg-indigo-50 flex items-center justify-center text-2xl">
-                  🧩
-                </div>
-              </div>
-            </Link>
-
-            <Link
-              href="/admin/inventory"
-              className="block rounded-2xl border border-slate-200 p-5 hover:border-slate-400 hover:shadow-md transition"
-            >
-              <div className="flex justify-between gap-4">
-                <div>
-                  <p className="text-xs font-black text-slate-600">INVENTORY</p>
-                  <h3 className="text-lg font-black mt-1">
-                    Inventory Management
-                  </h3>
-                  <p className="text-sm text-slate-500 mt-2">
-                    Inventory items અને stock movement manage કરો.
-                  </p>
-                </div>
-                <div className="w-12 h-12 shrink-0 rounded-xl bg-slate-100 flex items-center justify-center text-2xl">
-                  🏷️
-                </div>
-              </div>
+              Open Orders →
             </Link>
           </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mt-5">
+            <WorkflowCard
+              title="Design"
+              value={counts.design}
+              tone="blue"
+              icon="🎨"
+              subtitle="Current stage"
+            />
+
+            <WorkflowCard
+              title="Cutting"
+              value={counts.cutting}
+              tone="orange"
+              icon="✂️"
+              subtitle="Current stage"
+            />
+
+            <WorkflowCard
+              title="Production"
+              value={counts.production}
+              tone="purple"
+              icon="🏭"
+              subtitle="Current stage"
+            />
+
+            <WorkflowCard
+              title="Packing"
+              value={counts.packing}
+              tone="slate"
+              icon="📦"
+              subtitle="Current stage"
+            />
+
+            <WorkflowCard
+              title="Transportation"
+              value={counts.transportation}
+              tone="cyan"
+              icon="🚚"
+              subtitle="Transportation / Dispatch"
+            />
+          </div>
         </section>
+
+        <section className="mt-6 yf-card p-5 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+            <div>
+              <p className="text-xs font-black tracking-[0.15em] text-blue-700">
+                ADMIN TOOLS
+              </p>
+
+              <h2 className="yf-section-title mt-1">
+                Management Modules
+              </h2>
+
+              <p className="yf-section-subtitle mt-1">
+                Daily workની priority પ્રમાણે modules ગોઠવેલા છે.
+              </p>
+            </div>
+
+            <span className="yf-badge yf-badge-blue">
+              10 Modules
+            </span>
+          </div>
+
+          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4 mt-6">
+            <ModuleCard
+              href="/admin/orders"
+              label="ORDERS"
+              title="Order Management"
+              description="Orders create કરો અને production workflow track કરો."
+              icon="📦"
+              tone="cyan"
+              badge={`${counts.openOrders} Open`}
+            />
+
+            <ModuleCard
+              href="/admin/tasks"
+              label="TASKS"
+              title="Task Management"
+              description="Employeeને task assign કરો અને progress track કરો."
+              icon="📋"
+              tone="purple"
+            />
+
+            <ModuleCard
+              href="/admin/employees"
+              label="STAFF"
+              title="Employee Approval"
+              description="Employee approve/reject અને departments manage કરો."
+              icon="👥"
+              tone="blue"
+              badge={
+                counts.pendingEmployees > 0
+                  ? `${counts.pendingEmployees} Pending`
+                  : undefined
+              }
+            />
+
+            <ModuleCard
+              href="/admin/attendance"
+              label="ATTENDANCE"
+              title="Attendance Management"
+              description="Check In/Out, Manual Punch અને daily status જુઓ."
+              icon="🕘"
+              tone="green"
+              badge={`${counts.presentToday} Present`}
+            />
+
+            <ModuleCard
+              href="/admin/attendance-approval"
+              label="APPROVAL"
+              title="Attendance Approval"
+              description="Late અને Half Day attendance approve/reject કરો."
+              icon="✅"
+              tone="orange"
+              badge={
+                counts.pendingAttendance > 0
+                  ? `${counts.pendingAttendance} Pending`
+                  : undefined
+              }
+            />
+
+            <ModuleCard
+              href="/admin/leave"
+              label="LEAVE"
+              title="Leave Management"
+              description="Leave requests approve/reject કરો."
+              icon="🗓️"
+              tone="purple"
+              badge={
+                counts.pendingLeave > 0
+                  ? `${counts.pendingLeave} Pending`
+                  : undefined
+              }
+            />
+
+            <ModuleCard
+              href="/admin/holidays"
+              label="HOLIDAYS"
+              title="Holiday Management"
+              description="Company holidays add/edit/activate કરો."
+              icon="📅"
+              tone="green"
+            />
+
+            <ModuleCard
+              href="/admin/attendance-report"
+              label="REPORTS"
+              title="Monthly Attendance Report"
+              description="Monthly attendance, leave અને working hours જુઓ."
+              icon="📊"
+              tone="blue"
+            />
+
+            <ModuleCard
+              href="/admin/products"
+              label="PRODUCTS"
+              title="Product Master"
+              description="Products અને dynamic customization options manage કરો."
+              icon="🧩"
+              tone="purple"
+            />
+
+            <ModuleCard
+              href="/admin/inventory"
+              label="INVENTORY"
+              title="Inventory Management"
+              description="Inventory items અને stock movement manage કરો."
+              icon="🏷️"
+              tone="slate"
+            />
+          </div>
+        </section>
+
+        <div className="py-6 text-center">
+          <p className="text-xs font-bold text-slate-400">
+            YashFlow • Yash Laser Work Management
+          </p>
+        </div>
       </div>
     </main>
   );
