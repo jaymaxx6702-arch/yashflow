@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
 
@@ -14,11 +14,66 @@ type Employee = {
   is_active: boolean;
 };
 
+type Department = {
+  id: number;
+  name: string;
+  is_active: boolean;
+  sort_order: number;
+};
+
+type EmployeeDepartment = {
+  id: number;
+  employee_id: string;
+  department_id: number;
+  is_primary: boolean;
+};
+
 export default function EmployeeApprovalPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [assignments, setAssignments] = useState<EmployeeDepartment[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null);
+
+  const [editPrimaryDepartmentId, setEditPrimaryDepartmentId] = useState("");
+  const [editAdditionalDepartmentIds, setEditAdditionalDepartmentIds] = useState<number[]>([]);
+
   const [message, setMessage] = useState("");
+
+  async function loadDepartments() {
+    const supabase = createClient();
+
+    const { data, error } = await supabase
+      .from("departments")
+      .select("id, name, is_active, sort_order")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true });
+
+    if (error) {
+      setMessage(`Department Load Error: ${error.message}`);
+      return;
+    }
+
+    setDepartments((data || []) as Department[]);
+  }
+
+  async function loadAssignments() {
+    const supabase = createClient();
+
+    const { data, error } = await supabase
+      .from("employee_departments")
+      .select("id, employee_id, department_id, is_primary");
+
+    if (error) {
+      setMessage(`Department Assignment Load Error: ${error.message}`);
+      return;
+    }
+
+    setAssignments((data || []) as EmployeeDepartment[]);
+  }
 
   async function loadEmployees() {
     setLoading(true);
@@ -52,9 +107,41 @@ export default function EmployeeApprovalPage() {
     setLoading(false);
   }
 
+  async function loadPage() {
+    setLoading(true);
+
+    await Promise.all([
+      loadEmployees(),
+      loadDepartments(),
+      loadAssignments(),
+    ]);
+
+    setLoading(false);
+  }
+
   useEffect(() => {
-    loadEmployees();
+    loadPage();
   }, []);
+
+  const departmentMap = useMemo(() => {
+    return new Map(departments.map((department) => [department.id, department]));
+  }, [departments]);
+
+  function employeeAssignments(employeeId: string) {
+    return assignments.filter((item) => item.employee_id === employeeId);
+  }
+
+  function employeePrimaryDepartment(employeeId: string) {
+    const primary = employeeAssignments(employeeId).find((item) => item.is_primary);
+    return primary ? departmentMap.get(primary.department_id) || null : null;
+  }
+
+  function employeeAdditionalDepartments(employeeId: string) {
+    return employeeAssignments(employeeId)
+      .filter((item) => !item.is_primary)
+      .map((item) => departmentMap.get(item.department_id))
+      .filter(Boolean) as Department[];
+  }
 
   async function updateStatus(
     employeeId: string,
@@ -84,6 +171,134 @@ export default function EmployeeApprovalPage() {
     setUpdatingId(null);
   }
 
+  function startDepartmentEdit(employee: Employee) {
+    const currentAssignments = employeeAssignments(employee.id);
+    const primary = currentAssignments.find((item) => item.is_primary);
+
+    setEditingEmployeeId(employee.id);
+    setEditPrimaryDepartmentId(primary ? String(primary.department_id) : "");
+
+    setEditAdditionalDepartmentIds(
+      currentAssignments
+        .filter((item) => !item.is_primary)
+        .map((item) => item.department_id)
+    );
+
+    setMessage("");
+  }
+
+  function toggleAdditionalDepartment(departmentId: number) {
+    const primaryId = Number(editPrimaryDepartmentId);
+
+    if (departmentId === primaryId) return;
+
+    setEditAdditionalDepartmentIds((current) =>
+      current.includes(departmentId)
+        ? current.filter((id) => id !== departmentId)
+        : [...current, departmentId]
+    );
+  }
+
+  function handlePrimaryDepartmentChange(value: string) {
+    setEditPrimaryDepartmentId(value);
+
+    const primaryId = Number(value);
+
+    if (primaryId) {
+      setEditAdditionalDepartmentIds((current) =>
+        current.filter((id) => id !== primaryId)
+      );
+    }
+  }
+
+  async function saveDepartmentAssignments(employee: Employee) {
+    const primaryId = Number(editPrimaryDepartmentId);
+
+    if (!primaryId) {
+      setMessage("Primary Department select કરો.");
+      return;
+    }
+
+    const primaryDepartment = departments.find(
+      (department) => department.id === primaryId
+    );
+
+    if (!primaryDepartment) {
+      setMessage("Selected Primary Department મળ્યો નથી.");
+      return;
+    }
+
+    setUpdatingId(employee.id);
+    setMessage("");
+
+    const supabase = createClient();
+
+    const { error: deleteError } = await supabase
+      .from("employee_departments")
+      .delete()
+      .eq("employee_id", employee.id);
+
+    if (deleteError) {
+      setMessage(`Old Department Assignment Delete Error: ${deleteError.message}`);
+      setUpdatingId(null);
+      return;
+    }
+
+    const cleanAdditionalIds = editAdditionalDepartmentIds.filter(
+      (id) => id !== primaryId
+    );
+
+    const rows = [
+      {
+        employee_id: employee.id,
+        department_id: primaryId,
+        is_primary: true,
+      },
+      ...cleanAdditionalIds.map((departmentId) => ({
+        employee_id: employee.id,
+        department_id: departmentId,
+        is_primary: false,
+      })),
+    ];
+
+    const { error: insertError } = await supabase
+      .from("employee_departments")
+      .insert(rows);
+
+    if (insertError) {
+      setMessage(`Department Assignment Save Error: ${insertError.message}`);
+      setUpdatingId(null);
+      await loadAssignments();
+      return;
+    }
+
+    const { error: employeeError } = await supabase
+      .from("employees")
+      .update({
+        department: primaryDepartment.name,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", employee.id);
+
+    if (employeeError) {
+      setMessage(
+        `Department mapping save થયું, પણ Employee Primary Department Sync Error: ${employeeError.message}`
+      );
+      setUpdatingId(null);
+      await Promise.all([loadEmployees(), loadAssignments()]);
+      return;
+    }
+
+    setEditingEmployeeId(null);
+    setEditPrimaryDepartmentId("");
+    setEditAdditionalDepartmentIds([]);
+
+    await Promise.all([loadEmployees(), loadAssignments()]);
+
+    setMessage(`${employee.full_name} ના departments update થયા ✅`);
+    setUpdatingId(null);
+  }
+
   function statusLabel(status: string) {
     if (status === "approved") return "મંજૂર";
     if (status === "rejected") return "નામંજૂર";
@@ -91,20 +306,14 @@ export default function EmployeeApprovalPage() {
   }
 
   function statusClass(status: string) {
-    if (status === "approved") {
-      return "bg-green-100 text-green-700";
-    }
-
-    if (status === "rejected") {
-      return "bg-red-100 text-red-700";
-    }
-
+    if (status === "approved") return "bg-green-100 text-green-700";
+    if (status === "rejected") return "bg-red-100 text-red-700";
     return "bg-amber-100 text-amber-700";
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 p-4 md:p-8">
-      <div className="max-w-5xl mx-auto">
+    <main className="min-h-screen bg-slate-50 p-4 md:p-8 text-slate-900">
+      <div className="max-w-6xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <Link
@@ -119,13 +328,13 @@ export default function EmployeeApprovalPage() {
             </h1>
 
             <p className="text-slate-500 mt-1">
-              નવા કર્મચારીઓને મંજૂર અથવા નામંજૂર કરો
+              કર્મચારી approval સાથે Primary અને Additional Departments manage કરો
             </p>
           </div>
 
           <button
             type="button"
-            onClick={loadEmployees}
+            onClick={loadPage}
             className="bg-white border border-slate-300 px-5 py-3 rounded-xl font-semibold hover:bg-slate-100"
           >
             Refresh
@@ -133,7 +342,7 @@ export default function EmployeeApprovalPage() {
         </div>
 
         {message && (
-          <div className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-red-700 font-semibold">
+          <div className="mt-5 rounded-xl border border-blue-200 bg-blue-50 p-4 text-blue-800 font-semibold">
             {message}
           </div>
         )}
@@ -149,90 +358,214 @@ export default function EmployeeApprovalPage() {
             </div>
           ) : (
             <div className="divide-y divide-slate-200">
-              {employees.map((employee) => (
-                <div
-                  key={employee.id}
-                  className="p-5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5"
-                >
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <h2 className="text-lg font-bold text-slate-900">
-                        {employee.full_name}
-                      </h2>
+              {employees.map((employee) => {
+                const primaryDepartment = employeePrimaryDepartment(employee.id);
+                const additionalDepartments = employeeAdditionalDepartments(employee.id);
+                const isEditing = editingEmployeeId === employee.id;
 
-                      <span
-                        className={`text-xs font-bold px-3 py-1 rounded-full ${statusClass(
-                          employee.approval_status
-                        )}`}
-                      >
-                        {statusLabel(employee.approval_status)}
-                      </span>
+                return (
+                  <div key={employee.id} className="p-5">
+                    <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <h2 className="text-lg font-bold text-slate-900">
+                            {employee.full_name}
+                          </h2>
+
+                          <span
+                            className={`text-xs font-bold px-3 py-1 rounded-full ${statusClass(
+                              employee.approval_status
+                            )}`}
+                          >
+                            {statusLabel(employee.approval_status)}
+                          </span>
+                        </div>
+
+                        <div className="mt-3 grid md:grid-cols-2 gap-x-8 gap-y-3 text-sm">
+                          <p>
+                            <span className="font-semibold text-slate-600">
+                              મોબાઇલ:
+                            </span>{" "}
+                            {employee.mobile}
+                          </p>
+
+                          <p>
+                            <span className="font-semibold text-slate-600">
+                              Role:
+                            </span>{" "}
+                            {employee.role || "employee"}
+                          </p>
+
+                          <div>
+                            <span className="font-semibold text-slate-600">
+                              Primary Department:
+                            </span>{" "}
+                            <span className="font-bold text-blue-700">
+                              {primaryDepartment?.name || employee.department || "-"}
+                            </span>
+                          </div>
+
+                          <div>
+                            <span className="font-semibold text-slate-600">
+                              Additional Departments:
+                            </span>{" "}
+                            {additionalDepartments.length > 0 ? (
+                              <span className="font-semibold">
+                                {additionalDepartments.map((item) => item.name).join(", ")}
+                              </span>
+                            ) : (
+                              "-"
+                            )}
+                          </div>
+
+                          <p>
+                            <span className="font-semibold text-slate-600">
+                              Account:
+                            </span>{" "}
+                            {employee.is_active ? "Active" : "Inactive"}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-3">
+                        <button
+                          type="button"
+                          onClick={() => startDepartmentEdit(employee)}
+                          className="px-4 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold"
+                        >
+                          Manage Departments
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={
+                            updatingId === employee.id ||
+                            employee.approval_status === "approved"
+                          }
+                          onClick={() => updateStatus(employee.id, "approved")}
+                          className="px-5 py-3 rounded-xl bg-green-600 disabled:bg-slate-300 text-white font-bold"
+                        >
+                          {updatingId === employee.id ? "અપડેટ..." : "મંજૂર કરો"}
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={
+                            updatingId === employee.id ||
+                            employee.approval_status === "rejected"
+                          }
+                          onClick={() => updateStatus(employee.id, "rejected")}
+                          className="px-5 py-3 rounded-xl bg-red-600 disabled:bg-slate-300 text-white font-bold"
+                        >
+                          નામંજૂર કરો
+                        </button>
+                      </div>
                     </div>
 
-                    <div className="mt-3 grid sm:grid-cols-2 gap-x-8 gap-y-2 text-sm">
-                      <p>
-                        <span className="font-semibold text-slate-600">
-                          મોબાઇલ:
-                        </span>{" "}
-                        {employee.mobile}
-                      </p>
+                    {isEditing && (
+                      <div className="mt-5 bg-slate-50 border border-slate-200 rounded-2xl p-5">
+                        <h3 className="font-black text-lg">
+                          Manage Departments — {employee.full_name}
+                        </h3>
 
-                      <p>
-                        <span className="font-semibold text-slate-600">
-                          વિભાગ:
-                        </span>{" "}
-                        {employee.department || "-"}
-                      </p>
+                        <div className="mt-4">
+                          <label className="block text-sm font-black text-slate-700 mb-2">
+                            Primary Department *
+                          </label>
 
-                      <p>
-                        <span className="font-semibold text-slate-600">
-                          Role:
-                        </span>{" "}
-                        {employee.role || "employee"}
-                      </p>
+                          <select
+                            value={editPrimaryDepartmentId}
+                            onChange={(e) =>
+                              handlePrimaryDepartmentChange(e.target.value)
+                            }
+                            className="w-full md:max-w-md bg-white text-slate-900 border border-slate-300 rounded-xl px-4 py-3"
+                          >
+                            <option value="">Select Primary Department</option>
 
-                      <p>
-                        <span className="font-semibold text-slate-600">
-                          Account:
-                        </span>{" "}
-                        {employee.is_active ? "Active" : "Inactive"}
-                      </p>
-                    </div>
+                            {departments.map((department) => (
+                              <option key={department.id} value={department.id}>
+                                {department.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="mt-5">
+                          <p className="text-sm font-black text-slate-700">
+                            Additional Departments
+                          </p>
+
+                          <p className="text-xs text-slate-500 mt-1">
+                            Employeeને જરૂરી હોય એટલા additional departments assign કરી શકો.
+                          </p>
+
+                          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 mt-3">
+                            {departments.map((department) => {
+                              const primaryId = Number(editPrimaryDepartmentId);
+                              const isPrimary = department.id === primaryId;
+                              const checked = editAdditionalDepartmentIds.includes(
+                                department.id
+                              );
+
+                              return (
+                                <label
+                                  key={department.id}
+                                  className={`flex items-center gap-3 border rounded-xl px-3 py-3 ${
+                                    isPrimary
+                                      ? "bg-slate-100 border-slate-200 opacity-60"
+                                      : checked
+                                      ? "bg-blue-50 border-blue-500 cursor-pointer"
+                                      : "bg-white border-slate-200 cursor-pointer"
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    disabled={isPrimary}
+                                    checked={checked}
+                                    onChange={() =>
+                                      toggleAdditionalDepartment(department.id)
+                                    }
+                                  />
+
+                                  <span className="font-bold text-sm">
+                                    {department.name}
+                                    {isPrimary ? " (Primary)" : ""}
+                                  </span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-3 mt-5">
+                          <button
+                            type="button"
+                            disabled={updatingId === employee.id}
+                            onClick={() => saveDepartmentAssignments(employee)}
+                            className="bg-green-600 hover:bg-green-700 text-white px-5 py-3 rounded-xl font-black disabled:opacity-50"
+                          >
+                            {updatingId === employee.id
+                              ? "Saving..."
+                              : "Save Departments"}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingEmployeeId(null);
+                              setEditPrimaryDepartmentId("");
+                              setEditAdditionalDepartmentIds([]);
+                            }}
+                            className="bg-white border border-slate-300 text-slate-700 px-5 py-3 rounded-xl font-black"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
-
-                  <div className="flex flex-wrap gap-3">
-                    <button
-                      type="button"
-                      disabled={
-                        updatingId === employee.id ||
-                        employee.approval_status === "approved"
-                      }
-                      onClick={() =>
-                        updateStatus(employee.id, "approved")
-                      }
-                      className="px-5 py-3 rounded-xl bg-green-600 disabled:bg-slate-300 text-white font-bold"
-                    >
-                      {updatingId === employee.id
-                        ? "અપડેટ..."
-                        : "મંજૂર કરો"}
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={
-                        updatingId === employee.id ||
-                        employee.approval_status === "rejected"
-                      }
-                      onClick={() =>
-                        updateStatus(employee.id, "rejected")
-                      }
-                      className="px-5 py-3 rounded-xl bg-red-600 disabled:bg-slate-300 text-white font-bold"
-                    >
-                      નામંજૂર કરો
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

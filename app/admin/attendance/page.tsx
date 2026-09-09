@@ -39,6 +39,14 @@ type LeaveRequest = {
   status: string;
 };
 
+type OfficeSettings = {
+  office_start_time: string;
+  grace_minutes: number;
+  recess_start_time: string;
+  recess_end_time: string;
+  half_day_checkin_time: string;
+};
+
 type AttendanceRow = {
   employee: Employee;
   attendance: Attendance | null;
@@ -50,7 +58,21 @@ export default function AdminAttendancePage() {
 
   const [rows, setRows] = useState<AttendanceRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [adminId, setAdminId] = useState<string | null>(null);
+  const [actionId, setActionId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
+
+  const [officeSettings, setOfficeSettings] =
+    useState<OfficeSettings | null>(null);
+
+  const [manualEmployee, setManualEmployee] =
+    useState<Employee | null>(null);
+  const [manualAttendanceId, setManualAttendanceId] =
+    useState<string | null>(null);
+  const [manualCheckIn, setManualCheckIn] = useState("09:00");
+  const [manualCheckOut, setManualCheckOut] = useState("");
+  const [manualNote, setManualNote] = useState("");
+  const [manualSaving, setManualSaving] = useState(false);
 
   const [selectedDate, setSelectedDate] = useState(
     getIndiaDate()
@@ -103,6 +125,26 @@ export default function AdminAttendancePage() {
     return `${hours}h ${mins}m`;
   }
 
+  function timeStringToMinutes(value: string) {
+    const [hour, minute] = value.split(":").map(Number);
+    return hour * 60 + minute;
+  }
+
+  function isoFromIndiaLocal(date: string, time: string) {
+    return new Date(`${date}T${time}:00+05:30`).toISOString();
+  }
+
+  function localTimeValue(value: string | null) {
+    if (!value) return "";
+
+    return new Date(value).toLocaleTimeString("en-GB", {
+      timeZone: "Asia/Kolkata",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  }
+
   function getLeaveLabel(type: string) {
     if (type === "first_half") {
       return "First Half Leave";
@@ -148,6 +190,29 @@ export default function AdminAttendancePage() {
       router.replace("/dashboard");
       return;
     }
+
+    setAdminId(adminProfile.id);
+
+    const { data: settingsData, error: settingsError } =
+      await supabase
+        .from("office_settings")
+        .select(`
+          office_start_time,
+          grace_minutes,
+          recess_start_time,
+          recess_end_time,
+          half_day_checkin_time
+        `)
+        .eq("is_active", true)
+        .single();
+
+    if (settingsError || !settingsData) {
+      setMessage("Office timing settings મળી નથી.");
+      setLoading(false);
+      return;
+    }
+
+    setOfficeSettings(settingsData);
 
     const { data: employees, error: employeesError } =
       await supabase
@@ -406,9 +471,15 @@ if (
   (row) => getStatus(row).type !== "not_joined"
 ).length;
 
-  const presentCount = rows.filter(
-    (row) => getStatus(row).type === "present"
-  ).length;
+ const presentCount = rows.filter((row) => {
+  const type = getStatus(row).type;
+
+  return (
+    type === "present" ||
+    type === "late" ||
+    type === "half_day"
+  );
+}).length;
 
   const lateCount = rows.filter(
     (row) => getStatus(row).type === "late"
@@ -443,6 +514,220 @@ const rejectedCount = rows.filter(
   const completedCount = rows.filter(
     (row) => Boolean(row.attendance?.check_out)
   ).length;
+
+  function openManualPunch(row: AttendanceRow) {
+    setManualEmployee(row.employee);
+    setManualAttendanceId(row.attendance?.id || null);
+    setManualCheckIn(
+      row.attendance?.check_in
+        ? localTimeValue(row.attendance.check_in)
+        : "09:00"
+    );
+    setManualCheckOut(
+      row.attendance?.check_out
+        ? localTimeValue(row.attendance.check_out)
+        : ""
+    );
+    setManualNote(row.attendance?.admin_note || "");
+    setMessage("");
+  }
+
+  function closeManualPunch() {
+    if (manualSaving) return;
+
+    setManualEmployee(null);
+    setManualAttendanceId(null);
+    setManualCheckIn("09:00");
+    setManualCheckOut("");
+    setManualNote("");
+  }
+
+  async function saveManualPunch() {
+    if (!manualEmployee || !adminId || !officeSettings) return;
+
+    if (!manualCheckIn) {
+      setMessage("Manual Punch માટે Check In Time જરૂરી છે.");
+      return;
+    }
+
+    const checkInMinutes = timeStringToMinutes(manualCheckIn);
+
+    const officeStartMinutes =
+      timeStringToMinutes(officeSettings.office_start_time);
+
+    const graceEndMinutes =
+      officeStartMinutes + officeSettings.grace_minutes;
+
+    const halfDayMinutes =
+      timeStringToMinutes(officeSettings.half_day_checkin_time);
+
+    let attendanceType = "present";
+
+    if (checkInMinutes >= halfDayMinutes) {
+      attendanceType = "half_day";
+    } else if (checkInMinutes > graceEndMinutes) {
+      attendanceType = "late";
+    }
+
+    const lateMinutes =
+      checkInMinutes > graceEndMinutes
+        ? checkInMinutes - graceEndMinutes
+        : 0;
+
+    let workingMinutes = 0;
+    let checkOutIso: string | null = null;
+
+    if (manualCheckOut) {
+      const checkOutMinutes = timeStringToMinutes(manualCheckOut);
+
+      if (checkOutMinutes < checkInMinutes) {
+        setMessage("Check Out Time, Check In કરતાં પહેલાં ન હોઈ શકે.");
+        return;
+      }
+
+      const recessStartMinutes =
+        timeStringToMinutes(officeSettings.recess_start_time);
+
+      const recessEndMinutes =
+        timeStringToMinutes(officeSettings.recess_end_time);
+
+      const overlapStart = Math.max(
+        checkInMinutes,
+        recessStartMinutes
+      );
+
+      const overlapEnd = Math.min(
+        checkOutMinutes,
+        recessEndMinutes
+      );
+
+      const recessOverlap = Math.max(
+        0,
+        overlapEnd - overlapStart
+      );
+
+      workingMinutes = Math.max(
+        0,
+        checkOutMinutes - checkInMinutes - recessOverlap
+      );
+
+      checkOutIso = isoFromIndiaLocal(
+        selectedDate,
+        manualCheckOut
+      );
+    }
+
+    const payload = {
+      employee_id: manualEmployee.id,
+      attendance_date: selectedDate,
+      check_in: isoFromIndiaLocal(
+        selectedDate,
+        manualCheckIn
+      ),
+      check_out: checkOutIso,
+      status:
+        attendanceType === "half_day"
+          ? "half_day"
+          : "present",
+      attendance_type: attendanceType,
+      late_minutes: lateMinutes,
+      working_minutes: workingMinutes,
+      approval_required: false,
+      approval_status: "approved",
+      approved_by: adminId,
+      approved_at: new Date().toISOString(),
+      admin_note:
+        manualNote.trim() || "Manual Punch by Admin",
+    };
+
+    setManualSaving(true);
+    setMessage("");
+
+    const supabase = createClient();
+
+    let error = null;
+
+    if (manualAttendanceId) {
+      const result = await supabase
+        .from("attendance")
+        .update(payload)
+        .eq("id", manualAttendanceId);
+
+      error = result.error;
+    } else {
+      const result = await supabase
+        .from("attendance")
+        .insert(payload);
+
+      error = result.error;
+    }
+
+    if (error) {
+      setMessage(`Manual Punch Error: ${error.message}`);
+      setManualSaving(false);
+      return;
+    }
+
+    await loadAttendance(selectedDate);
+
+    setMessage(
+      `${manualEmployee.full_name} માટે Manual Punch Saved ✅`
+    );
+
+    setManualSaving(false);
+    closeManualPunch();
+  }
+
+  async function updateAttendanceApproval(
+    attendanceId: string,
+    status: "approved" | "rejected"
+  ) {
+    if (!adminId) {
+      setMessage("Admin profile મળ્યો નથી.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      status === "approved"
+        ? "આ Attendance Approve કરવી છે?"
+        : "આ Attendance Reject કરવી છે?"
+    );
+
+    if (!confirmed) return;
+
+    setActionId(attendanceId);
+    setMessage("");
+
+    const supabase = createClient();
+    const now = new Date().toISOString();
+
+    const { error } = await supabase
+      .from("attendance")
+      .update({
+        approval_status: status,
+        approved_by: adminId,
+        approved_at: now,
+      })
+      .eq("id", attendanceId)
+      .eq("approval_required", true)
+      .eq("approval_status", "pending");
+
+    if (error) {
+      setMessage(`Attendance Approval Error: ${error.message}`);
+      setActionId(null);
+      return;
+    }
+
+    await loadAttendance(selectedDate);
+
+    setMessage(
+      status === "approved"
+        ? "Attendance Approved ✅"
+        : "Attendance Rejected."
+    );
+
+    setActionId(null);
+  }
 
   if (loading) {
     return (
@@ -602,6 +887,10 @@ const rejectedCount = rows.filter(
                   <th className="text-left px-5 py-4 text-sm">
                     Approval
                   </th>
+
+                  <th className="text-left px-5 py-4 text-sm">
+                    Manual
+                  </th>
                 </tr>
               </thead>
 
@@ -674,9 +963,41 @@ const rejectedCount = rows.filter(
       Auto Approved ✓
     </span>
   ) : row.attendance.approval_status === "pending" ? (
-    <span className="bg-amber-100 text-amber-700 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap">
-      Pending ⏳
-    </span>
+    <div className="flex flex-col gap-2 min-w-[120px]">
+      <span className="bg-amber-100 text-amber-700 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap text-center">
+        Pending ⏳
+      </span>
+
+      <div className="flex gap-2">
+        <button
+          type="button"
+          disabled={actionId === row.attendance.id}
+          onClick={() =>
+            updateAttendanceApproval(
+              row.attendance!.id,
+              "approved"
+            )
+          }
+          className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-50"
+        >
+          Approve
+        </button>
+
+        <button
+          type="button"
+          disabled={actionId === row.attendance.id}
+          onClick={() =>
+            updateAttendanceApproval(
+              row.attendance!.id,
+              "rejected"
+            )
+          }
+          className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-50"
+        >
+          Reject
+        </button>
+      </div>
+    </div>
   ) : row.attendance.approval_status === "approved" ? (
     <span className="bg-green-100 text-green-700 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap">
       Approved ✓
@@ -687,6 +1008,18 @@ const rejectedCount = rows.filter(
     </span>
   )}
 </td>
+
+                      <td className="px-5 py-4">
+                        <button
+                          type="button"
+                          onClick={() => openManualPunch(row)}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap"
+                        >
+                          {row.attendance
+                            ? "Edit Punch"
+                            : "Manual Punch"}
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -694,7 +1027,7 @@ const rejectedCount = rows.filter(
                 {rows.length === 0 && (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={9}
                       className="px-5 py-10 text-center text-slate-400"
                     >
                       કોઈ employee મળ્યો નથી.
@@ -706,6 +1039,112 @@ const rejectedCount = rows.filter(
           </div>
         </section>
       </div>
+
+      {manualEmployee && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+            <div className="p-5 border-b flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-bold text-blue-700">
+                  MANUAL ATTENDANCE
+                </p>
+
+                <h3 className="text-xl font-black text-slate-900 mt-1">
+                  {manualEmployee.full_name}
+                </h3>
+
+                <p className="text-sm text-slate-500 mt-1">
+                  {selectedDate}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeManualPunch}
+                disabled={manualSaving}
+                className="w-9 h-9 rounded-lg bg-slate-100 hover:bg-slate-200 font-black text-slate-700 disabled:opacity-50"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                    Check In
+                  </label>
+
+                  <input
+                    type="time"
+                    value={manualCheckIn}
+                    onChange={(e) =>
+                      setManualCheckIn(e.target.value)
+                    }
+                    className="w-full border border-slate-300 rounded-xl px-4 py-2.5 font-semibold outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                    Check Out (Optional)
+                  </label>
+
+                  <input
+                    type="time"
+                    value={manualCheckOut}
+                    onChange={(e) =>
+                      setManualCheckOut(e.target.value)
+                    }
+                    className="w-full border border-slate-300 rounded-xl px-4 py-2.5 font-semibold outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">
+                  Admin Note
+                </label>
+
+                <input
+                  type="text"
+                  value={manualNote}
+                  onChange={(e) =>
+                    setManualNote(e.target.value)
+                  }
+                  placeholder="Reason / note (optional)"
+                  className="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm text-slate-700">
+                Status Check In time પરથી automatic ગણાશે:
+                Present / Late / Half Day. Manual Punch Admin Approved રહેશે.
+              </div>
+            </div>
+
+            <div className="p-5 border-t flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={closeManualPunch}
+                disabled={manualSaving}
+                className="border border-slate-300 px-4 py-2.5 rounded-xl font-bold text-slate-700 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={saveManualPunch}
+                disabled={manualSaving}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold disabled:opacity-50"
+              >
+                {manualSaving ? "Saving..." : "Save Manual Punch"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

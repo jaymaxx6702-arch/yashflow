@@ -14,6 +14,17 @@ type Employee = {
   is_active: boolean;
 };
 
+type Department = {
+  id: number;
+  name: string;
+};
+
+type EmployeeDepartment = {
+  department_id: number;
+  is_primary: boolean;
+  departments: Department | Department[] | null;
+};
+
 type Attendance = {
   id: string;
   attendance_date: string;
@@ -45,6 +56,7 @@ export default function EmployeeDashboard() {
 
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [attendance, setAttendance] = useState<Attendance | null>(null);
+  const [employeeDepartments, setEmployeeDepartments] = useState<EmployeeDepartment[]>([]);
   const [officeSettings, setOfficeSettings] =
     useState<OfficeSettings | null>(null);
 
@@ -151,6 +163,48 @@ export default function EmployeeDashboard() {
     }
   }
 
+  async function loadEmployeeDepartments(employeeId: string) {
+    const supabase = createClient();
+
+    const { data, error } = await supabase
+      .from("employee_departments")
+      .select(`
+        department_id,
+        is_primary,
+        departments (
+          id,
+          name
+        )
+      `)
+      .eq("employee_id", employeeId)
+      .order("is_primary", { ascending: false });
+
+    if (error) {
+      setMessage(`Department Load Error: ${error.message}`);
+      return;
+    }
+
+    setEmployeeDepartments((data || []) as unknown as EmployeeDepartment[]);
+  }
+
+  function getDepartmentFromAssignment(item: EmployeeDepartment) {
+    if (Array.isArray(item.departments)) {
+      return item.departments[0] || null;
+    }
+
+    return item.departments;
+  }
+
+  function assignedDepartmentNames() {
+    const names = employeeDepartments
+      .map((item) => getDepartmentFromAssignment(item)?.name)
+      .filter(Boolean) as string[];
+
+    if (names.length > 0) return names;
+
+    return employee?.department ? [employee.department] : [];
+  }
+
   async function loadAttendance(
     employeeId: string,
     settings: OfficeSettings
@@ -251,7 +305,10 @@ export default function EmployeeDashboard() {
       setEmployee(empData);
       setOfficeSettings(settingsData);
 
-      await loadAttendance(empData.id, settingsData);
+      await Promise.all([
+        loadAttendance(empData.id, settingsData),
+        loadEmployeeDepartments(empData.id),
+      ]);
 
       setLoading(false);
     }
@@ -529,9 +586,19 @@ export default function EmployeeDashboard() {
           </h2>
 
           <div className="flex flex-wrap gap-2 mt-4">
-            <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-bold">
-              {employee.department}
-            </span>
+            {assignedDepartmentNames().map((departmentName, index) => (
+              <span
+                key={`${departmentName}-${index}`}
+                className={`px-3 py-1 rounded-full text-sm font-bold ${
+                  index === 0
+                    ? "bg-blue-100 text-blue-800"
+                    : "bg-violet-100 text-violet-800"
+                }`}
+              >
+                {departmentName}
+                {index === 0 ? " • Primary" : ""}
+              </span>
+            ))}
 
             <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-bold">
               Active
@@ -809,7 +876,7 @@ export default function EmployeeDashboard() {
                 </h3>
 
                 <p className="text-slate-700 font-medium mt-2 text-sm">
-                  તમારા Departmentના Orders જુઓ અને Next Stageમાં મોકલો.
+                  તમારા Primary + Additional Departmentsના Orders જુઓ અને Next Stageમાં મોકલો.
                 </p>
 
                 <p className="text-cyan-700 font-bold mt-4">

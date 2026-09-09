@@ -8,9 +8,8 @@ type OrderStage =
   | "design"
   | "cutting"
   | "production"
-  | "final_assembly"
   | "packing"
-  | "dispatch"
+  | "transportation_dispatch"
   | "completed"
   | "cancelled";
 
@@ -26,15 +25,15 @@ type Order = {
   customer_note: string | null;
   admin_note: string | null;
   created_at: string;
+  product_configuration?: Record<string, string> | null;
 };
 
 const stageFlow: Record<string, OrderStage> = {
   design: "cutting",
   cutting: "production",
-  production: "final_assembly",
-  final_assembly: "packing",
-  packing: "dispatch",
-  dispatch: "completed",
+  production: "packing",
+  packing: "transportation_dispatch",
+  transportation_dispatch: "completed",
 };
 
 function departmentToStage(
@@ -42,25 +41,22 @@ function departmentToStage(
 ): OrderStage | null {
   if (!department) return null;
 
-  const value = department
-    .trim()
-    .toLowerCase()
-    .replace(/&/g, "and")
-    .replace(/\s+/g, "_");
+  const value = department.trim().toLowerCase();
 
   if (value === "design") return "design";
   if (value === "cutting") return "cutting";
   if (value === "production") return "production";
+  if (value === "packing") return "packing";
 
   if (
-    value === "final_assembly" ||
-    value === "finalassembly"
+    value === "transportation/dispatch" ||
+    value === "transportation & dispatch" ||
+    value === "transportation and dispatch" ||
+    value === "dispatch" ||
+    value === "transportation"
   ) {
-    return "final_assembly";
+    return "transportation_dispatch";
   }
-
-  if (value === "packing") return "packing";
-  if (value === "dispatch") return "dispatch";
 
   return null;
 }
@@ -86,11 +82,11 @@ export default function DepartmentOrdersPage() {
   const [employeeName, setEmployeeName] =
     useState("");
 
-  const [department, setDepartment] =
-    useState<string | null>(null);
+  const [departments, setDepartments] =
+    useState<string[]>([]);
 
-  const [stage, setStage] =
-    useState<OrderStage | null>(null);
+  const [stages, setStages] =
+    useState<OrderStage[]>([]);
 
   const [orders, setOrders] =
     useState<Order[]>([]);
@@ -99,7 +95,7 @@ export default function DepartmentOrdersPage() {
     useState("");
 
   async function loadOrders(
-    departmentStage: OrderStage
+    departmentStages: OrderStage[]
   ) {
     const supabase = createClient();
 
@@ -116,9 +112,10 @@ export default function DepartmentOrdersPage() {
         due_date,
         customer_note,
         admin_note,
-        created_at
+        created_at,
+        product_configuration
       `)
-      .eq("current_stage", departmentStage)
+      .in("current_stage", departmentStages)
       .order("priority", {
         ascending: false,
       })
@@ -178,15 +175,55 @@ export default function DepartmentOrdersPage() {
 
       setEmployeeId(profile.id);
       setEmployeeName(profile.full_name);
-      setDepartment(profile.department);
 
-      const departmentStage =
-        departmentToStage(profile.department);
+      const { data: assignmentData, error: assignmentError } =
+        await supabase
+          .from("employee_departments")
+          .select(`
+            is_primary,
+            departments (
+              name
+            )
+          `)
+          .eq("employee_id", profile.id)
+          .order("is_primary", { ascending: false });
 
-      setStage(departmentStage);
+      if (assignmentError) {
+        setMessage(`Department Load Error: ${assignmentError.message}`);
+        setLoading(false);
+        return;
+      }
 
-      if (departmentStage) {
-        await loadOrders(departmentStage);
+      const assignedNames = (assignmentData || [])
+        .map((item: any) => {
+          const departmentData = Array.isArray(item.departments)
+            ? item.departments[0]
+            : item.departments;
+
+          return departmentData?.name || null;
+        })
+        .filter(Boolean) as string[];
+
+      const effectiveDepartments =
+        assignedNames.length > 0
+          ? assignedNames
+          : profile.department
+          ? [profile.department]
+          : [];
+
+      const workflowStages = Array.from(
+        new Set(
+          effectiveDepartments
+            .map((name) => departmentToStage(name))
+            .filter(Boolean) as OrderStage[]
+        )
+      );
+
+      setDepartments(effectiveDepartments);
+      setStages(workflowStages);
+
+      if (workflowStages.length > 0) {
+        await loadOrders(workflowStages);
       }
 
       setLoading(false);
@@ -196,9 +233,10 @@ export default function DepartmentOrdersPage() {
   }, [router]);
 
   async function handleMoveNext(order: Order) {
-    if (!employeeId || !stage) return;
+    if (!employeeId) return;
 
-    const nextStage = stageFlow[stage];
+    const currentStage = order.current_stage;
+    const nextStage = stageFlow[currentStage];
 
     if (!nextStage) {
       setMessage(
@@ -231,7 +269,7 @@ export default function DepartmentOrdersPage() {
         .from("orders")
         .update(updateData)
         .eq("id", order.id)
-        .eq("current_stage", stage);
+        .eq("current_stage", currentStage);
 
     if (updateError) {
       setMessage(
@@ -246,10 +284,10 @@ export default function DepartmentOrdersPage() {
         .from("order_stage_history")
         .insert({
           order_id: order.id,
-          from_stage: stage,
+          from_stage: currentStage,
           to_stage: nextStage,
           changed_by: employeeId,
-          note: `${department || "Department"} completed`,
+          note: `${formatStage(currentStage)} completed by ${employeeName}`,
         });
 
     if (historyError) {
@@ -264,7 +302,7 @@ export default function DepartmentOrdersPage() {
       );
     }
 
-    await loadOrders(stage);
+    await loadOrders(stages);
 
     setMovingId(null);
   }
@@ -329,15 +367,33 @@ export default function DepartmentOrdersPage() {
           </h2>
 
           <div className="flex gap-3 flex-wrap mt-4">
-            <span className="bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full text-sm font-bold">
-              {department || "No Department"}
-            </span>
-
-            {stage && (
-              <span className="bg-purple-50 text-purple-700 px-3 py-1.5 rounded-full text-sm font-bold">
-                Stage: {formatStage(stage)}
+            {departments.length > 0 ? (
+              departments.map((departmentName, index) => (
+                <span
+                  key={`${departmentName}-${index}`}
+                  className={`px-3 py-1.5 rounded-full text-sm font-bold ${
+                    index === 0
+                      ? "bg-blue-50 text-blue-700"
+                      : "bg-violet-50 text-violet-700"
+                  }`}
+                >
+                  {departmentName}{index === 0 ? " • Primary" : ""}
+                </span>
+              ))
+            ) : (
+              <span className="bg-slate-100 text-slate-600 px-3 py-1.5 rounded-full text-sm font-bold">
+                No Department
               </span>
             )}
+
+            {stages.map((item) => (
+              <span
+                key={item}
+                className="bg-purple-50 text-purple-700 px-3 py-1.5 rounded-full text-sm font-bold"
+              >
+                Stage: {formatStage(item)}
+              </span>
+            ))}
           </div>
         </section>
 
@@ -347,7 +403,7 @@ export default function DepartmentOrdersPage() {
           </div>
         )}
 
-        {!stage ? (
+        {stages.length === 0 ? (
           <section className="bg-amber-50 border border-amber-200 rounded-2xl p-8">
             <h2 className="font-black text-amber-800 text-xl">
               Production Stage નથી
@@ -363,7 +419,7 @@ export default function DepartmentOrdersPage() {
             <section className="flex items-center justify-between gap-4 mb-5">
               <div>
                 <h2 className="text-2xl font-black text-slate-900">
-                  {formatStage(stage)} Orders
+                  My Department Orders
                 </h2>
 
                 <p className="text-slate-500 mt-1">
@@ -396,6 +452,10 @@ export default function DepartmentOrdersPage() {
                           >
                             {order.priority.toUpperCase()}
                           </span>
+
+                          <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-700">
+                            {formatStage(order.current_stage)}
+                          </span>
                         </div>
 
                         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-5">
@@ -417,6 +477,19 @@ export default function DepartmentOrdersPage() {
                             <p className="font-semibold mt-1">
                               {order.product_name}
                             </p>
+
+                            {order.product_configuration &&
+                              Object.keys(order.product_configuration).length > 0 && (
+                                <div className="mt-2 space-y-1">
+                                  {Object.entries(order.product_configuration).map(
+                                    ([key, value]) => (
+                                      <p key={key} className="text-xs text-slate-600">
+                                        <span className="font-bold">{key}:</span> {value}
+                                      </p>
+                                    )
+                                  )}
+                                </div>
+                              )}
                           </div>
 
                           <div>
