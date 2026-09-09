@@ -1,8 +1,54 @@
 @import "tailwindcss";
 
+/* =========================================================
+   YashFlow Professional Light Theme
+   Global UI foundation for Admin + Employee modules
+   ========================================================= */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+
+  --surface: #ffffff;
+  --surface-soft: #f8fafc;
+  --surface-muted: #f1f5f9;
+
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-soft: #eff6ff;
+
+  --success: #16a34a;
+  --success-soft: #f0fdf4;
+
+  --warning: #d97706;
+  --warning-soft: #fffbeb;
+
+  --danger: #dc2626;
+  --danger-soft: #fef2f2;
+
+  --info: #0891b2;
+  --info-soft: #ecfeff;
+
+  --purple: #7c3aed;
+  --purple-soft: #f5f3ff;
+
+  --text-muted: #64748b;
+  --text-soft: #94a3b8;
+
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 22px;
+
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-md:
+    0 8px 24px rgba(15, 23, 42, 0.07),
+    0 2px 6px rgba(15, 23, 42, 0.04);
+
+  --focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.16);
 }
 
 @theme inline {
@@ -12,15 +58,336 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/*
+  YashFlow V1 intentionally stays in Light Theme.
+  This prevents phone/browser dark-mode settings from making
+  forms, tables and cards inconsistent across employees.
+*/
+html {
+  color-scheme: light;
+  background: var(--background);
+  scroll-behavior: smooth;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.035), transparent 28rem),
+    var(--background);
+  color: var(--foreground);
+  font-family:
+    Arial,
+    Helvetica,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: #bfdbfe;
+  color: #0f172a;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+input,
+select,
+textarea {
+  color: #0f172a;
+  background-color: #ffffff;
+  accent-color: var(--primary);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #94a3b8;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    transform 120ms ease,
+    box-shadow 160ms ease,
+    opacity 160ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease;
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+th {
+  font-weight: 800;
+}
+
+td,
+th {
+  vertical-align: middle;
+}
+
+.yf-page {
+  min-height: 100vh;
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+}
+
+.yf-container {
+  width: 100%;
+  max-width: 1280px;
+  margin-inline: auto;
+  padding: 20px;
+}
+
+.yf-header {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: #ffffff;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 4px 18px rgba(37, 99, 235, 0.13);
+}
+
+.yf-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.yf-card-hover {
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    border-color 160ms ease;
+}
+
+.yf-card-hover:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+  border-color: #bfdbfe;
+}
+
+.yf-section-title {
+  color: #0f172a;
+  font-size: 1.25rem;
+  line-height: 1.4;
+  font-weight: 900;
+}
+
+.yf-section-subtitle {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+.yf-input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+  color: #0f172a;
+  padding: 10px 12px;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.yf-input:focus {
+  border-color: #60a5fa;
+  box-shadow: var(--focus-ring);
+}
+
+.yf-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  border-radius: 12px;
+  padding: 9px 16px;
+  font-weight: 800;
+  border: 1px solid transparent;
+}
+
+.yf-btn-primary {
+  color: #ffffff;
+  background: var(--primary);
+}
+
+.yf-btn-primary:hover {
+  background: var(--primary-hover);
+}
+
+.yf-btn-success {
+  color: #ffffff;
+  background: var(--success);
+}
+
+.yf-btn-danger {
+  color: #ffffff;
+  background: var(--danger);
+}
+
+.yf-btn-secondary {
+  color: #334155;
+  background: #ffffff;
+  border-color: var(--border-strong);
+}
+
+.yf-btn-secondary:hover {
+  background: #f8fafc;
+}
+
+.yf-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  line-height: 1;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.yf-badge-blue {
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+
+.yf-badge-green {
+  color: #15803d;
+  background: #dcfce7;
+}
+
+.yf-badge-orange {
+  color: #c2410c;
+  background: #ffedd5;
+}
+
+.yf-badge-red {
+  color: #b91c1c;
+  background: #fee2e2;
+}
+
+.yf-badge-purple {
+  color: #6d28d9;
+  background: #ede9fe;
+}
+
+.yf-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: #ffffff;
+}
+
+.yf-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (min-width: 768px) {
+  .yf-container {
+    padding: 24px;
+  }
+
+  .yf-summary-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  body {
+    font-size: 15px;
+  }
+
+  .yf-container {
+    padding: 14px;
+  }
+
+  button,
+  .yf-btn {
+    min-height: 44px;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

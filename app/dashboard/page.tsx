@@ -658,10 +658,14 @@ export default function EmployeeDashboard() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <p className="font-semibold text-slate-700">
-          Dashboard લોડ થઈ રહ્યું છે...
-        </p>
+      <main className="yf-page flex items-center justify-center">
+        <div className="yf-card px-6 py-5 flex items-center gap-3">
+          <div className="w-3 h-3 rounded-full bg-blue-600 animate-pulse" />
+
+          <p className="font-bold text-slate-700">
+            Dashboard લોડ થઈ રહ્યું છે...
+          </p>
+        </div>
       </main>
     );
   }
@@ -671,107 +675,149 @@ export default function EmployeeDashboard() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900">
-      <header className="bg-blue-600 text-white">
-        <div className="max-w-6xl mx-auto px-5 py-5 flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-black text-white">
-              YashFlow
-            </h1>
+    <main className="yf-page">
+      <header className="yf-header">
+        <div className="yf-container py-5">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-white/15 border border-white/20 flex items-center justify-center text-2xl shadow-sm">
+                ⚡
+              </div>
 
-            <p className="text-blue-100 text-sm font-medium">
-              Yash Laser Work Management
-            </p>
+              <div>
+                <p className="text-xs font-black tracking-[0.18em] text-blue-100">
+                  YASH LASER
+                </p>
+
+                <h1 className="text-2xl sm:text-3xl font-black text-white mt-0.5">
+                  YashFlow
+                </h1>
+
+                <p className="text-blue-100 text-sm font-semibold mt-1">
+                  Employee Work Dashboard
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="yf-btn bg-white text-blue-700 hover:bg-blue-50"
+            >
+              Logout
+            </button>
           </div>
-
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-xl font-bold"
-          >
-            Logout
-          </button>
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto p-5">
-        <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-          <p className="text-sm font-semibold text-slate-600">
-            સ્વાગત છે
-          </p>
+      <div className="yf-container">
+        <section className="yf-card overflow-hidden">
+          <div className="p-5 sm:p-6 bg-gradient-to-r from-slate-900 to-slate-800 text-white">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
+              <div>
+                <p className="text-xs font-black tracking-[0.15em] text-blue-300">
+                  EMPLOYEE PROFILE
+                </p>
 
-          <h2 className="text-2xl font-black mt-1 text-slate-900">
-            {employee.full_name}
-          </h2>
+                <p className="text-sm font-semibold text-slate-300 mt-2">
+                  સ્વાગત છે
+                </p>
 
-          <div className="flex flex-wrap gap-2 mt-4">
-            {assignedDepartmentNames().map((departmentName, index) => (
-              <span
-                key={`${departmentName}-${index}`}
-                className={`px-3 py-1 rounded-full text-sm font-bold ${
-                  index === 0
-                    ? "bg-blue-100 text-blue-800"
-                    : "bg-violet-100 text-violet-800"
-                }`}
-              >
-                {departmentName}
-                {index === 0 ? " • Primary" : ""}
-              </span>
-            ))}
+                <h2 className="text-2xl sm:text-3xl font-black mt-1">
+                  {employee.full_name}
+                </h2>
 
-            <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-bold">
-              Active
-            </span>
+                <div className="flex flex-wrap gap-2 mt-4">
+                  {assignedDepartmentNames().map(
+                    (departmentName, index) => (
+                      <span
+                        key={`${departmentName}-${index}`}
+                        className={`yf-badge border ${
+                          index === 0
+                            ? "bg-blue-500/20 border-blue-300/30 text-blue-100"
+                            : "bg-violet-500/20 border-violet-300/30 text-violet-100"
+                        }`}
+                      >
+                        {departmentName}
+                        {index === 0 ? " • Primary" : ""}
+                      </span>
+                    )
+                  )}
+
+                  <span className="yf-badge bg-green-500/20 border border-green-300/30 text-green-100">
+                    Active
+                  </span>
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-white/10 border border-white/15 px-5 py-4 min-w-[220px]">
+                <p className="text-xs font-black tracking-[0.15em] text-blue-200">
+                  NOW
+                </p>
+
+                <p className="text-lg font-black text-white mt-1">
+                  {formatTodayDay(currentDateTime)}
+                </p>
+
+                <p className="text-sm font-semibold text-slate-200 mt-1">
+                  {formatTodayDate(currentDateTime)}
+                </p>
+
+                <p className="text-2xl font-black text-white mt-2">
+                  {formatCurrentTime(currentDateTime)}
+                </p>
+              </div>
+            </div>
           </div>
         </section>
 
         {message && (
-          <div className="mt-5 bg-blue-50 border border-blue-200 rounded-xl p-4 font-semibold text-blue-900">
+          <div className="mt-5 bg-blue-50 border border-blue-200 rounded-2xl p-4 font-semibold text-blue-900 shadow-sm">
             {message}
           </div>
         )}
 
-        <section className="bg-white border border-slate-200 rounded-2xl p-6 mt-5 shadow-sm">
-          <div className="flex flex-col lg:flex-row lg:justify-between gap-5">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 w-full">
-              <h3 className="text-xl font-black text-slate-900">
-                આજની હાજરી
-              </h3>
-
-              <div className="sm:text-right">
-                <p className="text-sm font-black text-slate-900">
-                  {formatTodayDay(currentDateTime)}
+        <section className="yf-card mt-5 overflow-hidden">
+          <div className="p-5 sm:p-6 border-b border-slate-200 bg-gradient-to-r from-white to-blue-50/70">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+              <div>
+                <p className="text-xs font-black tracking-[0.15em] text-blue-700">
+                  TODAY'S ATTENDANCE
                 </p>
 
-                <p className="text-sm font-semibold text-slate-600 mt-0.5">
+                <h3 className="text-2xl font-black text-slate-900 mt-1">
+                  આજની હાજરી
+                </h3>
+
+                <p className="text-sm font-semibold text-slate-500 mt-1">
+                  {formatTodayDay(currentDateTime)}
+                  {" • "}
                   {formatTodayDate(currentDateTime)}
                   {" • "}
                   {formatCurrentTime(currentDateTime)}
                 </p>
               </div>
-            </div>
 
-            <div>
-              {!attendance && (
-                <button
-                  type="button"
-                  onClick={handleCheckIn}
-                  disabled={attendanceLoading}
-                  className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-bold disabled:opacity-60"
-                >
-                  {attendanceLoading
-                    ? "Please Wait..."
-                    : "Check In"}
-                </button>
-              )}
+              <div>
+                {!attendance && (
+                  <button
+                    type="button"
+                    onClick={handleCheckIn}
+                    disabled={attendanceLoading}
+                    className="yf-btn yf-btn-success px-6 py-3 disabled:opacity-60"
+                  >
+                    {attendanceLoading
+                      ? "Please Wait..."
+                      : "Check In"}
+                  </button>
+                )}
 
-              {attendance &&
-                !attendance.check_out && (
+                {attendance && !attendance.check_out && (
                   <button
                     type="button"
                     onClick={handleCheckOut}
                     disabled={attendanceLoading}
-                    className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl font-bold disabled:opacity-60"
+                    className="yf-btn yf-btn-danger px-6 py-3 disabled:opacity-60"
                   >
                     {attendanceLoading
                       ? "Please Wait..."
@@ -779,217 +825,268 @@ export default function EmployeeDashboard() {
                   </button>
                 )}
 
-              {attendance?.check_out && (
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                  <span className="bg-green-100 text-green-800 px-5 py-3 rounded-xl font-bold inline-block">
-                    Punch Out: {formatTime(attendance.check_out)} ✅
-                  </span>
+                {attendance?.check_out && (
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                    <span className="yf-badge yf-badge-green px-4 py-3 text-sm">
+                      Punch Out: {formatTime(attendance.check_out)} ✅
+                    </span>
 
-                  <button
-                    type="button"
-                    onClick={handleCheckOut}
-                    disabled={attendanceLoading}
-                    className="bg-amber-500 hover:bg-amber-600 text-white px-5 py-3 rounded-xl font-bold disabled:opacity-60"
-                  >
-                    {attendanceLoading
-                      ? "Please Wait..."
-                      : "Punch Out Again"}
-                  </button>
+                    <button
+                      type="button"
+                      onClick={handleCheckOut}
+                      disabled={attendanceLoading}
+                      className="yf-btn bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-60"
+                    >
+                      {attendanceLoading
+                        ? "Please Wait..."
+                        : "Punch Out Again"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="p-5 sm:p-6">
+            <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
+              <div className="yf-card bg-gradient-to-br from-white to-slate-50 p-4">
+                <p className="text-xs font-black text-slate-500">
+                  STATUS
+                </p>
+
+                <p className="font-black mt-2 text-slate-900">
+                  {!attendance
+                    ? "Not Checked In"
+                    : getAttendanceLabel(
+                        attendance.attendance_type
+                      )}
+                </p>
+              </div>
+
+              <div className="yf-card bg-gradient-to-br from-white to-green-50 p-4 border-green-100">
+                <p className="text-xs font-black text-green-700">
+                  CHECK IN
+                </p>
+
+                <p className="font-black mt-2 text-green-800">
+                  {formatTime(
+                    attendance?.check_in || null
+                  )}
+                </p>
+              </div>
+
+              <div className="yf-card bg-gradient-to-br from-white to-orange-50 p-4 border-orange-100">
+                <p className="text-xs font-black text-orange-700">
+                  LATE
+                </p>
+
+                <p className="font-black mt-2 text-orange-800">
+                  {attendance
+                    ? formatLateMinutes(attendance.late_minutes)
+                    : "-"}
+                </p>
+              </div>
+
+              <div className="yf-card bg-gradient-to-br from-white to-red-50 p-4 border-red-100">
+                <p className="text-xs font-black text-red-700">
+                  CHECK OUT
+                </p>
+
+                <p className="font-black mt-2 text-red-800">
+                  {formatTime(
+                    attendance?.check_out || null
+                  )}
+                </p>
+              </div>
+
+              <div className="yf-card bg-gradient-to-br from-white to-blue-50 p-4 border-blue-100">
+                <p className="text-xs font-black text-blue-700">
+                  ACTUAL WORKING
+                </p>
+
+                <p className="font-black mt-2 text-blue-800">
+                  {formatWorkingMinutes(
+                    attendance?.working_minutes || 0
+                  )}
+                </p>
+              </div>
+
+              <div className="yf-card bg-gradient-to-br from-white to-violet-50 p-4 border-violet-100">
+                <p className="text-xs font-black text-violet-700">
+                  APPROVAL
+                </p>
+
+                <div className="mt-2">
+                  {!attendance ? (
+                    <span className="font-black text-slate-700">
+                      -
+                    </span>
+                  ) : !attendance.approval_required ? (
+                    <span className="font-black text-green-800">
+                      Auto Approved ✓
+                    </span>
+                  ) : attendance.approval_status ===
+                    "pending" ? (
+                    <span className="font-black text-amber-700">
+                      Pending ⏳
+                    </span>
+                  ) : attendance.approval_status ===
+                    "approved" ? (
+                    <span className="font-black text-green-800">
+                      Approved ✓
+                    </span>
+                  ) : (
+                    <span className="font-black text-red-700">
+                      Rejected ✕
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {attendance?.admin_note && (
+                <div className="lg:col-span-6 bg-blue-50 border border-blue-200 rounded-2xl p-4">
+                  <p className="text-xs font-black text-blue-700">
+                    ADMIN NOTE
+                  </p>
+
+                  <p className="font-semibold text-slate-900 mt-1">
+                    {attendance.admin_note}
+                  </p>
                 </div>
               )}
             </div>
           </div>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-6 gap-4 mt-6">
-            <div className="bg-slate-100 rounded-xl p-4">
-              <p className="text-xs font-bold text-slate-600">
-                Status
-              </p>
-
-              <p className="font-black mt-1 text-slate-900">
-                {!attendance
-                  ? "Not Checked In"
-                  : getAttendanceLabel(
-                      attendance.attendance_type
-                    )}
-              </p>
-            </div>
-
-            <div className="bg-slate-100 rounded-xl p-4">
-              <p className="text-xs font-bold text-slate-600">
-                Check In
-              </p>
-
-              <p className="font-black mt-1 text-slate-900">
-                {formatTime(
-                  attendance?.check_in || null
-                )}
-              </p>
-            </div>
-
-            <div className="bg-slate-100 rounded-xl p-4">
-              <p className="text-xs font-bold text-slate-600">
-                Late
-              </p>
-
-              <p className="font-black mt-1 text-slate-900">
-                {attendance
-                  ? formatLateMinutes(attendance.late_minutes)
-                  : "-"}
-              </p>
-            </div>
-
-            <div className="bg-slate-100 rounded-xl p-4">
-              <p className="text-xs font-bold text-slate-600">
-                Check Out
-              </p>
-
-              <p className="font-black mt-1 text-slate-900">
-                {formatTime(
-                  attendance?.check_out || null
-                )}
-              </p>
-            </div>
-
-            <div className="bg-slate-100 rounded-xl p-4">
-              <p className="text-xs font-bold text-slate-600">
-                Actual Working
-              </p>
-
-              <p className="font-black mt-1 text-slate-900">
-                {formatWorkingMinutes(
-                  attendance?.working_minutes || 0
-                )}
-              </p>
-            </div>
-
-            <div className="bg-slate-100 rounded-xl p-4">
-              <p className="text-xs font-bold text-slate-600">
-                Approval
-              </p>
-
-              <div className="mt-1">
-                {!attendance ? (
-                  <span className="font-black text-slate-700">
-                    -
-                  </span>
-                ) : !attendance.approval_required ? (
-                  <span className="font-black text-green-800">
-                    Auto Approved ✓
-                  </span>
-                ) : attendance.approval_status === "pending" ? (
-                  <span className="font-black text-amber-700">
-                    Pending ⏳
-                  </span>
-                ) : attendance.approval_status === "approved" ? (
-                  <span className="font-black text-green-800">
-                    Approved ✓
-                  </span>
-                ) : (
-                  <span className="font-black text-red-700">
-                    Rejected ✕
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {attendance?.admin_note && (
-              <div className="lg:col-span-6 bg-blue-50 border border-blue-200 rounded-xl p-4">
-                <p className="text-xs font-black text-blue-700">
-                  Admin Note
-                </p>
-
-                <p className="font-semibold text-slate-900 mt-1">
-                  {attendance.admin_note}
-                </p>
-              </div>
-            )}
-          </div>
         </section>
 
-        <section className="mt-5">
-          <div className="flex items-center justify-between gap-4 mb-4">
+        <section className="yf-card mt-5 p-5 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
             <div>
-              <p className="text-sm font-bold text-blue-700">
+              <p className="text-xs font-black tracking-[0.15em] text-blue-700">
                 LIVE SUMMARY
               </p>
 
-              <h3 className="text-xl font-black text-slate-900 mt-1">
+              <h3 className="yf-section-title mt-1">
                 આજનું Work Summary
               </h3>
+
+              <p className="yf-section-subtitle mt-1">
+                Attendance, current orders અને leave status એક જ જગ્યાએ.
+              </p>
             </div>
+
+            <span className="yf-badge yf-badge-blue">
+              Live Data
+            </span>
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-              <p className="text-xs font-bold text-slate-500">
-                Attendance
-              </p>
+          <div className="yf-summary-grid mt-5">
+            <div className="yf-card yf-card-hover bg-gradient-to-br from-white to-slate-50 p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black text-slate-500">
+                    ATTENDANCE
+                  </p>
 
-              <p className="text-xl font-black text-slate-900 mt-2">
-                {!attendance
-                  ? "Not Checked In"
-                  : getAttendanceLabel(attendance.attendance_type)}
-              </p>
+                  <p className="text-xl font-black text-slate-900 mt-2">
+                    {!attendance
+                      ? "Not Checked In"
+                      : getAttendanceLabel(
+                          attendance.attendance_type
+                        )}
+                  </p>
+                </div>
+
+                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-lg">
+                  🕘
+                </div>
+              </div>
             </div>
 
-            <div className="bg-white border border-cyan-200 rounded-2xl p-5 shadow-sm">
-              <p className="text-xs font-bold text-cyan-700">
-                Department Orders
-              </p>
+            <div className="yf-card yf-card-hover bg-gradient-to-br from-white to-cyan-50 p-5 border-cyan-100">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black text-cyan-700">
+                    DEPARTMENT ORDERS
+                  </p>
 
-              <p className="text-3xl font-black text-cyan-800 mt-2">
-                {departmentOrderCount}
-              </p>
+                  <p className="text-3xl font-black text-cyan-800 mt-2">
+                    {departmentOrderCount}
+                  </p>
 
-              <p className="text-xs font-semibold text-slate-500 mt-1">
-                Current work stage
-              </p>
+                  <p className="text-xs font-semibold text-slate-500 mt-1">
+                    Current work stage
+                  </p>
+                </div>
+
+                <div className="w-10 h-10 rounded-xl bg-cyan-100 flex items-center justify-center text-lg">
+                  📦
+                </div>
+              </div>
             </div>
 
-            <div className="bg-white border border-purple-200 rounded-2xl p-5 shadow-sm">
-              <p className="text-xs font-bold text-purple-700">
-                Pending Leave
-              </p>
+            <div className="yf-card yf-card-hover bg-gradient-to-br from-white to-purple-50 p-5 border-purple-100">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black text-purple-700">
+                    PENDING LEAVE
+                  </p>
 
-              <p className="text-3xl font-black text-purple-800 mt-2">
-                {pendingLeaveCount}
-              </p>
+                  <p className="text-3xl font-black text-purple-800 mt-2">
+                    {pendingLeaveCount}
+                  </p>
 
-              <p className="text-xs font-semibold text-slate-500 mt-1">
-                Awaiting approval
-              </p>
+                  <p className="text-xs font-semibold text-slate-500 mt-1">
+                    Awaiting approval
+                  </p>
+                </div>
+
+                <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center text-lg">
+                  🗓️
+                </div>
+              </div>
             </div>
 
-            <div className="bg-white border border-green-200 rounded-2xl p-5 shadow-sm">
-              <p className="text-xs font-bold text-green-700">
-                Working Today
-              </p>
+            <div className="yf-card yf-card-hover bg-gradient-to-br from-white to-green-50 p-5 border-green-100">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black text-green-700">
+                    WORKING TODAY
+                  </p>
 
-              <p className="text-lg font-black text-green-800 mt-2">
-                {attendance?.check_out
-                  ? formatWorkingMinutes(attendance.working_minutes)
-                  : attendance?.check_in
-                  ? "Running"
-                  : "-"}
-              </p>
+                  <p className="text-lg font-black text-green-800 mt-2">
+                    {attendance?.check_out
+                      ? formatWorkingMinutes(
+                          attendance.working_minutes
+                        )
+                      : attendance?.check_in
+                      ? "Running"
+                      : "-"}
+                  </p>
 
-              <p className="text-xs font-semibold text-slate-500 mt-1">
-                Actual working time
-              </p>
+                  <p className="text-xs font-semibold text-slate-500 mt-1">
+                    Actual working time
+                  </p>
+                </div>
+
+                <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center text-lg">
+                  ⏱️
+                </div>
+              </div>
             </div>
           </div>
         </section>
 
-        <section className="mt-5">
+        <section className="mt-5 grid lg:grid-cols-3 gap-4">
           <button
             type="button"
-            onClick={() => router.push("/dashboard/orders")}
-            className="w-full bg-white border border-slate-200 rounded-2xl p-6 text-left hover:border-cyan-300 hover:shadow-md transition shadow-sm"
+            onClick={() =>
+              router.push("/dashboard/orders")
+            }
+            className="yf-card yf-card-hover group text-left p-5 bg-gradient-to-br from-white to-cyan-50 border-cyan-100"
           >
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-sm font-bold text-cyan-700">
+                <p className="text-xs font-black tracking-[0.12em] text-cyan-700">
                   PRODUCTION WORKFLOW
                 </p>
 
@@ -997,11 +1094,11 @@ export default function EmployeeDashboard() {
                   Department Orders
                 </h3>
 
-                <p className="text-slate-700 font-medium mt-2 text-sm">
+                <p className="text-sm text-slate-600 font-medium mt-2 leading-6">
                   તમારા Primary + Additional Departmentsના Orders જુઓ અને Next Stageમાં મોકલો.
                 </p>
 
-                <p className="text-cyan-700 font-bold mt-4">
+                <p className="text-sm text-cyan-700 font-black mt-4">
                   Department Orders જુઓ →
                 </p>
               </div>
@@ -1011,17 +1108,17 @@ export default function EmployeeDashboard() {
               </div>
             </div>
           </button>
-        </section>
 
-        <section className="mt-5">
           <button
             type="button"
-            onClick={() => router.push("/dashboard/tasks")}
-            className="w-full bg-white border border-slate-200 rounded-2xl p-6 text-left hover:border-violet-300 hover:shadow-md transition shadow-sm"
+            onClick={() =>
+              router.push("/dashboard/tasks")
+            }
+            className="yf-card yf-card-hover group text-left p-5 bg-gradient-to-br from-white to-violet-50 border-violet-100"
           >
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-sm font-bold text-violet-700">
+                <p className="text-xs font-black tracking-[0.12em] text-violet-700">
                   TASK MANAGEMENT
                 </p>
 
@@ -1029,11 +1126,11 @@ export default function EmployeeDashboard() {
                   My Tasks
                 </h3>
 
-                <p className="text-slate-700 font-medium mt-2 text-sm">
+                <p className="text-sm text-slate-600 font-medium mt-2 leading-6">
                   Assigned Tasks જુઓ અને Progress Update કરો.
                 </p>
 
-                <p className="text-violet-700 font-bold mt-4">
+                <p className="text-sm text-violet-700 font-black mt-4">
                   My Tasks જુઓ →
                 </p>
               </div>
@@ -1043,17 +1140,17 @@ export default function EmployeeDashboard() {
               </div>
             </div>
           </button>
-        </section>
 
-        <section className="mt-5">
           <button
             type="button"
-            onClick={() => router.push("/dashboard/leave")}
-            className="w-full bg-white border border-slate-200 rounded-2xl p-6 text-left hover:border-purple-300 hover:shadow-md transition shadow-sm"
+            onClick={() =>
+              router.push("/dashboard/leave")
+            }
+            className="yf-card yf-card-hover group text-left p-5 bg-gradient-to-br from-white to-purple-50 border-purple-100"
           >
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-sm font-bold text-purple-700">
+                <p className="text-xs font-black tracking-[0.12em] text-purple-700">
                   LEAVE MANAGEMENT
                 </p>
 
@@ -1061,11 +1158,11 @@ export default function EmployeeDashboard() {
                   Leave Request
                 </h3>
 
-                <p className="text-sm text-slate-700 font-medium mt-2">
-                  નવી રજા માટે Request મોકલો અને તમારી જૂની Leave Requestsનું Status જુઓ.
+                <p className="text-sm text-slate-600 font-medium mt-2 leading-6">
+                  નવી રજા માટે Request મોકલો અને જૂની Leave Requestsનું Status જુઓ.
                 </p>
 
-                <p className="text-purple-700 font-bold mt-4">
+                <p className="text-sm text-purple-700 font-black mt-4">
                   Leave Request ખોલો →
                 </p>
               </div>
@@ -1077,43 +1174,79 @@ export default function EmployeeDashboard() {
           </button>
         </section>
 
-        <section className="bg-white border border-slate-200 rounded-2xl p-6 mt-5 shadow-sm">
-          <h3 className="font-black text-lg text-slate-900">
-            Attendance Rules
-          </h3>
+        <section className="yf-card mt-5 p-5 sm:p-6">
+          <div>
+            <p className="text-xs font-black tracking-[0.15em] text-slate-500">
+              ATTENDANCE POLICY
+            </p>
 
-          <div className="grid md:grid-cols-3 gap-4 mt-4">
-            <div className="bg-green-50 border border-green-100 rounded-xl p-4">
-              <p className="font-black text-green-800">
-                On Time
-              </p>
+            <h3 className="yf-section-title mt-1">
+              Attendance Rules
+            </h3>
+          </div>
 
-              <p className="text-sm font-medium text-slate-700 mt-1">
-                9:15 AM સુધી
-              </p>
+          <div className="grid md:grid-cols-3 gap-4 mt-5">
+            <div className="rounded-2xl bg-green-50 border border-green-100 p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
+                  ✓
+                </div>
+
+                <div>
+                  <p className="font-black text-green-800">
+                    On Time
+                  </p>
+
+                  <p className="text-sm font-medium text-slate-700 mt-1">
+                    9:15 AM સુધી
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <div className="bg-orange-50 border border-orange-100 rounded-xl p-4">
-              <p className="font-black text-orange-800">
-                Late
-              </p>
+            <div className="rounded-2xl bg-orange-50 border border-orange-100 p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center">
+                  ⏳
+                </div>
 
-              <p className="text-sm font-medium text-slate-700 mt-1">
-                9:15 AM પછી અને 1:00 PM પહેલાં
-              </p>
+                <div>
+                  <p className="font-black text-orange-800">
+                    Late
+                  </p>
+
+                  <p className="text-sm font-medium text-slate-700 mt-1">
+                    9:15 AM પછી અને 1:00 PM પહેલાં
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <div className="bg-red-50 border border-red-100 rounded-xl p-4">
-              <p className="font-black text-red-800">
-                Half Day
-              </p>
+            <div className="rounded-2xl bg-red-50 border border-red-100 p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
+                  ½
+                </div>
 
-              <p className="text-sm font-medium text-slate-700 mt-1">
-                1:00 PM કે ત્યાર પછી Check In
-              </p>
+                <div>
+                  <p className="font-black text-red-800">
+                    Half Day
+                  </p>
+
+                  <p className="text-sm font-medium text-slate-700 mt-1">
+                    1:00 PM કે ત્યાર પછી Check In
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </section>
+
+        <div className="py-6 text-center">
+          <p className="text-xs font-bold text-slate-400">
+            YashFlow • Yash Laser Work Management
+          </p>
+        </div>
       </div>
     </main>
   );
