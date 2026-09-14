@@ -6,6 +6,7 @@ import { createClient } from "@/utils/supabase/client";
 
 type Task = {
   id: string;
+  assigned_to: string;
   title: string;
   description: string | null;
   priority: "low" | "medium" | "high" | "urgent";
@@ -35,6 +36,7 @@ export default function EmployeeTasksPage() {
       .from("tasks")
       .select(`
         id,
+        assigned_to,
         title,
         description,
         priority,
@@ -272,6 +274,12 @@ export default function EmployeeTasksPage() {
                   >
                     {task.status.replace("_", " ").toUpperCase()}
                   </span>
+
+                  {employeeId && task.assigned_to !== employeeId && (
+                    <span className="px-3 py-1.5 rounded-full text-xs font-bold bg-purple-100 text-purple-700">
+                      SUPPORT TASK
+                    </span>
+                  )}
                 </div>
               </div>
 

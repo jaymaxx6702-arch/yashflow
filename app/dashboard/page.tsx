@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import TodaysWork from "./TodaysWork";
+import NotificationBell from "./NotificationBell";
+import ManualPunchRequest from "./ManualPunchRequest";
 
 type Employee = {
   id: string;
@@ -51,6 +54,13 @@ type OfficeSettings = {
   timezone: string;
 };
 
+type SummaryDrawerKey =
+  | "attendance"
+  | "department_orders"
+  | "pending_leave"
+  | "working_today"
+  | null;
+
 export default function EmployeeDashboard() {
   const router = useRouter();
 
@@ -62,11 +72,15 @@ export default function EmployeeDashboard() {
 
   const [departmentOrderCount, setDepartmentOrderCount] = useState(0);
   const [pendingLeaveCount, setPendingLeaveCount] = useState(0);
+  const [canViewPurchase, setCanViewPurchase] = useState(false);
+  const [canViewDispatch, setCanViewDispatch] = useState(false);
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
 
   const [loading, setLoading] = useState(true);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [summaryDrawer, setSummaryDrawer] =
+    useState<SummaryDrawerKey>(null);
 
   function getDateInTimeZone(timeZone: string) {
     const parts = new Intl.DateTimeFormat("en-CA", {
@@ -235,6 +249,53 @@ export default function EmployeeDashboard() {
         return departmentData?.name || null;
       })
       .filter(Boolean) as string[];
+  }
+
+  async function loadModulePermissions() {
+    const supabase = createClient();
+
+    const [
+      purchaseView,
+      purchaseManage,
+      dispatchView,
+      dispatchManage,
+    ] = await Promise.all([
+      supabase.rpc("has_app_permission", {
+        p_permission_key: "purchase.view",
+      }),
+      supabase.rpc("has_app_permission", {
+        p_permission_key: "purchase.manage",
+      }),
+      supabase.rpc("has_app_permission", {
+        p_permission_key: "dispatch.view",
+      }),
+      supabase.rpc("has_app_permission", {
+        p_permission_key: "dispatch.manage",
+      }),
+    ]);
+
+    const firstError =
+      purchaseView.error ||
+      purchaseManage.error ||
+      dispatchView.error ||
+      dispatchManage.error;
+
+    if (firstError) {
+      setMessage(
+        `Permission Load Error: ${firstError.message}`
+      );
+      return;
+    }
+
+    setCanViewPurchase(
+      Boolean(purchaseView.data) ||
+        Boolean(purchaseManage.data)
+    );
+
+    setCanViewDispatch(
+      Boolean(dispatchView.data) ||
+        Boolean(dispatchManage.data)
+    );
   }
 
   function getDepartmentFromAssignment(item: EmployeeDepartment) {
@@ -428,6 +489,8 @@ export default function EmployeeDashboard() {
         empData.id,
         summaryDepartments
       );
+
+      await loadModulePermissions();
 
       setLoading(false);
     }
@@ -699,13 +762,17 @@ export default function EmployeeDashboard() {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="yf-btn bg-white text-blue-700 hover:bg-blue-50"
-            >
-              Logout
-            </button>
+            <div className="flex items-center gap-2">
+              <NotificationBell employeeId={employee.id} />
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="yf-btn bg-white text-blue-700 hover:bg-blue-50"
+              >
+                Logout
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -777,6 +844,8 @@ export default function EmployeeDashboard() {
           </div>
         )}
 
+           <TodaysWork employeeId={employee.id} />
+           
         <section className="yf-card mt-5 overflow-hidden">
           <div className="p-5 sm:p-6 border-b border-slate-200 bg-gradient-to-r from-white to-blue-50/70">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
@@ -784,7 +853,6 @@ export default function EmployeeDashboard() {
                 <p className="text-xs font-black tracking-[0.15em] text-blue-700">
                   TODAY'S ATTENDANCE
                 </p>
-
                 <h3 className="text-2xl font-black text-slate-900 mt-1">
                   આજની હાજરી
                 </h3>
@@ -848,7 +916,12 @@ export default function EmployeeDashboard() {
           </div>
 
           <div className="p-5 sm:p-6">
-            <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
+            <ManualPunchRequest
+              employeeId={employee.id}
+              timezone={officeSettings.timezone}
+            />
+
+            <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 mt-5">
               <div className="yf-card bg-gradient-to-br from-white to-slate-50 p-4">
                 <p className="text-xs font-black text-slate-500">
                   STATUS
@@ -980,7 +1053,11 @@ export default function EmployeeDashboard() {
           </div>
 
           <div className="yf-summary-grid mt-5">
-            <div className="yf-card yf-card-hover bg-gradient-to-br from-white to-slate-50 p-5">
+            <button
+              type="button"
+              onClick={() => setSummaryDrawer("attendance")}
+              className="yf-card yf-card-hover bg-gradient-to-br from-white to-slate-50 p-5 text-left"
+            >
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-black text-slate-500">
@@ -994,15 +1071,23 @@ export default function EmployeeDashboard() {
                           attendance.attendance_type
                         )}
                   </p>
+
+                  <p className="text-xs font-black text-blue-600 mt-2">
+                    Quick Details →
+                  </p>
                 </div>
 
                 <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-lg">
                   🕘
                 </div>
               </div>
-            </div>
+            </button>
 
-            <div className="yf-card yf-card-hover bg-gradient-to-br from-white to-cyan-50 p-5 border-cyan-100">
+            <button
+              type="button"
+              onClick={() => setSummaryDrawer("department_orders")}
+              className="yf-card yf-card-hover bg-gradient-to-br from-white to-cyan-50 p-5 border-cyan-100 text-left"
+            >
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-black text-cyan-700">
@@ -1016,15 +1101,23 @@ export default function EmployeeDashboard() {
                   <p className="text-xs font-semibold text-slate-500 mt-1">
                     Current work stage
                   </p>
+
+                  <p className="text-xs font-black text-cyan-700 mt-2">
+                    Quick Details →
+                  </p>
                 </div>
 
                 <div className="w-10 h-10 rounded-xl bg-cyan-100 flex items-center justify-center text-lg">
                   📦
                 </div>
               </div>
-            </div>
+            </button>
 
-            <div className="yf-card yf-card-hover bg-gradient-to-br from-white to-purple-50 p-5 border-purple-100">
+            <button
+              type="button"
+              onClick={() => setSummaryDrawer("pending_leave")}
+              className="yf-card yf-card-hover bg-gradient-to-br from-white to-purple-50 p-5 border-purple-100 text-left"
+            >
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-black text-purple-700">
@@ -1038,15 +1131,23 @@ export default function EmployeeDashboard() {
                   <p className="text-xs font-semibold text-slate-500 mt-1">
                     Awaiting approval
                   </p>
+
+                  <p className="text-xs font-black text-purple-700 mt-2">
+                    Quick Details →
+                  </p>
                 </div>
 
                 <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center text-lg">
                   🗓️
                 </div>
               </div>
-            </div>
+            </button>
 
-            <div className="yf-card yf-card-hover bg-gradient-to-br from-white to-green-50 p-5 border-green-100">
+            <button
+              type="button"
+              onClick={() => setSummaryDrawer("working_today")}
+              className="yf-card yf-card-hover bg-gradient-to-br from-white to-green-50 p-5 border-green-100 text-left"
+            >
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-black text-green-700">
@@ -1066,13 +1167,17 @@ export default function EmployeeDashboard() {
                   <p className="text-xs font-semibold text-slate-500 mt-1">
                     Actual working time
                   </p>
+
+                  <p className="text-xs font-black text-green-700 mt-2">
+                    Quick Details →
+                  </p>
                 </div>
 
                 <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center text-lg">
                   ⏱️
                 </div>
               </div>
-            </div>
+            </button>
           </div>
         </section>
 
@@ -1174,6 +1279,85 @@ export default function EmployeeDashboard() {
           </button>
         </section>
 
+        {canViewPurchase && (
+          <section className="mt-5">
+            <div className="mb-3">
+              <p className="text-xs font-black tracking-[0.15em] text-orange-700">
+                AUTHORIZED MODULE
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                router.push("/dashboard/purchase")
+              }
+              className="yf-card yf-card-hover w-full text-left p-5 bg-gradient-to-br from-white to-orange-50 border-orange-100"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-black tracking-[0.12em] text-orange-700">
+                    PURCHASE MANAGEMENT
+                  </p>
+
+                  <h3 className="text-xl font-black text-slate-900 mt-1">
+                    Purchase & Material Receive
+                  </h3>
+
+                  <p className="text-sm text-slate-600 font-medium mt-2 leading-6">
+                    Purchase Orders જુઓ, supplier material receive કરો અને Inventory stock automatic update કરો.
+                  </p>
+
+                  <p className="text-sm text-orange-700 font-black mt-4">
+                    Purchase Management ખોલો →
+                  </p>
+                </div>
+
+                <div className="w-14 h-14 shrink-0 rounded-2xl bg-orange-100 flex items-center justify-center text-2xl">
+                  🛒
+                </div>
+              </div>
+            </button>
+          </section>
+        )}
+
+
+        {canViewDispatch && (
+          <section className="mt-5">
+            <button
+              type="button"
+              onClick={() =>
+                router.push("/dashboard/dispatch")
+              }
+              className="yf-card yf-card-hover w-full text-left p-5 bg-gradient-to-br from-white to-blue-50 border-blue-100"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-black tracking-[0.12em] text-blue-700">
+                    DISPATCH MANAGEMENT
+                  </p>
+
+                  <h3 className="text-xl font-black text-slate-900 mt-1">
+                    Packing, Dispatch & Delivery
+                  </h3>
+
+                  <p className="text-sm text-slate-600 font-medium mt-2 leading-6">
+                    Completed ordersને packingથી delivery સુધી track કરો.
+                  </p>
+
+                  <p className="text-sm text-blue-700 font-black mt-4">
+                    Dispatch Management ખોલો →
+                  </p>
+                </div>
+
+                <div className="w-14 h-14 shrink-0 rounded-2xl bg-blue-100 flex items-center justify-center text-2xl">
+                  🚚
+                </div>
+              </div>
+            </button>
+          </section>
+        )}
+
         <section className="yf-card mt-5 p-5 sm:p-6">
           <div>
             <p className="text-xs font-black tracking-[0.15em] text-slate-500">
@@ -1248,6 +1432,229 @@ export default function EmployeeDashboard() {
           </p>
         </div>
       </div>
+
+      {summaryDrawer && (
+        <div className="fixed inset-0 z-[90]">
+          <button
+            type="button"
+            onClick={() => setSummaryDrawer(null)}
+            className="absolute inset-0 bg-slate-950/45"
+            aria-label="Close summary details"
+          />
+
+          <aside className="absolute right-0 top-0 h-full w-full sm:w-[420px] bg-slate-50 shadow-2xl flex flex-col">
+            <div className="p-5 bg-gradient-to-r from-slate-900 to-slate-800 text-white">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-black tracking-[0.15em] text-blue-300">
+                    LIVE SUMMARY
+                  </p>
+
+                  <h2 className="text-2xl font-black mt-1">
+                    {summaryDrawer === "attendance"
+                      ? "Attendance Details"
+                      : summaryDrawer === "department_orders"
+                      ? "Department Orders"
+                      : summaryDrawer === "pending_leave"
+                      ? "Pending Leave"
+                      : "Working Today"}
+                  </h2>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSummaryDrawer(null)}
+                  className="w-10 h-10 rounded-xl bg-white/10 border border-white/15 hover:bg-white/20 font-black"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5">
+              {summaryDrawer === "attendance" && (
+                <div className="space-y-3">
+                  <div className="yf-card p-4">
+                    <p className="text-xs font-black text-slate-500">
+                      STATUS
+                    </p>
+
+                    <p className="text-xl font-black text-slate-900 mt-1">
+                      {!attendance
+                        ? "Not Checked In"
+                        : getAttendanceLabel(
+                            attendance.attendance_type
+                          )}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="yf-card p-4">
+                      <p className="text-xs font-black text-green-700">
+                        CHECK IN
+                      </p>
+                      <p className="font-black text-slate-900 mt-1">
+                        {formatTime(attendance?.check_in || null)}
+                      </p>
+                    </div>
+
+                    <div className="yf-card p-4">
+                      <p className="text-xs font-black text-red-700">
+                        CHECK OUT
+                      </p>
+                      <p className="font-black text-slate-900 mt-1">
+                        {formatTime(attendance?.check_out || null)}
+                      </p>
+                    </div>
+
+                    <div className="yf-card p-4">
+                      <p className="text-xs font-black text-orange-700">
+                        LATE
+                      </p>
+                      <p className="font-black text-slate-900 mt-1">
+                        {attendance
+                          ? formatLateMinutes(
+                              attendance.late_minutes
+                            )
+                          : "-"}
+                      </p>
+                    </div>
+
+                    <div className="yf-card p-4">
+                      <p className="text-xs font-black text-blue-700">
+                        WORKING
+                      </p>
+                      <p className="font-black text-slate-900 mt-1">
+                        {formatWorkingMinutes(
+                          attendance?.working_minutes || 0
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {summaryDrawer === "department_orders" && (
+                <div className="space-y-4">
+                  <div className="yf-card p-5 bg-gradient-to-br from-white to-cyan-50 border-cyan-100">
+                    <p className="text-xs font-black text-cyan-700">
+                      CURRENT DEPARTMENT ORDERS
+                    </p>
+
+                    <p className="text-4xl font-black text-cyan-800 mt-2">
+                      {departmentOrderCount}
+                    </p>
+                  </div>
+
+                  <div className="yf-card p-4">
+                    <p className="text-xs font-black text-slate-500">
+                      YOUR DEPARTMENTS
+                    </p>
+
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {assignedDepartmentNames().map(
+                        (departmentName, index) => (
+                          <span
+                            key={`${departmentName}-drawer-${index}`}
+                            className="yf-badge yf-badge-blue"
+                          >
+                            {departmentName}
+                          </span>
+                        )
+                      )}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSummaryDrawer(null);
+                      router.push("/dashboard/orders");
+                    }}
+                    className="yf-btn yf-btn-primary w-full"
+                  >
+                    Open Department Orders →
+                  </button>
+                </div>
+              )}
+
+              {summaryDrawer === "pending_leave" && (
+                <div className="space-y-4">
+                  <div className="yf-card p-5 bg-gradient-to-br from-white to-purple-50 border-purple-100">
+                    <p className="text-xs font-black text-purple-700">
+                      PENDING REQUESTS
+                    </p>
+
+                    <p className="text-4xl font-black text-purple-800 mt-2">
+                      {pendingLeaveCount}
+                    </p>
+
+                    <p className="text-sm font-semibold text-slate-500 mt-1">
+                      Awaiting admin approval
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSummaryDrawer(null);
+                      router.push("/dashboard/leave");
+                    }}
+                    className="yf-btn yf-btn-primary w-full"
+                  >
+                    Open Leave Requests →
+                  </button>
+                </div>
+              )}
+
+              {summaryDrawer === "working_today" && (
+                <div className="space-y-4">
+                  <div className="yf-card p-5 bg-gradient-to-br from-white to-green-50 border-green-100">
+                    <p className="text-xs font-black text-green-700">
+                      ACTUAL WORKING
+                    </p>
+
+                    <p className="text-2xl font-black text-green-800 mt-2">
+                      {attendance?.check_out
+                        ? formatWorkingMinutes(
+                            attendance.working_minutes
+                          )
+                        : attendance?.check_in
+                        ? "Running"
+                        : "-"}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="yf-card p-4">
+                      <p className="text-xs font-black text-green-700">
+                        CHECK IN
+                      </p>
+                      <p className="font-black text-slate-900 mt-1">
+                        {formatTime(attendance?.check_in || null)}
+                      </p>
+                    </div>
+
+                    <div className="yf-card p-4">
+                      <p className="text-xs font-black text-red-700">
+                        CHECK OUT
+                      </p>
+                      <p className="font-black text-slate-900 mt-1">
+                        {formatTime(attendance?.check_out || null)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="text-sm font-semibold text-slate-500">
+                    Running attendance દરમિયાન final actual working time
+                    Check Out થયા પછી update થશે.
+                  </p>
+                </div>
+              )}
+            </div>
+          </aside>
+        </div>
+      )}
     </main>
   );
 }

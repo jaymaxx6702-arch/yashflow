@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import AdminNotificationBell from "./AdminNotificationBell";
 
 type DashboardCounts = {
   totalStaff: number;
@@ -20,6 +21,21 @@ type DashboardCounts = {
   production: number;
   packing: number;
   transportation: number;
+};
+
+type AttentionCounts = {
+  overdueOrders: number;
+  delayedWorkflow: number;
+  overdueTasks: number;
+  readyForApproval: number;
+  missingAttendance: number;
+  lowStock: number;
+};
+
+type DelaySetting = {
+  status: string;
+  delay_minutes: number;
+  enabled: boolean;
 };
 
 type Tone =
@@ -44,6 +60,15 @@ const initialCounts: DashboardCounts = {
   production: 0,
   packing: 0,
   transportation: 0,
+};
+
+const initialAttentionCounts: AttentionCounts = {
+  overdueOrders: 0,
+  delayedWorkflow: 0,
+  overdueTasks: 0,
+  readyForApproval: 0,
+  missingAttendance: 0,
+  lowStock: 0,
 };
 
 function getIndiaDate() {
@@ -211,6 +236,68 @@ function WorkflowCard({
   );
 }
 
+
+function AttentionCard({
+  href,
+  title,
+  value,
+  description,
+  icon,
+  tone,
+}: {
+  href: Route;
+  title: string;
+  value: number;
+  description: string;
+  icon: string;
+  tone: Tone;
+}) {
+  const styles = toneStyles[tone];
+
+  return (
+    <Link
+      href={href}
+      className={`yf-card yf-card-hover group relative overflow-hidden p-5 ${styles.shell}`}
+    >
+      <div className={`absolute left-0 top-0 h-full w-1.5 ${styles.line}`} />
+
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className={`text-xs font-black tracking-wide ${styles.label}`}>
+            {title.toUpperCase()}
+          </p>
+
+          <p className={`text-4xl font-black mt-2 ${styles.value}`}>
+            {value}
+          </p>
+
+          <p className="text-xs font-semibold text-slate-500 mt-2 leading-5">
+            {description}
+          </p>
+        </div>
+
+        <div
+          className={`w-12 h-12 shrink-0 rounded-2xl flex items-center justify-center text-2xl ${styles.icon}`}
+        >
+          {icon}
+        </div>
+      </div>
+
+      <div className="mt-4 border-t border-slate-200/70 pt-3 flex items-center justify-between">
+        <span className={`text-xs font-black ${styles.label}`}>
+          Review Now
+        </span>
+
+        <span
+          className={`font-black transition-transform group-hover:translate-x-1 ${styles.label}`}
+        >
+          →
+        </span>
+      </div>
+    </Link>
+  );
+}
+
 function ModuleCard({
   href,
   label,
@@ -294,12 +381,42 @@ export default function AdminPage() {
   const router = useRouter();
 
   const [counts, setCounts] = useState<DashboardCounts>(initialCounts);
+  const [attentionCounts, setAttentionCounts] = useState<AttentionCounts>(initialAttentionCounts);
+  const [adminId, setAdminId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState("");
 
   const today = useMemo(() => getIndiaDate(), []);
   const displayDate = useMemo(() => getIndiaDisplayDate(), []);
+
+  const totalAttention =
+    attentionCounts.overdueOrders +
+    attentionCounts.delayedWorkflow +
+    attentionCounts.overdueTasks +
+    counts.pendingAttendance +
+    counts.pendingLeave +
+    counts.pendingEmployees +
+    attentionCounts.readyForApproval +
+    attentionCounts.missingAttendance +
+    attentionCounts.lowStock;
+
+  const totalApprovals =
+    counts.pendingAttendance +
+    counts.pendingLeave +
+    counts.pendingEmployees +
+    attentionCounts.readyForApproval;
+
+  const pendingApprovalRoute: Route =
+    counts.pendingAttendance > 0
+      ? "/admin/attendance-approval"
+      : counts.pendingLeave > 0
+      ? "/admin/leave"
+      : counts.pendingEmployees > 0
+      ? "/admin/employees"
+      : attentionCounts.readyForApproval > 0
+      ? "/admin/orders"
+      : "/admin/attendance-approval";
 
   async function loadDashboardCounts() {
     const supabase = createClient();
@@ -309,16 +426,28 @@ export default function AdminPage() {
 
     const [
       totalStaffResult,
+      activeEmployeesResult,
       pendingEmployeesResult,
       attendanceResult,
       leaveTodayResult,
       pendingLeaveResult,
       pendingAttendanceResult,
+      manualPunchPendingResult,
       ordersResult,
+      tasksResult,
+      stageWorksResult,
+      delaySettingsResult,
+      inventoryResult,
     ] = await Promise.all([
       supabase
         .from("employees")
         .select("id", { count: "exact", head: true })
+        .eq("approval_status", "approved")
+        .eq("is_active", true),
+
+      supabase
+        .from("employees")
+        .select("id, role")
         .eq("approval_status", "approved")
         .eq("is_active", true),
 
@@ -329,12 +458,12 @@ export default function AdminPage() {
 
       supabase
         .from("attendance")
-        .select("id, approval_status")
+        .select("id, employee_id, approval_status")
         .eq("attendance_date", today),
 
       supabase
         .from("leave_requests")
-        .select("id")
+        .select("id, employee_id")
         .eq("status", "approved")
         .lte("start_date", today)
         .gte("end_date", today),
@@ -351,18 +480,64 @@ export default function AdminPage() {
         .eq("approval_status", "pending"),
 
       supabase
+        .from("manual_attendance_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending"),
+
+      supabase
         .from("orders")
-        .select("id, current_stage"),
+        .select(`
+          id,
+          current_stage,
+          workflow_status,
+          due_date
+        `),
+
+      supabase
+        .from("tasks")
+        .select("id, status, due_date"),
+
+      supabase
+        .from("order_stage_work")
+        .select(`
+          id,
+          status,
+          status_changed_at
+        `),
+
+      supabase
+        .from("workflow_delay_settings")
+        .select(`
+          status,
+          delay_minutes,
+          enabled
+        `),
+
+      supabase
+        .from("inventory_items")
+        .select(`
+          id,
+          current_stock,
+          minimum_stock,
+          is_active
+        `)
+        .eq("is_active", true),
     ]);
 
     const firstError =
       totalStaffResult.error ||
+      activeEmployeesResult.error ||
       pendingEmployeesResult.error ||
       attendanceResult.error ||
       leaveTodayResult.error ||
       pendingLeaveResult.error ||
       pendingAttendanceResult.error ||
-      ordersResult.error;
+      manualPunchPendingResult.error ||
+      ordersResult.error ||
+      tasksResult.error ||
+      stageWorksResult.error ||
+      delaySettingsResult.error ||
+      inventoryResult.error;
 
     if (firstError) {
       setMessage(`Dashboard Load Error: ${firstError.message}`);
@@ -387,13 +562,20 @@ export default function AdminPage() {
         order.current_stage !== "cancelled"
     ).length;
 
+    const normalAttendancePending =
+      pendingAttendanceResult.count || 0;
+
+    const manualAttendancePending =
+      manualPunchPendingResult.count || 0;
+
     setCounts({
       totalStaff: totalStaffResult.count || 0,
       pendingEmployees: pendingEmployeesResult.count || 0,
       presentToday,
       leaveToday: leaveTodayResult.data?.length || 0,
       pendingLeave: pendingLeaveResult.count || 0,
-      pendingAttendance: pendingAttendanceResult.count || 0,
+      pendingAttendance:
+        normalAttendancePending + manualAttendancePending,
       openOrders,
       completedOrders: stageCount("completed"),
       design: stageCount("design"),
@@ -401,6 +583,108 @@ export default function AdminPage() {
       production: stageCount("production"),
       packing: stageCount("packing"),
       transportation: stageCount("transportation_dispatch"),
+    });
+
+    // -----------------------------------------------------
+    // ATTENTION REQUIRED
+    // -----------------------------------------------------
+
+    const overdueOrders = orderRows.filter((order) => {
+      if (!order.due_date || order.due_date >= today) {
+        return false;
+      }
+
+      return (
+        order.current_stage !== "completed" &&
+        order.current_stage !== "cancelled" &&
+        order.workflow_status !== "completed" &&
+        order.workflow_status !== "cancelled"
+      );
+    }).length;
+
+    const overdueTasks = (tasksResult.data || []).filter((task) => {
+      return (
+        !!task.due_date &&
+        task.due_date < today &&
+        (task.status === "pending" ||
+          task.status === "in_progress")
+      );
+    }).length;
+
+    const stageRows = stageWorksResult.data || [];
+
+    const readyForApproval = stageRows.filter(
+      (work) => work.status === "ready_for_approval"
+    ).length;
+
+    const delaySettings = new Map(
+      ((delaySettingsResult.data || []) as DelaySetting[])
+        .filter((item) => item.enabled)
+        .map((item) => [
+          item.status,
+          item.delay_minutes,
+        ])
+    );
+
+    const nowMs = Date.now();
+
+    const delayedWorkflow = stageRows.filter((work) => {
+      const delayMinutes = delaySettings.get(work.status);
+
+      if (!delayMinutes || !work.status_changed_at) {
+        return false;
+      }
+
+      const changedAtMs = new Date(
+        work.status_changed_at
+      ).getTime();
+
+      if (!Number.isFinite(changedAtMs)) {
+        return false;
+      }
+
+      return nowMs - changedAtMs >= delayMinutes * 60 * 1000;
+    }).length;
+
+    const presentEmployeeIds = new Set(
+      (attendanceResult.data || [])
+        .filter((row) => row.approval_status !== "rejected")
+        .map((row) => row.employee_id)
+    );
+
+    const leaveEmployeeIds = new Set(
+      (leaveTodayResult.data || []).map(
+        (row) => row.employee_id
+      )
+    );
+
+    const missingAttendance = (
+      activeEmployeesResult.data || []
+    ).filter((employee) => {
+      // Admins are not included in missing staff attendance alerts.
+      if (employee.role === "admin") {
+        return false;
+      }
+
+      return (
+        !presentEmployeeIds.has(employee.id) &&
+        !leaveEmployeeIds.has(employee.id)
+      );
+    }).length;
+
+    const lowStock = (inventoryResult.data || []).filter(
+      (item) =>
+        Number(item.current_stock || 0) <=
+        Number(item.minimum_stock || 0)
+    ).length;
+
+    setAttentionCounts({
+      overdueOrders,
+      delayedWorkflow,
+      overdueTasks,
+      readyForApproval,
+      missingAttendance,
+      lowStock,
     });
 
     setRefreshing(false);
@@ -437,6 +721,8 @@ export default function AdminPage() {
         router.replace("/dashboard");
         return;
       }
+
+      setAdminId(adminProfile.id);
 
       await loadDashboardCounts();
       setLoading(false);
@@ -503,7 +789,11 @@ export default function AdminPage() {
                 </p>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center">
+                {adminId && (
+                  <AdminNotificationBell employeeId={adminId} />
+                )}
+
                 <button
                   type="button"
                   onClick={loadDashboardCounts}
@@ -586,7 +876,7 @@ export default function AdminPage() {
               <SummaryCard
                 title="Pending Approval"
                 value={counts.pendingAttendance}
-                subtitle="Late / Half Day attendance"
+                subtitle="Late / Half Day / Manual Punch"
                 tone="orange"
                 icon="✅"
               />
@@ -623,6 +913,160 @@ export default function AdminPage() {
                 icon="⏳"
               />
             </div>
+          </div>
+        </section>
+
+        <section className="mt-6 yf-card overflow-hidden">
+          <div
+            className={`p-5 sm:p-6 border-b ${
+              totalAttention > 0
+                ? "border-red-200 bg-gradient-to-r from-red-700 to-orange-600 text-white"
+                : "border-green-200 bg-gradient-to-r from-emerald-700 to-green-600 text-white"
+            }`}
+          >
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+              <div>
+                <p className="text-xs font-black tracking-[0.15em] text-white/80">
+                  ATTENTION REQUIRED
+                </p>
+
+                <h2 className="text-2xl font-black mt-1">
+                  {totalAttention > 0
+                    ? "Items Need Your Attention"
+                    : "All Clear"}
+                </h2>
+
+                <p className="text-sm text-white/80 mt-1">
+                  Overdue work, approvals, attendance અને stock alerts એક જગ્યાએ.
+                </p>
+              </div>
+
+              <span className="inline-flex w-fit rounded-full bg-white/15 border border-white/20 px-4 py-2 text-sm font-black">
+                {totalAttention} Attention Items
+              </span>
+            </div>
+          </div>
+
+          <div className="p-5 sm:p-6">
+            <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+              <AttentionCard
+                href="/admin/orders"
+                title="Overdue Orders"
+                value={attentionCounts.overdueOrders}
+                description="Due date પસાર થયેલા open orders."
+                icon="🚨"
+                tone={
+                  attentionCounts.overdueOrders > 0
+                    ? "orange"
+                    : "slate"
+                }
+              />
+
+              <AttentionCard
+                href="/admin/orders"
+                title="Delayed Workflow"
+                value={attentionCounts.delayedWorkflow}
+                description="Configured delay limit કરતાં લાંબા સમયથી અટકેલા stages."
+                icon="⏱️"
+                tone={
+                  attentionCounts.delayedWorkflow > 0
+                    ? "orange"
+                    : "slate"
+                }
+              />
+
+              <AttentionCard
+                href="/admin/tasks"
+                title="Overdue Tasks"
+                value={attentionCounts.overdueTasks}
+                description="Pending / In Progress tasks જેની due date પસાર થઈ ગઈ છે."
+                icon="📋"
+                tone={
+                  attentionCounts.overdueTasks > 0
+                    ? "purple"
+                    : "slate"
+                }
+              />
+
+              <AttentionCard
+                href={pendingApprovalRoute}
+                title="All Pending Approvals"
+                value={totalApprovals}
+                description={`Attendance ${counts.pendingAttendance} • Leave ${counts.pendingLeave} • Staff ${counts.pendingEmployees} • Workflow ${attentionCounts.readyForApproval}`}
+                icon="✅"
+                tone={
+                  totalApprovals > 0
+                    ? "blue"
+                    : "slate"
+                }
+              />
+
+              <AttentionCard
+                href="/admin/attendance"
+                title="Missing Attendance"
+                value={attentionCounts.missingAttendance}
+                description="Active non-admin staff: attendance નથી અને approved leave પણ નથી."
+                icon="🕘"
+                tone={
+                  attentionCounts.missingAttendance > 0
+                    ? "orange"
+                    : "slate"
+                }
+              />
+
+              <AttentionCard
+                href="/admin/inventory"
+                title="Low Stock"
+                value={attentionCounts.lowStock}
+                description="Minimum stock level અથવા તેનાથી નીચે આવેલા active materials."
+                icon="📦"
+                tone={
+                  attentionCounts.lowStock > 0
+                    ? "orange"
+                    : "slate"
+                }
+              />
+            </div>
+
+            {totalApprovals > 0 && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {counts.pendingAttendance > 0 && (
+                  <Link
+                    href="/admin/attendance-approval"
+                    className="yf-btn yf-btn-secondary"
+                  >
+                    Attendance Approval ({counts.pendingAttendance}) →
+                  </Link>
+                )}
+
+                {counts.pendingLeave > 0 && (
+                  <Link
+                    href="/admin/leave"
+                    className="yf-btn yf-btn-secondary"
+                  >
+                    Leave Approval ({counts.pendingLeave}) →
+                  </Link>
+                )}
+
+                {counts.pendingEmployees > 0 && (
+                  <Link
+                    href="/admin/employees"
+                    className="yf-btn yf-btn-secondary"
+                  >
+                    Employee Approval ({counts.pendingEmployees}) →
+                  </Link>
+                )}
+
+                {attentionCounts.readyForApproval > 0 && (
+                  <Link
+                    href="/admin/orders"
+                    className="yf-btn yf-btn-secondary"
+                  >
+                    Workflow Approval ({attentionCounts.readyForApproval}) →
+                  </Link>
+                )}
+              </div>
+            )}
           </div>
         </section>
 
@@ -710,7 +1154,7 @@ export default function AdminPage() {
             </div>
 
             <span className="yf-badge yf-badge-blue">
-              10 Modules
+              14 Modules
             </span>
           </div>
 
@@ -756,6 +1200,15 @@ export default function AdminPage() {
               icon="🕘"
               tone="green"
               badge={`${counts.presentToday} Present`}
+            />
+
+            <ModuleCard
+              href="/admin/work-calendar"
+              label="CALENDAR"
+              title="Work Calendar"
+              description="Daily staff availability, present, leave અને missing attendance જુઓ."
+              icon="🗓️"
+              tone="cyan"
             />
 
             <ModuleCard
@@ -805,6 +1258,15 @@ export default function AdminPage() {
             />
 
             <ModuleCard
+              href="/admin/performance"
+              label="PERFORMANCE"
+              title="Team Performance"
+              description="Employee-wise completed stages, tasks, attendance અને working hours compare કરો."
+              icon="🏆"
+              tone="green"
+            />
+
+            <ModuleCard
               href="/admin/products"
               label="PRODUCTS"
               title="Product Master"
@@ -820,6 +1282,24 @@ export default function AdminPage() {
               description="Inventory items અને stock movement manage કરો."
               icon="🏷️"
               tone="slate"
+            />
+
+            <ModuleCard
+              href="/dashboard/purchase"
+              label="PURCHASE"
+              title="Purchase Management"
+              description="Supplier purchase orders બનાવો અને material receive કરતાં stock auto update કરો."
+              icon="🛒"
+              tone="orange"
+            />
+
+            <ModuleCard
+              href="/dashboard/dispatch"
+              label="DISPATCH"
+              title="Dispatch Management"
+              description="Completed ordersને Ready, Packed, Dispatched અને Delivered statusથી track કરો."
+              icon="🚚"
+              tone="blue"
             />
           </div>
         </section>

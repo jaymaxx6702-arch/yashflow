@@ -34,6 +34,16 @@ type Task = {
   employees: TaskEmployee | null;
 };
 
+type TaskSupportWorker = {
+  id: string;
+  task_id: string;
+  employee_id: string;
+  source: "manual" | "leave_handover";
+  is_active: boolean;
+  created_at: string;
+  removed_at: string | null;
+};
+
 export default function AdminTasksPage() {
   const router = useRouter();
 
@@ -44,16 +54,23 @@ export default function AdminTasksPage() {
 
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [supportWorkers, setSupportWorkers] = useState<TaskSupportWorker[]>([]);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [assignedTo, setAssignedTo] = useState("");
+  const [newTaskSupport, setNewTaskSupport] = useState("");
   const [priority, setPriority] =
     useState<"low" | "medium" | "high" | "urgent">("medium");
   const [dueDate, setDueDate] = useState("");
 
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterEmployee, setFilterEmployee] = useState("all");
+
+  const [supportPickers, setSupportPickers] = useState<Record<string, string>>(
+    {}
+  );
+  const [actionId, setActionId] = useState<string | null>(null);
 
   const [message, setMessage] = useState("");
 
@@ -75,9 +92,7 @@ export default function AdminTasksPage() {
       });
 
     if (error) {
-      setMessage(
-        `Employee Load Error: ${error.message}`
-      );
+      setMessage(`Employee Load Error: ${error.message}`);
       return;
     }
 
@@ -114,13 +129,42 @@ export default function AdminTasksPage() {
       });
 
     if (error) {
-      setMessage(
-        `Task Load Error: ${error.message}`
-      );
+      setMessage(`Task Load Error: ${error.message}`);
       return;
     }
 
     setTasks((data || []) as unknown as Task[]);
+  }
+
+  async function loadSupportWorkers() {
+    const supabase = createClient();
+
+    const { data, error } = await supabase
+      .from("task_support_workers")
+      .select(`
+        id,
+        task_id,
+        employee_id,
+        source,
+        is_active,
+        created_at,
+        removed_at
+      `)
+      .eq("is_active", true)
+      .order("created_at", {
+        ascending: true,
+      });
+
+    if (error) {
+      setMessage(`Support Worker Load Error: ${error.message}`);
+      return;
+    }
+
+    setSupportWorkers((data || []) as TaskSupportWorker[]);
+  }
+
+  async function refreshTasks() {
+    await Promise.all([loadTasks(), loadSupportWorkers()]);
   }
 
   useEffect(() => {
@@ -137,10 +181,7 @@ export default function AdminTasksPage() {
         return;
       }
 
-      const {
-        data: adminProfile,
-        error: adminError,
-      } = await supabase
+      const { data: adminProfile, error: adminError } = await supabase
         .from("employees")
         .select(`
           id,
@@ -167,6 +208,7 @@ export default function AdminTasksPage() {
       await Promise.all([
         loadEmployees(),
         loadTasks(),
+        loadSupportWorkers(),
       ]);
 
       setLoading(false);
@@ -175,6 +217,63 @@ export default function AdminTasksPage() {
     loadPage();
   }, [router]);
 
+  const employeeMap = useMemo(() => {
+    const map = new Map<string, Employee>();
+
+    employees.forEach((employee) => {
+      map.set(employee.id, employee);
+    });
+
+    return map;
+  }, [employees]);
+
+  const supportByTask = useMemo(() => {
+    const map = new Map<string, TaskSupportWorker[]>();
+
+    supportWorkers.forEach((support) => {
+      if (!support.is_active) return;
+
+      const list = map.get(support.task_id) || [];
+      list.push(support);
+      map.set(support.task_id, list);
+    });
+
+    return map;
+  }, [supportWorkers]);
+
+  function getTaskSupport(taskId: string) {
+    return supportByTask.get(taskId) || [];
+  }
+
+  function getAvailableSupportEmployees(task: Task) {
+    const existingIds = new Set(
+      getTaskSupport(task.id).map((support) => support.employee_id)
+    );
+
+    return employees.filter(
+      (employee) =>
+        employee.id !== task.assigned_to &&
+        !existingIds.has(employee.id)
+    );
+  }
+
+  async function sendSupportNotification(
+    employeeId: string,
+    taskId: string,
+    taskTitle: string
+  ) {
+    const supabase = createClient();
+
+    await supabase.from("notifications").insert({
+      employee_id: employeeId,
+      notification_type: "task",
+      title: "Task Support Assigned",
+      message: `${taskTitle} માં તમને Support Worker તરીકે add કરવામાં આવ્યા છે.`,
+      related_type: "task",
+      related_id: taskId,
+    });
+  }
+
   async function handleCreateTask() {
     if (!title.trim()) {
       setMessage("Task Title જરૂરી છે.");
@@ -182,9 +281,7 @@ export default function AdminTasksPage() {
     }
 
     if (!assignedTo) {
-      setMessage(
-        "Task કોને assign કરવો છે તે Employee પસંદ કરો."
-      );
+      setMessage("Task કોને assign કરવો છે તે Employee પસંદ કરો.");
       return;
     }
 
@@ -193,46 +290,177 @@ export default function AdminTasksPage() {
       return;
     }
 
+    if (newTaskSupport && newTaskSupport === assignedTo) {
+      setMessage("Primary Employee અને Support Employee અલગ હોવા જોઈએ.");
+      return;
+    }
+
     setSaving(true);
     setMessage("");
 
     const supabase = createClient();
 
-    const { error } = await supabase
+    const { data: newTask, error } = await supabase
       .from("tasks")
       .insert({
         title: title.trim(),
-        description:
-          description.trim() || null,
+        description: description.trim() || null,
         assigned_to: assignedTo,
         assigned_by: adminId,
         priority,
         status: "pending",
         due_date: dueDate || null,
-      });
+      })
+      .select("id, title")
+      .single();
 
-    if (error) {
-      setMessage(
-        `Task Create Error: ${error.message}`
-      );
-
+    if (error || !newTask) {
+      setMessage(`Task Create Error: ${error?.message || "Task create failed"}`);
       setSaving(false);
       return;
+    }
+
+    if (newTaskSupport) {
+      const { error: supportError } = await supabase
+        .from("task_support_workers")
+        .upsert(
+          {
+            task_id: newTask.id,
+            employee_id: newTaskSupport,
+            added_by: adminId,
+            source: "manual",
+            is_active: true,
+            removed_at: null,
+          },
+          {
+            onConflict: "task_id,employee_id",
+          }
+        );
+
+      if (supportError) {
+        setMessage(
+          `Task create થયો, પરંતુ Support Worker add ન થયો: ${supportError.message}`
+        );
+      } else {
+        await sendSupportNotification(
+          newTaskSupport,
+          newTask.id,
+          newTask.title
+        );
+      }
     }
 
     setTitle("");
     setDescription("");
     setAssignedTo("");
+    setNewTaskSupport("");
     setPriority("medium");
     setDueDate("");
 
-    setMessage(
-      "Task સફળતાપૂર્વક assign થયો ✅"
-    );
+    if (!newTaskSupport) {
+      setMessage("Task સફળતાપૂર્વક assign થયો ✅");
+    } else {
+      setMessage("Task + Support Worker સફળતાપૂર્વક assign થયા ✅");
+    }
 
-    await loadTasks();
+    await refreshTasks();
 
     setSaving(false);
+  }
+
+  async function addSupportWorker(task: Task) {
+    if (!adminId) return;
+
+    const employeeId = supportPickers[task.id];
+
+    if (!employeeId) {
+      setMessage("Support Worker પસંદ કરો.");
+      return;
+    }
+
+    if (employeeId === task.assigned_to) {
+      setMessage("Primary Employee ને Support Worker બનાવી શકાતો નથી.");
+      return;
+    }
+
+    setActionId(`support-add-${task.id}`);
+    setMessage("");
+
+    const supabase = createClient();
+
+    const { error } = await supabase
+      .from("task_support_workers")
+      .upsert(
+        {
+          task_id: task.id,
+          employee_id: employeeId,
+          added_by: adminId,
+          source: "manual",
+          is_active: true,
+          removed_at: null,
+        },
+        {
+          onConflict: "task_id,employee_id",
+        }
+      );
+
+    if (error) {
+      setMessage(`Support Worker Error: ${error.message}`);
+      setActionId(null);
+      return;
+    }
+
+    await sendSupportNotification(employeeId, task.id, task.title);
+
+    setSupportPickers((prev) => ({
+      ...prev,
+      [task.id]: "",
+    }));
+
+    setMessage("Support Worker add થયો ✅");
+
+    await loadSupportWorkers();
+
+    setActionId(null);
+  }
+
+  async function removeSupportWorker(
+    task: Task,
+    support: TaskSupportWorker
+  ) {
+    const employee = employeeMap.get(support.employee_id);
+    const name = employee?.full_name || "આ Support Worker";
+
+    const confirmed = window.confirm(
+      `${name} ને "${task.title}" માંથી Support Worker તરીકે remove કરવો છે?`
+    );
+
+    if (!confirmed) return;
+
+    setActionId(`support-remove-${support.id}`);
+    setMessage("");
+
+    const supabase = createClient();
+
+    const { error } = await supabase
+      .from("task_support_workers")
+      .update({
+        is_active: false,
+        removed_at: new Date().toISOString(),
+      })
+      .eq("id", support.id);
+
+    if (error) {
+      setMessage(`Support Remove Error: ${error.message}`);
+      setActionId(null);
+      return;
+    }
+
+    setMessage("Support Worker remove થયો ✅");
+
+    await loadSupportWorkers();
+
+    setActionId(null);
   }
 
   async function handleStatusChange(
@@ -255,17 +483,12 @@ export default function AdminTasksPage() {
       updated_at: new Date().toISOString(),
     };
 
-    if (
-      newStatus === "in_progress" &&
-      !task.started_at
-    ) {
-      updateData.started_at =
-        new Date().toISOString();
+    if (newStatus === "in_progress" && !task.started_at) {
+      updateData.started_at = new Date().toISOString();
     }
 
     if (newStatus === "completed") {
-      updateData.completed_at =
-        new Date().toISOString();
+      updateData.completed_at = new Date().toISOString();
     }
 
     if (newStatus !== "completed") {
@@ -278,9 +501,7 @@ export default function AdminTasksPage() {
       .eq("id", task.id);
 
     if (error) {
-      setMessage(
-        `Task Update Error: ${error.message}`
-      );
+      setMessage(`Task Update Error: ${error.message}`);
       return;
     }
 
@@ -324,12 +545,16 @@ export default function AdminTasksPage() {
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
       const statusMatch =
-        filterStatus === "all" ||
-        task.status === filterStatus;
+        filterStatus === "all" || task.status === filterStatus;
+
+      const supportMatch = getTaskSupport(task.id).some(
+        (support) => support.employee_id === filterEmployee
+      );
 
       const employeeMatch =
         filterEmployee === "all" ||
-        task.assigned_to === filterEmployee;
+        task.assigned_to === filterEmployee ||
+        supportMatch;
 
       return statusMatch && employeeMatch;
     });
@@ -337,6 +562,7 @@ export default function AdminTasksPage() {
     tasks,
     filterStatus,
     filterEmployee,
+    supportByTask,
   ]);
 
   const pendingCount = tasks.filter(
@@ -356,6 +582,10 @@ export default function AdminTasksPage() {
       task.priority === "urgent" &&
       task.status !== "completed" &&
       task.status !== "cancelled"
+  ).length;
+
+  const activeSupportCount = supportWorkers.filter(
+    (support) => support.is_active
   ).length;
 
   if (loading) {
@@ -384,9 +614,7 @@ export default function AdminTasksPage() {
 
           <button
             type="button"
-            onClick={() =>
-              router.push("/admin")
-            }
+            onClick={() => router.push("/admin")}
             className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl font-semibold"
           >
             ← Admin Dashboard
@@ -401,7 +629,7 @@ export default function AdminTasksPage() {
           </div>
         )}
 
-        <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+        <section className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-5">
           <div className="bg-white border border-slate-200 rounded-2xl p-5">
             <p className="text-sm font-semibold text-slate-500">
               Pending
@@ -441,12 +669,28 @@ export default function AdminTasksPage() {
               {urgentCount}
             </p>
           </div>
+
+          <div className="bg-white border border-slate-200 rounded-2xl p-5">
+            <p className="text-sm font-semibold text-slate-500">
+              Support Links
+            </p>
+
+            <p className="text-3xl font-black mt-2 text-purple-600">
+              {activeSupportCount}
+            </p>
+          </div>
         </section>
 
         <section className="bg-white border border-slate-200 rounded-2xl p-6">
-          <h2 className="text-xl font-black text-slate-900">
-            Assign New Task
-          </h2>
+          <div>
+            <h2 className="text-xl font-black text-slate-900">
+              Assign New Task
+            </h2>
+
+            <p className="text-sm text-slate-500 mt-1">
+              Primary Employee સાથે optional Support Worker પણ assign કરી શકો છો.
+            </p>
+          </div>
 
           <div className="grid lg:grid-cols-2 gap-4 mt-5">
             <div>
@@ -457,9 +701,7 @@ export default function AdminTasksPage() {
               <input
                 type="text"
                 value={title}
-                onChange={(e) =>
-                  setTitle(e.target.value)
-                }
+                onChange={(e) => setTitle(e.target.value)}
                 placeholder="Example: Acrylic orders complete કરો"
                 className="w-full border border-slate-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
               />
@@ -467,14 +709,19 @@ export default function AdminTasksPage() {
 
             <div>
               <label className="block text-sm font-bold text-slate-600 mb-2">
-                Assign Employee
+                Primary Employee
               </label>
 
               <select
                 value={assignedTo}
-                onChange={(e) =>
-                  setAssignedTo(e.target.value)
-                }
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setAssignedTo(value);
+
+                  if (newTaskSupport === value) {
+                    setNewTaskSupport("");
+                  }
+                }}
                 className="w-full border border-slate-300 rounded-xl px-4 py-3 bg-white outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">
@@ -492,6 +739,39 @@ export default function AdminTasksPage() {
                       : ""}
                   </option>
                 ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-slate-600 mb-2">
+                Support Employee
+                <span className="text-slate-400 font-semibold">
+                  {" "}— Optional
+                </span>
+              </label>
+
+              <select
+                value={newTaskSupport}
+                onChange={(e) => setNewTaskSupport(e.target.value)}
+                className="w-full border border-slate-300 rounded-xl px-4 py-3 bg-white"
+              >
+                <option value="">
+                  No Support Worker
+                </option>
+
+                {employees
+                  .filter((employee) => employee.id !== assignedTo)
+                  .map((employee) => (
+                    <option
+                      key={employee.id}
+                      value={employee.id}
+                    >
+                      {employee.full_name}
+                      {employee.department
+                        ? ` — ${employee.department}`
+                        : ""}
+                    </option>
+                  ))}
               </select>
             </div>
 
@@ -539,9 +819,7 @@ export default function AdminTasksPage() {
               <input
                 type="date"
                 value={dueDate}
-                onChange={(e) =>
-                  setDueDate(e.target.value)
-                }
+                onChange={(e) => setDueDate(e.target.value)}
                 className="w-full border border-slate-300 rounded-xl px-4 py-3"
               />
             </div>
@@ -553,9 +831,7 @@ export default function AdminTasksPage() {
 
               <textarea
                 value={description}
-                onChange={(e) =>
-                  setDescription(e.target.value)
-                }
+                onChange={(e) => setDescription(e.target.value)}
                 rows={3}
                 placeholder="Taskની વિગત લખો..."
                 className="w-full border border-slate-300 rounded-xl px-4 py-3 resize-none"
@@ -580,16 +856,20 @@ export default function AdminTasksPage() {
         <section className="bg-white border border-slate-200 rounded-2xl mt-5 overflow-hidden">
           <div className="p-6 border-b border-slate-100">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-              <h2 className="text-xl font-black text-slate-900">
-                All Tasks
-              </h2>
+              <div>
+                <h2 className="text-xl font-black text-slate-900">
+                  All Tasks
+                </h2>
+
+                <p className="text-sm text-slate-500 mt-1">
+                  Primary + Support Worker team અહીંથી manage કરો.
+                </p>
+              </div>
 
               <div className="flex flex-col sm:flex-row gap-3">
                 <select
                   value={filterStatus}
-                  onChange={(e) =>
-                    setFilterStatus(e.target.value)
-                  }
+                  onChange={(e) => setFilterStatus(e.target.value)}
                   className="border border-slate-300 rounded-xl px-4 py-2 bg-white"
                 >
                   <option value="all">
@@ -611,11 +891,7 @@ export default function AdminTasksPage() {
 
                 <select
                   value={filterEmployee}
-                  onChange={(e) =>
-                    setFilterEmployee(
-                      e.target.value
-                    )
-                  }
+                  onChange={(e) => setFilterEmployee(e.target.value)}
                   className="border border-slate-300 rounded-xl px-4 py-2 bg-white"
                 >
                   <option value="all">
@@ -636,7 +912,7 @@ export default function AdminTasksPage() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1100px]">
+            <table className="w-full min-w-[1380px]">
               <thead className="bg-slate-100">
                 <tr>
                   <th className="text-left px-5 py-4 text-sm">
@@ -644,7 +920,11 @@ export default function AdminTasksPage() {
                   </th>
 
                   <th className="text-left px-5 py-4 text-sm">
-                    Employee
+                    Primary Employee
+                  </th>
+
+                  <th className="text-left px-5 py-4 text-sm">
+                    Support Workers
                   </th>
 
                   <th className="text-left px-5 py-4 text-sm">
@@ -670,106 +950,214 @@ export default function AdminTasksPage() {
               </thead>
 
               <tbody>
-                {filteredTasks.map((task) => (
-                  <tr
-                    key={task.id}
-                    className="border-t border-slate-100 align-top"
-                  >
-                    <td className="px-5 py-4">
-                      <p className="font-bold text-slate-900">
-                        {task.title}
-                      </p>
+                {filteredTasks.map((task) => {
+                  const taskSupport = getTaskSupport(task.id);
+                  const availableSupport =
+                    getAvailableSupportEmployees(task);
 
-                      {task.description && (
-                        <p className="text-sm text-slate-500 mt-1 max-w-xs">
-                          {task.description}
+                  return (
+                    <tr
+                      key={task.id}
+                      className="border-t border-slate-100 align-top"
+                    >
+                      <td className="px-5 py-4">
+                        <p className="font-bold text-slate-900">
+                          {task.title}
                         </p>
-                      )}
-                    </td>
 
-                    <td className="px-5 py-4">
-                      <p className="font-semibold">
-                        {task.employees
-                          ?.full_name || "-"}
-                      </p>
+                        {task.description && (
+                          <p className="text-sm text-slate-500 mt-1 max-w-xs">
+                            {task.description}
+                          </p>
+                        )}
+                      </td>
 
-                      <p className="text-xs text-slate-400 mt-1">
-                        {task.employees
-                          ?.department || "-"}
-                      </p>
-                    </td>
+                      <td className="px-5 py-4">
+                        <span className="inline-flex px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 text-[11px] font-black">
+                          PRIMARY
+                        </span>
 
-                    <td className="px-5 py-4">
-                      <span
-                        className={`px-3 py-1.5 rounded-full text-xs font-bold ${getPriorityStyle(
-                          task.priority
-                        )}`}
-                      >
-                        {task.priority
-                          .replace("_", " ")
-                          .toUpperCase()}
-                      </span>
-                    </td>
+                        <p className="font-semibold mt-2">
+                          {task.employees?.full_name || "-"}
+                        </p>
 
-                    <td className="px-5 py-4 font-semibold">
-                      {task.due_date || "-"}
-                    </td>
+                        <p className="text-xs text-slate-400 mt-1">
+                          {task.employees?.department || "-"}
+                        </p>
+                      </td>
 
-                    <td className="px-5 py-4">
-                      <span
-                        className={`px-3 py-1.5 rounded-full text-xs font-bold ${getStatusStyle(
-                          task.status
-                        )}`}
-                      >
-                        {task.status
-                          .replace("_", " ")
-                          .toUpperCase()}
-                      </span>
-                    </td>
+                      <td className="px-5 py-4 min-w-[300px]">
+                        <div className="space-y-2">
+                          {taskSupport.map((support) => {
+                            const employee =
+                              employeeMap.get(support.employee_id);
 
-                    <td className="px-5 py-4 text-sm text-slate-600 max-w-xs">
-                      {task.employee_note || "-"}
-                    </td>
+                            return (
+                              <div
+                                key={support.id}
+                                className="flex items-center justify-between gap-3 bg-purple-50 border border-purple-100 rounded-xl px-3 py-2"
+                              >
+                                <div>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-bold text-slate-900 text-sm">
+                                      {employee?.full_name || "Employee"}
+                                    </span>
 
-                    <td className="px-5 py-4">
-                      <select
-                        value={task.status}
-                        onChange={(e) =>
-                          handleStatusChange(
-                            task,
-                            e.target.value as
-                              | "pending"
-                              | "in_progress"
-                              | "completed"
-                              | "cancelled"
-                          )
-                        }
-                        className="border border-slate-300 rounded-lg px-3 py-2 bg-white text-sm font-semibold"
-                      >
-                        <option value="pending">
-                          Pending
-                        </option>
+                                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                                      SUPPORT
+                                    </span>
 
-                        <option value="in_progress">
-                          In Progress
-                        </option>
+                                    {support.source === "leave_handover" && (
+                                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                                        LEAVE HANDOVER
+                                      </span>
+                                    )}
+                                  </div>
 
-                        <option value="completed">
-                          Completed
-                        </option>
+                                  <p className="text-xs text-slate-500 mt-1">
+                                    {employee?.department || "-"}
+                                  </p>
+                                </div>
 
-                        <option value="cancelled">
-                          Cancelled
-                        </option>
-                      </select>
-                    </td>
-                  </tr>
-                ))}
+                                <button
+                                  type="button"
+                                  disabled={
+                                    actionId ===
+                                    `support-remove-${support.id}`
+                                  }
+                                  onClick={() =>
+                                    removeSupportWorker(task, support)
+                                  }
+                                  className="text-xs font-bold text-red-600 hover:text-red-700 disabled:opacity-50"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            );
+                          })}
+
+                          {taskSupport.length === 0 && (
+                            <p className="text-sm text-slate-400">
+                              No Support Worker
+                            </p>
+                          )}
+
+                          {task.status !== "completed" &&
+                            task.status !== "cancelled" &&
+                            availableSupport.length > 0 && (
+                              <div className="flex gap-2 pt-1">
+                                <select
+                                  value={supportPickers[task.id] || ""}
+                                  onChange={(e) =>
+                                    setSupportPickers((prev) => ({
+                                      ...prev,
+                                      [task.id]: e.target.value,
+                                    }))
+                                  }
+                                  className="flex-1 min-w-0 border border-slate-300 rounded-lg px-2.5 py-2 bg-white text-xs"
+                                >
+                                  <option value="">
+                                    Add Support...
+                                  </option>
+
+                                  {availableSupport.map((employee) => (
+                                    <option
+                                      key={employee.id}
+                                      value={employee.id}
+                                    >
+                                      {employee.full_name}
+                                    </option>
+                                  ))}
+                                </select>
+
+                                <button
+                                  type="button"
+                                  disabled={
+                                    actionId ===
+                                    `support-add-${task.id}`
+                                  }
+                                  onClick={() => addSupportWorker(task)}
+                                  className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-lg text-xs font-bold disabled:opacity-50"
+                                >
+                                  Add
+                                </button>
+                              </div>
+                            )}
+                        </div>
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <span
+                          className={`px-3 py-1.5 rounded-full text-xs font-bold ${getPriorityStyle(
+                            task.priority
+                          )}`}
+                        >
+                          {task.priority
+                            .replace("_", " ")
+                            .toUpperCase()}
+                        </span>
+                      </td>
+
+                      <td className="px-5 py-4 font-semibold">
+                        {task.due_date || "-"}
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <span
+                          className={`px-3 py-1.5 rounded-full text-xs font-bold ${getStatusStyle(
+                            task.status
+                          )}`}
+                        >
+                          {task.status
+                            .replace("_", " ")
+                            .toUpperCase()}
+                        </span>
+                      </td>
+
+                      <td className="px-5 py-4 text-sm text-slate-600 max-w-xs">
+                        {task.employee_note || "-"}
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <select
+                          value={task.status}
+                          onChange={(e) =>
+                            handleStatusChange(
+                              task,
+                              e.target.value as
+                                | "pending"
+                                | "in_progress"
+                                | "completed"
+                                | "cancelled"
+                            )
+                          }
+                          className="border border-slate-300 rounded-lg px-3 py-2 bg-white text-sm font-semibold"
+                        >
+                          <option value="pending">
+                            Pending
+                          </option>
+
+                          <option value="in_progress">
+                            In Progress
+                          </option>
+
+                          <option value="completed">
+                            Completed
+                          </option>
+
+                          <option value="cancelled">
+                            Cancelled
+                          </option>
+                        </select>
+                      </td>
+                    </tr>
+                  );
+                })}
 
                 {filteredTasks.length === 0 && (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={8}
                       className="px-5 py-12 text-center text-slate-400"
                     >
                       કોઈ Task મળ્યો નથી.

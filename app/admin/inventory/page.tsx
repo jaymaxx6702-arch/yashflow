@@ -36,6 +36,45 @@ type InventoryTransaction = {
   created_at: string;
 };
 
+type Product = {
+  id: string;
+  name: string;
+};
+
+type WorkflowStage = {
+  id: string;
+  code: string;
+  name: string;
+};
+
+type ProductBom = {
+  id: string;
+  product_id: string;
+  item_id: string;
+  consume_stage_id: string;
+  quantity_per_unit: number;
+  is_active: boolean;
+  created_at: string;
+};
+
+type InventoryConsumption = {
+  id: string;
+  order_id: string;
+  order_stage_work_id: string;
+  bom_id: string;
+  item_id: string;
+  order_quantity: number;
+  quantity_used: number;
+  status: "active" | "reversed";
+  reversed_reason: string | null;
+  created_at: string;
+  reversed_at: string | null;
+  orders?: {
+    order_number?: string | null;
+    product_name?: string | null;
+  } | null;
+};
+
 export default function AdminInventoryPage() {
   const router = useRouter();
 
@@ -48,6 +87,9 @@ export default function AdminInventoryPage() {
     null
   );
 
+  const [canViewInventory, setCanViewInventory] = useState(false);
+  const [canManageInventory, setCanManageInventory] = useState(false);
+
   const [items, setItems] = useState<InventoryItem[]>(
     []
   );
@@ -55,6 +97,18 @@ export default function AdminInventoryPage() {
   const [transactions, setTransactions] = useState<
     InventoryTransaction[]
   >([]);
+
+  const [products, setProducts] = useState<Product[]>([]);
+  const [workflowStages, setWorkflowStages] = useState<WorkflowStage[]>([]);
+  const [bomRows, setBomRows] = useState<ProductBom[]>([]);
+  const [consumptions, setConsumptions] = useState<InventoryConsumption[]>([]);
+
+  const [bomProductId, setBomProductId] = useState("");
+  const [bomItemId, setBomItemId] = useState("");
+  const [bomStageId, setBomStageId] = useState("");
+  const [bomQtyPerUnit, setBomQtyPerUnit] = useState("1");
+  const [bomSaving, setBomSaving] = useState(false);
+  const [reverseId, setReverseId] = useState<string | null>(null);
 
   const [itemCode, setItemCode] = useState("");
   const [itemName, setItemName] = useState("");
@@ -154,6 +208,82 @@ export default function AdminInventoryPage() {
       (transactionData ||
         []) as InventoryTransaction[]
     );
+
+    const [
+      productResult,
+      stageResult,
+      bomResult,
+      consumptionResult,
+    ] = await Promise.all([
+      supabase
+        .from("products")
+        .select("id, name")
+        .eq("is_active", true)
+        .order("name"),
+
+      supabase
+        .from("workflow_stages")
+        .select("id, code, name")
+        .eq("is_active", true)
+        .order("sort_order"),
+
+      supabase
+        .from("product_inventory_bom")
+        .select(`
+          id,
+          product_id,
+          item_id,
+          consume_stage_id,
+          quantity_per_unit,
+          is_active,
+          created_at
+        `)
+        .order("created_at", { ascending: false }),
+
+      supabase
+        .from("order_inventory_consumptions")
+        .select(`
+          id,
+          order_id,
+          order_stage_work_id,
+          bom_id,
+          item_id,
+          order_quantity,
+          quantity_used,
+          status,
+          reversed_reason,
+          created_at,
+          reversed_at,
+          orders (
+            order_number,
+            product_name
+          )
+        `)
+        .order("created_at", { ascending: false })
+        .limit(100),
+    ]);
+
+    const extraError =
+      productResult.error ||
+      stageResult.error ||
+      bomResult.error ||
+      consumptionResult.error;
+
+    if (extraError) {
+      setMessage(
+        `Inventory Automation Load Error: ${extraError.message}`
+      );
+      return;
+    }
+
+    setProducts((productResult.data || []) as Product[]);
+    setWorkflowStages(
+      (stageResult.data || []) as WorkflowStage[]
+    );
+    setBomRows((bomResult.data || []) as ProductBom[]);
+    setConsumptions(
+      (consumptionResult.data || []) as unknown as InventoryConsumption[]
+    );
   }
 
   useEffect(() => {
@@ -171,8 +301,8 @@ export default function AdminInventoryPage() {
       }
 
       const {
-        data: adminProfile,
-        error: adminError,
+        data: profile,
+        error: profileError,
       } = await supabase
         .from("employees")
         .select(`
@@ -185,17 +315,58 @@ export default function AdminInventoryPage() {
         .single();
 
       if (
-        adminError ||
-        !adminProfile ||
-        adminProfile.role !== "admin" ||
-        adminProfile.approval_status !== "approved" ||
-        !adminProfile.is_active
+        profileError ||
+        !profile ||
+        profile.approval_status !== "approved" ||
+        !profile.is_active
       ) {
+        router.replace("/");
+        return;
+      }
+
+      const isAdmin = profile.role === "admin";
+
+      let viewAllowed = isAdmin;
+      let manageAllowed = isAdmin;
+
+      if (!isAdmin) {
+        const [viewPermission, managePermission] =
+          await Promise.all([
+            supabase.rpc("has_app_permission", {
+              p_permission_key: "inventory.view",
+            }),
+            supabase.rpc("has_app_permission", {
+              p_permission_key: "inventory.manage",
+            }),
+          ]);
+
+        if (viewPermission.error || managePermission.error) {
+          setMessage(
+            `Permission Check Error: ${
+              viewPermission.error?.message ||
+              managePermission.error?.message ||
+              "Unknown error"
+            }`
+          );
+          setLoading(false);
+          return;
+        }
+
+        viewAllowed =
+          Boolean(viewPermission.data) ||
+          Boolean(managePermission.data);
+
+        manageAllowed = Boolean(managePermission.data);
+      }
+
+      if (!viewAllowed) {
         router.replace("/dashboard");
         return;
       }
 
-      setAdminId(adminProfile.id);
+      setAdminId(profile.id);
+      setCanViewInventory(viewAllowed);
+      setCanManageInventory(manageAllowed);
 
       await loadInventory();
 
@@ -206,6 +377,11 @@ export default function AdminInventoryPage() {
   }, [router]);
 
   async function handleCreateItem() {
+    if (!canManageInventory) {
+      setMessage("Inventory Manage permission જરૂરી છે.");
+      return;
+    }
+
     if (!adminId) {
       setMessage("Admin profile મળ્યો નથી.");
       return;
@@ -322,6 +498,11 @@ export default function AdminInventoryPage() {
   async function handleStockUpdate(
     item: InventoryItem
   ) {
+    if (!canManageInventory) {
+      setMessage("Inventory Manage permission જરૂરી છે.");
+      return;
+    }
+
     if (!adminId) {
       setMessage("Admin profile મળ્યો નથી.");
       return;
@@ -434,6 +615,11 @@ export default function AdminInventoryPage() {
   async function handleToggleActive(
     item: InventoryItem
   ) {
+    if (!canManageInventory) {
+      setMessage("Inventory Manage permission જરૂરી છે.");
+      return;
+    }
+
     const supabase = createClient();
 
     const { error } = await supabase
@@ -458,6 +644,161 @@ export default function AdminInventoryPage() {
     );
 
     await loadInventory();
+  }
+
+  const productMap = useMemo(
+    () => new Map(products.map((product) => [product.id, product])),
+    [products]
+  );
+
+  const itemMap = useMemo(
+    () => new Map(items.map((item) => [item.id, item])),
+    [items]
+  );
+
+  const stageMap = useMemo(
+    () => new Map(workflowStages.map((stage) => [stage.id, stage])),
+    [workflowStages]
+  );
+
+  async function handleCreateBom() {
+    if (!canManageInventory) {
+      setMessage("Inventory Manage permission જરૂરી છે.");
+      return;
+    }
+
+    if (!adminId) {
+      setMessage("Admin profile મળ્યો નથી.");
+      return;
+    }
+
+    if (!bomProductId || !bomItemId || !bomStageId) {
+      setMessage(
+        "BOM માટે Product, Material અને Consume Stage select કરો."
+      );
+      return;
+    }
+
+    const qty = Number(bomQtyPerUnit);
+
+    if (!Number.isFinite(qty) || qty <= 0) {
+      setMessage("Material Qty per Product સાચી નાખો.");
+      return;
+    }
+
+    setBomSaving(true);
+    setMessage("");
+
+    const supabase = createClient();
+
+    const { error } = await supabase
+      .from("product_inventory_bom")
+      .insert({
+        product_id: bomProductId,
+        item_id: bomItemId,
+        consume_stage_id: bomStageId,
+        quantity_per_unit: qty,
+        created_by: adminId,
+      });
+
+    if (error) {
+      setMessage(
+        error.code === "23505"
+          ? "આ Product + Material + Stage mapping પહેલેથી છે."
+          : `BOM Save Error: ${error.message}`
+      );
+      setBomSaving(false);
+      return;
+    }
+
+    setBomItemId("");
+    setBomQtyPerUnit("1");
+    setMessage("Product Material Mapping Saved ✅");
+
+    await loadInventory();
+    setBomSaving(false);
+  }
+
+  async function handleDeleteBom(row: ProductBom) {
+    if (!canManageInventory) {
+      setMessage("Inventory Manage permission જરૂરી છે.");
+      return;
+    }
+
+    const productName =
+      productMap.get(row.product_id)?.name || "Product";
+    const itemName =
+      itemMap.get(row.item_id)?.item_name || "Material";
+
+    const confirmed = window.confirm(
+      `${productName} → ${itemName} mapping remove કરવું છે?`
+    );
+
+    if (!confirmed) return;
+
+    const supabase = createClient();
+
+    const { error } = await supabase
+      .from("product_inventory_bom")
+      .delete()
+      .eq("id", row.id);
+
+    if (error) {
+      setMessage(`BOM Remove Error: ${error.message}`);
+      return;
+    }
+
+    setMessage("Material Mapping Removed ✅");
+    await loadInventory();
+  }
+
+  async function handleReverseConsumption(
+    consumption: InventoryConsumption
+  ) {
+    if (!canManageInventory) {
+      setMessage("Inventory Manage permission જરૂરી છે.");
+      return;
+    }
+
+    const reason = window.prompt(
+      "Stock consumption reverse કરવાનું કારણ લખો:"
+    );
+
+    if (reason === null) return;
+
+    if (!reason.trim()) {
+      setMessage("Reverse Reason જરૂરી છે.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "આ consumption reverse કરતાં Stock પાછો Inventoryમાં add થશે. Continue?"
+    );
+
+    if (!confirmed) return;
+
+    setReverseId(consumption.id);
+    setMessage("");
+
+    const supabase = createClient();
+
+    const { error } = await supabase.rpc(
+      "admin_reverse_inventory_consumption",
+      {
+        p_consumption_id: consumption.id,
+        p_reason: reason.trim(),
+      }
+    );
+
+    if (error) {
+      setMessage(`Reverse Error: ${error.message}`);
+      setReverseId(null);
+      return;
+    }
+
+    setMessage("Stock Consumption Reversed ✅");
+    await loadInventory();
+    setReverseId(null);
   }
 
   const categories = useMemo(() => {
@@ -608,6 +949,8 @@ export default function AdminInventoryPage() {
 
             <p className="text-slate-300 text-sm mt-1">
               Inventory & Stock Management
+              {" • "}
+              {canManageInventory ? "Manage Access" : "View Only"}
             </p>
           </div>
 
@@ -678,7 +1021,8 @@ export default function AdminInventoryPage() {
           </div>
         </section>
 
-        <section className="bg-white border border-slate-200 rounded-2xl p-6">
+        {canManageInventory && (
+          <section className="bg-white border border-slate-200 rounded-2xl p-6">
           <h2 className="text-xl font-black text-slate-900">
             Add Inventory Item
           </h2>
@@ -916,6 +1260,149 @@ export default function AdminInventoryPage() {
             </div>
           </div>
         </section>
+        )}
+
+        {canManageInventory && (
+          <section className="bg-white border border-slate-200 rounded-2xl mt-5 p-6">
+          <div>
+            <p className="text-xs font-black tracking-[0.15em] text-blue-700">
+              AUTO STOCK CONSUMPTION
+            </p>
+            <h2 className="text-xl font-black text-slate-900 mt-1">
+              Product Material / BOM Mapping
+            </h2>
+            <p className="text-sm text-slate-500 mt-1">
+              Productના selected Workflow Stage પર Start Work થતાં required stock automatic deduct થશે.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 xl:grid-cols-5 gap-3 mt-5">
+            <select
+              value={bomProductId}
+              onChange={(e) => setBomProductId(e.target.value)}
+              className="w-full border border-slate-300 rounded-xl px-4 py-3 bg-white"
+            >
+              <option value="">Select Product</option>
+              {products.map((product) => (
+                <option key={product.id} value={product.id}>
+                  {product.name}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={bomItemId}
+              onChange={(e) => setBomItemId(e.target.value)}
+              className="w-full border border-slate-300 rounded-xl px-4 py-3 bg-white"
+            >
+              <option value="">Select Material</option>
+              {items
+                .filter((item) => item.is_active)
+                .map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.item_name} ({item.unit})
+                  </option>
+                ))}
+            </select>
+
+            <input
+              type="number"
+              min="0.0001"
+              step="0.0001"
+              value={bomQtyPerUnit}
+              onChange={(e) => setBomQtyPerUnit(e.target.value)}
+              placeholder="Qty / Product"
+              className="w-full border border-slate-300 rounded-xl px-4 py-3"
+            />
+
+            <select
+              value={bomStageId}
+              onChange={(e) => setBomStageId(e.target.value)}
+              className="w-full border border-slate-300 rounded-xl px-4 py-3 bg-white"
+            >
+              <option value="">Consume at Stage</option>
+              {workflowStages.map((stage) => (
+                <option key={stage.id} value={stage.id}>
+                  {stage.name}
+                </option>
+              ))}
+            </select>
+
+            <button
+              type="button"
+              onClick={handleCreateBom}
+              disabled={bomSaving}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-xl font-bold disabled:opacity-50"
+            >
+              {bomSaving ? "Saving..." : "+ Add Mapping"}
+            </button>
+          </div>
+
+          <div className="overflow-x-auto mt-5">
+            <table className="w-full min-w-[900px]">
+              <thead className="bg-slate-100">
+                <tr>
+                  <th className="text-left px-4 py-3 text-sm">Product</th>
+                  <th className="text-left px-4 py-3 text-sm">Material</th>
+                  <th className="text-left px-4 py-3 text-sm">Qty / Product</th>
+                  <th className="text-left px-4 py-3 text-sm">Consume Stage</th>
+                  <th className="text-left px-4 py-3 text-sm">Action</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {bomRows.map((row) => {
+                  const item = itemMap.get(row.item_id);
+                  const product = productMap.get(row.product_id);
+                  const stage = stageMap.get(row.consume_stage_id);
+
+                  return (
+                    <tr key={row.id} className="border-t border-slate-100">
+                      <td className="px-4 py-3 font-bold">
+                        {product?.name || "Unknown Product"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="font-bold">
+                          {item?.item_name || "Unknown Material"}
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          {item?.item_code || ""}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3 font-black">
+                        {row.quantity_per_unit} {item?.unit || ""}
+                      </td>
+                      <td className="px-4 py-3 font-bold text-blue-700">
+                        {stage?.name || "Unknown Stage"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteBom(row)}
+                          className="bg-red-50 hover:bg-red-100 text-red-700 px-3 py-2 rounded-lg text-xs font-bold"
+                        >
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {bomRows.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={5}
+                      className="px-4 py-10 text-center text-slate-400"
+                    >
+                      હજુ કોઈ Product Material Mapping નથી.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+        )}
 
         <section className="bg-white border border-slate-200 rounded-2xl mt-5 overflow-hidden">
           <div className="p-6 border-b border-slate-100">
@@ -1106,6 +1593,7 @@ export default function AdminInventoryPage() {
                       </td>
 
                       <td className="px-5 py-4">
+                        {canManageInventory ? (
                         <div className="w-[260px] space-y-2">
                           <div className="grid grid-cols-2 gap-2">
                             <select
@@ -1218,6 +1706,11 @@ export default function AdminInventoryPage() {
                               : "Update Stock"}
                           </button>
                         </div>
+                        ) : (
+                          <span className="text-xs font-bold text-slate-400">
+                            View Only
+                          </span>
+                        )}
                       </td>
 
                       <td className="px-5 py-4">
@@ -1234,19 +1727,21 @@ export default function AdminInventoryPage() {
                               : "INACTIVE"}
                           </span>
 
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleToggleActive(
-                                item
-                              )
-                            }
-                            className="block bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg text-xs font-bold"
-                          >
-                            {item.is_active
-                              ? "Deactivate"
-                              : "Activate"}
-                          </button>
+                          {canManageInventory && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleToggleActive(
+                                  item
+                                )
+                              }
+                              className="block bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg text-xs font-bold"
+                            >
+                              {item.is_active
+                                ? "Deactivate"
+                                : "Activate"}
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1260,6 +1755,114 @@ export default function AdminInventoryPage() {
                       className="px-5 py-12 text-center text-slate-400"
                     >
                       કોઈ Inventory Item મળ્યો નથી.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="bg-white border border-slate-200 rounded-2xl mt-5 overflow-hidden">
+          <div className="p-6 border-b border-slate-100">
+            <h2 className="text-xl font-black text-slate-900">
+              Auto Order Consumptions
+            </h2>
+            <p className="text-sm text-slate-500 mt-1">
+              Order workflowથી automatic deduct થયેલા stockનો audit.
+            </p>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1050px]">
+              <thead className="bg-slate-100">
+                <tr>
+                  <th className="text-left px-5 py-4 text-sm">Date</th>
+                  <th className="text-left px-5 py-4 text-sm">Order</th>
+                  <th className="text-left px-5 py-4 text-sm">Material</th>
+                  <th className="text-left px-5 py-4 text-sm">Order Qty</th>
+                  <th className="text-left px-5 py-4 text-sm">Stock Used</th>
+                  <th className="text-left px-5 py-4 text-sm">Status</th>
+                  <th className="text-left px-5 py-4 text-sm">Action</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {consumptions.map((row) => {
+                  const item = itemMap.get(row.item_id);
+
+                  return (
+                    <tr key={row.id} className="border-t border-slate-100">
+                      <td className="px-5 py-4 text-sm font-semibold">
+                        {formatDateTime(row.created_at)}
+                      </td>
+                      <td className="px-5 py-4">
+                        <p className="font-black">
+                          {row.orders?.order_number || row.order_id}
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          {row.orders?.product_name || ""}
+                        </p>
+                      </td>
+                      <td className="px-5 py-4">
+                        <p className="font-bold">
+                          {item?.item_name || "Unknown Item"}
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          {item?.item_code || ""}
+                        </p>
+                      </td>
+                      <td className="px-5 py-4 font-bold">
+                        {row.order_quantity}
+                      </td>
+                      <td className="px-5 py-4 font-black text-red-700">
+                        -{row.quantity_used} {item?.unit || ""}
+                      </td>
+                      <td className="px-5 py-4">
+                        <span
+                          className={`px-3 py-1.5 rounded-full text-xs font-black ${
+                            row.status === "active"
+                              ? "bg-green-100 text-green-700"
+                              : "bg-slate-100 text-slate-600"
+                          }`}
+                        >
+                          {row.status === "active" ? "CONSUMED" : "REVERSED"}
+                        </span>
+                        {row.reversed_reason && (
+                          <p className="text-xs text-slate-500 mt-1 max-w-xs">
+                            {row.reversed_reason}
+                          </p>
+                        )}
+                      </td>
+                      <td className="px-5 py-4">
+                        {row.status === "active" && canManageInventory ? (
+                          <button
+                            type="button"
+                            disabled={reverseId === row.id}
+                            onClick={() => handleReverseConsumption(row)}
+                            className="bg-amber-50 hover:bg-amber-100 text-amber-800 px-3 py-2 rounded-lg text-xs font-bold disabled:opacity-50"
+                          >
+                            {reverseId === row.id
+                              ? "Reversing..."
+                              : "Reverse Stock"}
+                          </button>
+                        ) : (
+                          <span className="text-xs font-bold text-slate-400">
+                            {row.status === "reversed" ? "Reversed" : "View Only"}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {consumptions.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={7}
+                      className="px-5 py-12 text-center text-slate-400"
+                    >
+                      હજુ કોઈ Auto Stock Consumption નથી.
                     </td>
                   </tr>
                 )}

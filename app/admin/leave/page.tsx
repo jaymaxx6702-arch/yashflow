@@ -24,6 +24,11 @@ type LeaveRequest = {
   employees: Employee | null;
 };
 
+type WorkloadCount = {
+  tasks: number;
+  orders: number;
+};
+
 export default function AdminLeavePage() {
   const router = useRouter();
 
@@ -32,6 +37,13 @@ export default function AdminLeavePage() {
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [primaryHandover, setPrimaryHandover] =
+    useState<Record<string, string>>({});
+  const [supportHandover, setSupportHandover] =
+    useState<Record<string, string>>({});
+  const [workloadByEmployee, setWorkloadByEmployee] =
+    useState<Record<string, WorkloadCount>>({});
   const [message, setMessage] = useState("");
 
   async function loadLeaves() {
@@ -63,6 +75,101 @@ export default function AdminLeavePage() {
     }
 
     setLeaves((data || []) as unknown as LeaveRequest[]);
+  }
+
+  async function loadHandoverData() {
+    const supabase = createClient();
+
+    const [
+      employeeResult,
+      taskResult,
+      stageWorkResult,
+      stageWorkerResult,
+    ] = await Promise.all([
+      supabase
+        .from("employees")
+        .select("id, full_name, mobile, department")
+        .eq("approval_status", "approved")
+        .eq("is_active", true)
+        .order("full_name"),
+
+      supabase
+        .from("tasks")
+        .select("id, assigned_to, status")
+        .in("status", ["pending", "in_progress"]),
+
+      supabase
+        .from("order_stage_work")
+        .select("id, primary_employee_id, status")
+        .in("status", [
+          "waiting",
+          "assigned",
+          "in_progress",
+          "ready_for_approval",
+          "hold",
+          "rework",
+        ]),
+
+      supabase
+        .from("order_stage_workers")
+        .select("order_stage_work_id, employee_id, left_at")
+        .is("left_at", null),
+    ]);
+
+    const firstError =
+      employeeResult.error ||
+      taskResult.error ||
+      stageWorkResult.error ||
+      stageWorkerResult.error;
+
+    if (firstError) {
+      setMessage(`Handover Load Error: ${firstError.message}`);
+      return;
+    }
+
+    setEmployees((employeeResult.data || []) as Employee[]);
+
+    const counts: Record<string, WorkloadCount> = {};
+
+    for (const employee of (employeeResult.data || []) as Employee[]) {
+      counts[employee.id] = { tasks: 0, orders: 0 };
+    }
+
+    for (const task of taskResult.data || []) {
+      if (!counts[task.assigned_to]) {
+        counts[task.assigned_to] = { tasks: 0, orders: 0 };
+      }
+
+      counts[task.assigned_to].tasks += 1;
+    }
+
+    const workEmployeePairs = new Set<string>();
+
+    for (const work of stageWorkResult.data || []) {
+      if (work.primary_employee_id) {
+        workEmployeePairs.add(
+          `${work.id}:${work.primary_employee_id}`
+        );
+      }
+    }
+
+    for (const link of stageWorkerResult.data || []) {
+      workEmployeePairs.add(
+        `${link.order_stage_work_id}:${link.employee_id}`
+      );
+    }
+
+    for (const pair of workEmployeePairs) {
+      const [, employeeId] = pair.split(":");
+
+      if (!counts[employeeId]) {
+        counts[employeeId] = { tasks: 0, orders: 0 };
+      }
+
+      counts[employeeId].orders += 1;
+    }
+
+    setWorkloadByEmployee(counts);
   }
 
   useEffect(() => {
@@ -101,7 +208,10 @@ export default function AdminLeavePage() {
 
       setAdminId(adminData.id);
 
-      await loadLeaves();
+      await Promise.all([
+        loadLeaves(),
+        loadHandoverData(),
+      ]);
 
       setLoading(false);
     }
@@ -109,10 +219,110 @@ export default function AdminLeavePage() {
     loadPage();
   }, [router]);
 
-  async function updateLeave(
-    leaveId: string,
-    status: "approved" | "rejected"
-  ) {
+  async function approveLeave(leave: LeaveRequest) {
+    if (!adminId) return;
+
+    const primaryId =
+      primaryHandover[leave.id] || null;
+    const supportId =
+      supportHandover[leave.id] || null;
+
+    if (supportId && !primaryId) {
+      setMessage(
+        "Second/Support Employee પહેલા Primary Handover Employee select કરો."
+      );
+      return;
+    }
+
+    if (primaryId && primaryId === leave.employee_id) {
+      setMessage(
+        "Leave લેતા Employeeને જ Handover કરી શકાય નહીં."
+      );
+      return;
+    }
+
+    if (supportId && supportId === leave.employee_id) {
+      setMessage(
+        "Leave લેતા Employeeને Support તરીકે select કરી શકાય નહીં."
+      );
+      return;
+    }
+
+    if (primaryId && supportId && primaryId === supportId) {
+      setMessage(
+        "Primary અને Support Employee અલગ હોવા જોઈએ."
+      );
+      return;
+    }
+
+    const workload =
+      workloadByEmployee[leave.employee_id] || {
+        tasks: 0,
+        orders: 0,
+      };
+
+    const workCount = workload.tasks + workload.orders;
+
+    const confirmText = primaryId
+      ? `Leave approve કરીને ${workload.tasks} Task(s) અને ${workload.orders} Order Stage(s) handover કરવા છે?`
+      : workCount > 0
+      ? `આ Employee પાસે ${workload.tasks} Task(s) અને ${workload.orders} Order Stage(s) active છે. Handover વગર Leave approve કરવી છે?`
+      : "Leave approve કરવી છે?";
+
+    if (!window.confirm(confirmText)) return;
+
+    setActionId(leave.id);
+    setMessage("");
+
+    const supabase = createClient();
+
+    const { data, error } = await supabase.rpc(
+      "admin_approve_leave_with_handover",
+      {
+        p_leave_id: leave.id,
+        p_primary_employee_id: primaryId,
+        p_support_employee_id: supportId,
+        p_admin_note: notes[leave.id]?.trim() || null,
+      }
+    );
+
+    if (error) {
+      setMessage(`Leave Approve Error: ${error.message}`);
+      setActionId(null);
+      return;
+    }
+
+    const result = (data || {}) as {
+      handover?: boolean;
+      task_count?: number;
+      order_stage_count?: number;
+    };
+
+    setMessage(
+      result.handover
+        ? `Leave Approved ✅ • ${result.task_count || 0} Task(s) • ${result.order_stage_count || 0} Order Stage(s) Handover`
+        : "Leave Request Approved ✅"
+    );
+
+    setPrimaryHandover((current) => ({
+      ...current,
+      [leave.id]: "",
+    }));
+
+    setSupportHandover((current) => ({
+      ...current,
+      [leave.id]: "",
+    }));
+
+    await Promise.all([
+      loadLeaves(),
+      loadHandoverData(),
+    ]);
+
+    setActionId(null);
+  }
+
+  async function rejectLeave(leaveId: string) {
     if (!adminId) return;
 
     setActionId(leaveId);
@@ -123,7 +333,7 @@ export default function AdminLeavePage() {
     const { error } = await supabase
       .from("leave_requests")
       .update({
-        status,
+        status: "rejected",
         admin_note: notes[leaveId]?.trim() || null,
         approved_by: adminId,
         approved_at: new Date().toISOString(),
@@ -138,14 +348,9 @@ export default function AdminLeavePage() {
       return;
     }
 
-    setMessage(
-      status === "approved"
-        ? "Leave Request Approved ✅"
-        : "Leave Request Rejected."
-    );
+    setMessage("Leave Request Rejected.");
 
     await loadLeaves();
-
     setActionId(null);
   }
 
@@ -278,13 +483,18 @@ export default function AdminLeavePage() {
               </h2>
 
               <p className="text-sm text-slate-500 mt-1">
-                Employeeની Leave Approve અથવા Reject કરો.
+                Leave approve કરો અને જરૂર હોય તો active Tasks / Orders 1 અથવા 2 Employeesને handover કરો.
               </p>
             </div>
 
             <button
               type="button"
-              onClick={loadLeaves}
+              onClick={() =>
+                void Promise.all([
+                  loadLeaves(),
+                  loadHandoverData(),
+                ])
+              }
               className="border px-4 py-2 rounded-xl font-semibold hover:bg-slate-50"
             >
               Refresh
@@ -372,6 +582,109 @@ export default function AdminLeavePage() {
                     <td className="px-5 py-4 min-w-[300px]">
                       {leave.status === "pending" ? (
                         <>
+                          {(() => {
+                            const workload =
+                              workloadByEmployee[leave.employee_id] || {
+                                tasks: 0,
+                                orders: 0,
+                              };
+
+                            const eligibleEmployees = employees.filter(
+                              (employee) =>
+                                employee.id !== leave.employee_id
+                            );
+
+                            return (
+                              <div className="mb-3 rounded-xl border border-blue-100 bg-blue-50 p-3">
+                                <p className="text-xs font-black text-blue-700">
+                                  ACTIVE WORK
+                                </p>
+
+                                <p className="text-sm font-bold text-slate-800 mt-1">
+                                  {workload.tasks} Task(s) • {workload.orders} Order Stage(s)
+                                </p>
+
+                                <div className="grid gap-2 mt-3">
+                                  <select
+                                    value={primaryHandover[leave.id] || ""}
+                                    onChange={(e) => {
+                                      const value = e.target.value;
+
+                                      setPrimaryHandover((current) => ({
+                                        ...current,
+                                        [leave.id]: value,
+                                      }));
+
+                                      if (
+                                        supportHandover[leave.id] === value
+                                      ) {
+                                        setSupportHandover((current) => ({
+                                          ...current,
+                                          [leave.id]: "",
+                                        }));
+                                      }
+                                    }}
+                                    className="w-full border border-blue-200 rounded-lg px-3 py-2 bg-white text-sm font-semibold"
+                                  >
+                                    <option value="">
+                                      Approve Only — No Handover
+                                    </option>
+
+                                    {eligibleEmployees.map((employee) => (
+                                      <option
+                                        key={employee.id}
+                                        value={employee.id}
+                                      >
+                                        Primary → {employee.full_name}
+                                        {employee.department
+                                          ? ` — ${employee.department}`
+                                          : ""}
+                                      </option>
+                                    ))}
+                                  </select>
+
+                                  <select
+                                    value={supportHandover[leave.id] || ""}
+                                    disabled={!primaryHandover[leave.id]}
+                                    onChange={(e) =>
+                                      setSupportHandover((current) => ({
+                                        ...current,
+                                        [leave.id]: e.target.value,
+                                      }))
+                                    }
+                                    className="w-full border border-blue-200 rounded-lg px-3 py-2 bg-white text-sm font-semibold disabled:bg-slate-100"
+                                  >
+                                    <option value="">
+                                      Second Employee / Support (Optional)
+                                    </option>
+
+                                    {eligibleEmployees
+                                      .filter(
+                                        (employee) =>
+                                          employee.id !==
+                                          primaryHandover[leave.id]
+                                      )
+                                      .map((employee) => (
+                                        <option
+                                          key={employee.id}
+                                          value={employee.id}
+                                        >
+                                          Support → {employee.full_name}
+                                          {employee.department
+                                            ? ` — ${employee.department}`
+                                            : ""}
+                                        </option>
+                                      ))}
+                                  </select>
+                                </div>
+
+                                <p className="text-[11px] text-blue-700 mt-2">
+                                  Primaryને open Tasks + primary Orders મળશે. Second Employee Task/Order support તરીકે add થશે.
+                                </p>
+                              </div>
+                            );
+                          })()}
+
                           <input
                             type="text"
                             value={notes[leave.id] || ""}
@@ -390,10 +703,7 @@ export default function AdminLeavePage() {
                               type="button"
                               disabled={actionId === leave.id}
                               onClick={() =>
-                                updateLeave(
-                                  leave.id,
-                                  "approved"
-                                )
+                                approveLeave(leave)
                               }
                               className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-bold disabled:opacity-50"
                             >
@@ -404,10 +714,7 @@ export default function AdminLeavePage() {
                               type="button"
                               disabled={actionId === leave.id}
                               onClick={() =>
-                                updateLeave(
-                                  leave.id,
-                                  "rejected"
-                                )
+                                rejectLeave(leave.id)
                               }
                               className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold disabled:opacity-50"
                             >

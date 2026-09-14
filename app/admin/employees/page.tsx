@@ -28,10 +28,29 @@ type EmployeeDepartment = {
   is_primary: boolean;
 };
 
+type AppPermission = {
+  id: string;
+  permission_key: string;
+  label: string;
+  description: string | null;
+  category: string;
+  sort_order: number;
+  is_active: boolean;
+};
+
+type EmployeePermission = {
+  id: string;
+  employee_id: string;
+  permission_id: string;
+  is_allowed: boolean;
+};
+
 export default function EmployeeApprovalPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [assignments, setAssignments] = useState<EmployeeDepartment[]>([]);
+  const [permissions, setPermissions] = useState<AppPermission[]>([]);
+  const [employeePermissions, setEmployeePermissions] = useState<EmployeePermission[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -39,6 +58,7 @@ export default function EmployeeApprovalPage() {
 
   const [editPrimaryDepartmentId, setEditPrimaryDepartmentId] = useState("");
   const [editAdditionalDepartmentIds, setEditAdditionalDepartmentIds] = useState<number[]>([]);
+  const [editPermissionIds, setEditPermissionIds] = useState<string[]>([]);
 
   const [message, setMessage] = useState("");
 
@@ -73,6 +93,48 @@ export default function EmployeeApprovalPage() {
     }
 
     setAssignments((data || []) as EmployeeDepartment[]);
+  }
+
+  async function loadPermissions() {
+    const supabase = createClient();
+
+    const { data, error } = await supabase
+      .from("app_permissions")
+      .select(`
+        id,
+        permission_key,
+        label,
+        description,
+        category,
+        sort_order,
+        is_active
+      `)
+      .eq("is_active", true)
+      .order("category", { ascending: true })
+      .order("sort_order", { ascending: true })
+      .order("label", { ascending: true });
+
+    if (error) {
+      setMessage(`Permission Load Error: ${error.message}`);
+      return;
+    }
+
+    setPermissions((data || []) as AppPermission[]);
+  }
+
+  async function loadEmployeePermissions() {
+    const supabase = createClient();
+
+    const { data, error } = await supabase
+      .from("employee_app_permissions")
+      .select("id, employee_id, permission_id, is_allowed");
+
+    if (error) {
+      setMessage(`Employee Permission Load Error: ${error.message}`);
+      return;
+    }
+
+    setEmployeePermissions((data || []) as EmployeePermission[]);
   }
 
   async function loadEmployees() {
@@ -114,6 +176,8 @@ export default function EmployeeApprovalPage() {
       loadEmployees(),
       loadDepartments(),
       loadAssignments(),
+      loadPermissions(),
+      loadEmployeePermissions(),
     ]);
 
     setLoading(false);
@@ -141,6 +205,36 @@ export default function EmployeeApprovalPage() {
       .filter((item) => !item.is_primary)
       .map((item) => departmentMap.get(item.department_id))
       .filter(Boolean) as Department[];
+  }
+
+  function employeeDirectPermissionIds(employeeId: string) {
+    return employeePermissions
+      .filter(
+        (item) =>
+          item.employee_id === employeeId &&
+          item.is_allowed
+      )
+      .map((item) => item.permission_id);
+  }
+
+  const permissionsByCategory = useMemo(() => {
+    const map = new Map<string, AppPermission[]>();
+
+    for (const permission of permissions) {
+      const list = map.get(permission.category) || [];
+      list.push(permission);
+      map.set(permission.category, list);
+    }
+
+    return map;
+  }, [permissions]);
+
+  function togglePermission(permissionId: string) {
+    setEditPermissionIds((current) =>
+      current.includes(permissionId)
+        ? current.filter((id) => id !== permissionId)
+        : [...current, permissionId]
+    );
   }
 
   async function updateStatus(
@@ -182,6 +276,10 @@ export default function EmployeeApprovalPage() {
       currentAssignments
         .filter((item) => !item.is_primary)
         .map((item) => item.department_id)
+    );
+
+    setEditPermissionIds(
+      employeeDirectPermissionIds(employee.id)
     );
 
     setMessage("");
@@ -289,13 +387,61 @@ export default function EmployeeApprovalPage() {
       return;
     }
 
+    const { error: permissionDeleteError } = await supabase
+      .from("employee_app_permissions")
+      .delete()
+      .eq("employee_id", employee.id);
+
+    if (permissionDeleteError) {
+      setMessage(
+        `Departments save થયા, પણ old permissions remove કરવામાં error: ${permissionDeleteError.message}`
+      );
+      setUpdatingId(null);
+      await Promise.all([
+        loadEmployees(),
+        loadAssignments(),
+        loadEmployeePermissions(),
+      ]);
+      return;
+    }
+
+    if (editPermissionIds.length > 0) {
+      const { error: permissionInsertError } = await supabase
+        .from("employee_app_permissions")
+        .insert(
+          editPermissionIds.map((permissionId) => ({
+            employee_id: employee.id,
+            permission_id: permissionId,
+            is_allowed: true,
+          }))
+        );
+
+      if (permissionInsertError) {
+        setMessage(
+          `Departments save થયા, પણ permissions save error: ${permissionInsertError.message}`
+        );
+        setUpdatingId(null);
+        await Promise.all([
+          loadEmployees(),
+          loadAssignments(),
+          loadEmployeePermissions(),
+        ]);
+        return;
+      }
+    }
+
     setEditingEmployeeId(null);
     setEditPrimaryDepartmentId("");
     setEditAdditionalDepartmentIds([]);
+    setEditPermissionIds([]);
 
-    await Promise.all([loadEmployees(), loadAssignments()]);
+    await Promise.all([
+      loadEmployees(),
+      loadAssignments(),
+      loadEmployeePermissions(),
+    ]);
 
-    setMessage(`${employee.full_name} ના departments update થયા ✅`);
+    setMessage(`${employee.full_name} ના departments + permissions update થયા ✅`);
     setUpdatingId(null);
   }
 
@@ -424,6 +570,21 @@ export default function EmployeeApprovalPage() {
                             </span>{" "}
                             {employee.is_active ? "Active" : "Inactive"}
                           </p>
+
+                          <div className="md:col-span-2">
+                            <span className="font-semibold text-slate-600">
+                              Access Permissions:
+                            </span>{" "}
+                            {employeeDirectPermissionIds(employee.id).length > 0 ? (
+                              <span className="font-semibold text-emerald-700">
+                                {employeeDirectPermissionIds(employee.id).length} Permission(s)
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">
+                                No extra permission
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -537,6 +698,83 @@ export default function EmployeeApprovalPage() {
                           </div>
                         </div>
 
+                        <div className="mt-6 border-t border-slate-200 pt-5">
+                          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
+                            <div>
+                              <p className="text-sm font-black text-slate-700">
+                                Access Permissions
+                              </p>
+
+                              <p className="text-xs text-slate-500 mt-1">
+                                Sensitive modules માટે explicit access આપો. Adminને full access રહે છે.
+                              </p>
+                            </div>
+
+                            <span className="text-xs font-black text-emerald-700">
+                              {editPermissionIds.length} Selected
+                            </span>
+                          </div>
+
+                          <div className="mt-4 space-y-4">
+                            {Array.from(permissionsByCategory.entries()).map(
+                              ([categoryName, categoryPermissions]) => (
+                                <div
+                                  key={categoryName}
+                                  className="rounded-2xl border border-slate-200 bg-white p-4"
+                                >
+                                  <p className="text-xs font-black tracking-[0.12em] text-blue-700 uppercase">
+                                    {categoryName}
+                                  </p>
+
+                                  <div className="grid md:grid-cols-2 gap-2 mt-3">
+                                    {categoryPermissions.map((permission) => {
+                                      const checked = editPermissionIds.includes(
+                                        permission.id
+                                      );
+
+                                      return (
+                                        <label
+                                          key={permission.id}
+                                          className={`flex items-start gap-3 border rounded-xl px-3 py-3 cursor-pointer ${
+                                            checked
+                                              ? "bg-emerald-50 border-emerald-400"
+                                              : "bg-white border-slate-200"
+                                          }`}
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={checked}
+                                            onChange={() =>
+                                              togglePermission(permission.id)
+                                            }
+                                            className="mt-1"
+                                          />
+
+                                          <span>
+                                            <span className="block font-black text-sm text-slate-900">
+                                              {permission.label}
+                                            </span>
+
+                                            {permission.description && (
+                                              <span className="block text-xs text-slate-500 mt-1">
+                                                {permission.description}
+                                              </span>
+                                            )}
+
+                                            <span className="block text-[10px] font-mono text-slate-400 mt-1">
+                                              {permission.permission_key}
+                                            </span>
+                                          </span>
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )
+                            )}
+                          </div>
+                        </div>
+
                         <div className="flex flex-wrap gap-3 mt-5">
                           <button
                             type="button"
@@ -555,6 +793,7 @@ export default function EmployeeApprovalPage() {
                               setEditingEmployeeId(null);
                               setEditPrimaryDepartmentId("");
                               setEditAdditionalDepartmentIds([]);
+                              setEditPermissionIds([]);
                             }}
                             className="bg-white border border-slate-300 text-slate-700 px-5 py-3 rounded-xl font-black"
                           >
