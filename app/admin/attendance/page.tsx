@@ -226,11 +226,12 @@ export default function AdminAttendancePage() {
           is_active,
           joining_date
         `)
-        .eq("approval_status", "approved")
-        .eq("is_active", true)
-        .order("full_name", {
-          ascending: true,
-        });
+       .eq("approval_status", "approved")
+.eq("is_active", true)
+.eq("is_hidden", false)
+.order("full_name", {
+  ascending: true,
+});
 
     if (employeesError) {
       setMessage(
