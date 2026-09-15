@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "in.yashlaser.app.twa",
+        "sha256_cert_fingerprints": ["A5:1C:AB:1C:AC:68:63:4E:9C:36:40:DD:DD:ED:AB:37:61:0E:DE:24:EF:B2:E6:00:3F:92:F4:A2:B2:5C:BB:7E"]
+      }
+    }]
