@@ -229,6 +229,7 @@ export default function AttendanceReportPage() {
         `)
         .eq("approval_status", "approved")
         .eq("is_active", true)
+        .eq("is_hidden", false)
         .order("full_name", {
           ascending: true,
         });
@@ -305,6 +306,7 @@ export default function AttendanceReportPage() {
     is_active
   `)
   .eq("is_active", true)
+  .eq("is_hidden", false)
   .gte("holiday_date", firstDay)
   .lte("holiday_date", lastDay);
 
@@ -323,6 +325,7 @@ if (holidayError) {
   .from("office_settings")
   .select("weekly_off_day")
   .eq("is_active", true)
+  .eq("is_hidden", false)
   .maybeSingle();
 
 if (officeSettingsError) {

@@ -404,7 +404,7 @@ export default function AdminLeavePage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <main className="yf-page flex items-center justify-center">
         <p className="font-semibold text-slate-500">
           Leave Management લોડ થઈ રહ્યું છે...
         </p>
@@ -413,9 +413,9 @@ export default function AdminLeavePage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50">
-      <header className="bg-blue-600 text-white">
-        <div className="max-w-7xl mx-auto px-5 py-5 flex items-center justify-between gap-4">
+    <main className="yf-page">
+      <header className="yf-header">
+        <div className="yf-container flex items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-black">
               YashFlow Admin
@@ -429,22 +429,22 @@ export default function AdminLeavePage() {
           <button
             type="button"
             onClick={() => router.push("/admin")}
-            className="bg-white/15 hover:bg-white/25 px-4 py-2 rounded-xl font-semibold"
+            className="yf-btn border-white/20 bg-white/10 text-white hover:bg-white/20"
           >
             ← Admin Dashboard
           </button>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto p-5">
+      <div className="yf-container">
         {message && (
-          <div className="mb-5 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl p-4 font-semibold">
+          <div className="yf-alert yf-alert-info mb-5">
             {message}
           </div>
         )}
 
-        <section className="grid sm:grid-cols-3 gap-4">
-          <div className="bg-white border rounded-2xl p-5">
+        <section className="yf-summary-grid">
+          <div className="yf-metric-card">
             <p className="text-sm text-slate-500">
               Pending
             </p>
@@ -454,7 +454,7 @@ export default function AdminLeavePage() {
             </p>
           </div>
 
-          <div className="bg-white border rounded-2xl p-5">
+          <div className="yf-metric-card">
             <p className="text-sm text-slate-500">
               Approved
             </p>
@@ -464,7 +464,7 @@ export default function AdminLeavePage() {
             </p>
           </div>
 
-          <div className="bg-white border rounded-2xl p-5">
+          <div className="yf-metric-card">
             <p className="text-sm text-slate-500">
               Rejected
             </p>
@@ -475,7 +475,7 @@ export default function AdminLeavePage() {
           </div>
         </section>
 
-        <section className="bg-white border rounded-2xl mt-5 overflow-hidden">
+        <section className="yf-card mt-5 overflow-hidden">
           <div className="p-5 border-b flex items-center justify-between">
             <div>
               <h2 className="text-xl font-black">
@@ -495,14 +495,14 @@ export default function AdminLeavePage() {
                   loadHandoverData(),
                 ])
               }
-              className="border px-4 py-2 rounded-xl font-semibold hover:bg-slate-50"
+              className="yf-btn yf-btn-secondary"
             >
               Refresh
             </button>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1100px]">
+          <div className="yf-table-wrap">
+            <table className="yf-table min-w-[1100px]">
               <thead className="bg-slate-100">
                 <tr>
                   <th className="text-left px-5 py-4 text-sm">

@@ -16,7 +16,7 @@ type Priority = "low" | "normal" | "high" | "urgent";
 
 type WorkflowMode = "auto" | "admin_controlled" | "manual";
 
-type QuickFilter = "all" | "running" | "approval" | "needs_assignment" | "completed_today";
+type OrderTab = "new" | "production" | "attention" | "completed" | "all";
 
 type WorkflowStatus =
   | "waiting"
@@ -273,6 +273,16 @@ function indiaDateKey(value: string | null) {
   });
 }
 
+function orderNumericValue(orderNumber: string) {
+  const match = orderNumber.trim().match(/^(?:YL-)?(\d+)$/i);
+
+  if (!match) return null;
+
+  const value = Number(match[1]);
+
+  return Number.isFinite(value) ? value : null;
+}
+
 export default function AdminOrdersPage() {
   const router = useRouter();
 
@@ -338,9 +348,8 @@ export default function AdminOrdersPage() {
   const [searchText, setSearchText] = useState("");
   const [filterStage, setFilterStage] = useState("all");
   const [filterPriority, setFilterPriority] = useState("all");
-  const [quickFilter, setQuickFilter] = useState<QuickFilter>("all");
+  const [orderTab, setOrderTab] = useState<OrderTab>("new");
 
-  const [orderNumber, setOrderNumber] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerMobile, setCustomerMobile] = useState("");
   const [selectedProductId, setSelectedProductId] = useState("");
@@ -947,7 +956,7 @@ export default function AdminOrdersPage() {
 
     if (!work) {
       return order.current_stage === "completed"
-        ? "No Worker Record"
+        ? "No Employee Record"
         : "Needs Assignment";
     }
 
@@ -961,7 +970,7 @@ export default function AdminOrdersPage() {
 
     if (!ids.length) {
       return order.current_stage === "completed"
-        ? "No Worker Record"
+        ? "No Employee Record"
         : "Needs Assignment";
     }
 
@@ -1367,11 +1376,6 @@ export default function AdminOrdersPage() {
   }
 
   async function handleCreateOrder() {
-    if (!orderNumber.trim()) {
-      setMessage("Order Number જરૂરી છે.");
-      return;
-    }
-
     if (!customerName.trim()) {
       setMessage("Customer Name જરૂરી છે.");
       return;
@@ -1467,7 +1471,7 @@ export default function AdminOrdersPage() {
     const { data: newOrder, error } = await supabase
       .from("orders")
       .insert({
-        order_number: orderNumber.trim(),
+        order_number: "AUTO",
         customer_name: customerName.trim(),
         customer_mobile: customerMobile.trim() || null,
         product_id: selectedProduct.id,
@@ -1486,14 +1490,12 @@ export default function AdminOrdersPage() {
         admin_note: adminNote.trim() || null,
         created_by: adminId,
       })
-      .select("id")
+      .select("id, order_number")
       .single();
 
     if (error || !newOrder) {
       setMessage(
-        error?.code === "23505"
-          ? "આ Order Number પહેલેથી છે."
-          : `Order Create Error: ${error?.message || "Unknown error"}`
+        `Order Create Error: ${error?.message || "Unknown error"}`
       );
       setSaving(false);
       return;
@@ -1559,11 +1561,10 @@ export default function AdminOrdersPage() {
     await notifyAssignedWorkers(
       initialAssignment.assignedIds,
       "New Order Assigned",
-      `${orderNumber.trim()} - ${firstStage.name} તમને assign થયું છે.`,
+      `${newOrder.order_number} - ${firstStage.name} તમને assign થયું છે.`,
       newOrder.id
     );
 
-    setOrderNumber("");
     setCustomerName("");
     setCustomerMobile("");
     setSelectedProductId("");
@@ -1580,7 +1581,7 @@ export default function AdminOrdersPage() {
     setShowCreate(false);
 
     setMessage(
-      `${orderNumber.trim()} create થયો → ${firstStage.name} ✅`
+      `${newOrder.order_number} create થયો → ${firstStage.name} ✅`
     );
 
     await refreshOrders();
@@ -1669,7 +1670,7 @@ export default function AdminOrdersPage() {
         .single();
 
       if (error || !data) {
-        setMessage(`Worker Assign Error: ${error?.message || "Unknown error"}`);
+        setMessage(`Employee Assign Error: ${error?.message || "Unknown error"}`);
         setActionId(null);
         return;
       }
@@ -1686,7 +1687,7 @@ export default function AdminOrdersPage() {
         .eq("id", currentWork.id);
 
       if (error) {
-        setMessage(`Worker Assign Error: ${error.message}`);
+        setMessage(`Employee Assign Error: ${error.message}`);
         setActionId(null);
         return;
       }
@@ -1719,15 +1720,15 @@ export default function AdminOrdersPage() {
         ? `Assigned to ${
             employeeMap.get(workerSelection)?.full_name || "Employee"
           }`
-        : "Worker removed",
+        : "Employee removed",
     });
 
     setMessage(
       workerSelection
-        ? `Working By: ${
+        ? `Assigned Employee: ${
             employeeMap.get(workerSelection)?.full_name || "Employee"
           } ✅`
-        : "Worker moved to Needs Assignment."
+        : "Employee moved to Needs Assignment."
     );
 
     setSelectedOrder(null);
@@ -1739,12 +1740,12 @@ export default function AdminOrdersPage() {
     const work = activeWorkByOrder.get(order.id);
 
     if (!work) {
-      setMessage("પહેલા Worker assign કરો.");
+      setMessage("પહેલા Employee assign કરો.");
       return;
     }
 
     if (!work.primary_employee_id) {
-      setMessage("પહેલા Working By employee select કરો.");
+      setMessage("પહેલા Assigned Employee select કરો.");
       return;
     }
 
@@ -2095,7 +2096,7 @@ export default function AdminOrdersPage() {
     setMessage(
       targetAssignment.assignedIds.length
         ? `${order.order_number} → ${targetStage.name} → ${targetAssignment.assignedIds
-            .map((id) => employeeMap.get(id)?.full_name || "Worker")
+            .map((id) => employeeMap.get(id)?.full_name || "Employee")
             .join(" + ")} ✅`
         : `${order.order_number} → ${targetStage.name} ✅`
     );
@@ -2194,6 +2195,139 @@ export default function AdminOrdersPage() {
     timeZone: "Asia/Kolkata",
   });
 
+  const latestNumericOrderValue = useMemo(() => {
+    let maxValue = 0;
+
+    for (const order of orders) {
+      const value = orderNumericValue(order.order_number);
+
+      if (value !== null && value > maxValue) {
+        maxValue = value;
+      }
+    }
+
+    return maxValue;
+  }, [orders]);
+
+  function isSafeDeleteCandidate(order: Order) {
+    const value = orderNumericValue(order.order_number);
+
+    if (value === null || value !== latestNumericOrderValue) {
+      return false;
+    }
+
+    if (
+      order.current_stage === "completed" ||
+      order.current_stage === "cancelled" ||
+      order.workflow_status === "completed" ||
+      order.workflow_status === "cancelled"
+    ) {
+      return false;
+    }
+
+    const works = stageWorks.filter((work) => work.order_id === order.id);
+
+    return works.every(
+      (work) =>
+        !work.started_at &&
+        !work.completed_at &&
+        ["waiting", "assigned"].includes(work.status)
+    );
+  }
+
+  async function deleteMistakenDraft(order: Order) {
+    if (!isSafeDeleteCandidate(order)) {
+      setMessage(
+        "ફક્ત latest unstarted Order delete કરી શકાય. Processed Orderનું number ક્યારેય renumber નહીં થાય."
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `${order.order_number} latest unstarted Order છે. તેને permanently delete કરવો છે? Next Order આ number ફરી use કરી શકે છે.`
+    );
+
+    if (!confirmed) return;
+
+    setActionId(`delete-${order.id}`);
+    setMessage("");
+
+    const supabase = createClient();
+
+    const { error } = await supabase.rpc(
+      "admin_delete_latest_unstarted_order",
+      {
+        p_order_id: order.id,
+      }
+    );
+
+    if (error) {
+      setMessage(`Safe Delete Error: ${error.message}`);
+      setActionId(null);
+      return;
+    }
+
+    setSelectedOrder(null);
+    setSelectedOrderProofs([]);
+    resetFinancialForms();
+
+    setMessage(
+      `${order.order_number} safe draft delete થયું ✅ Next Order આ number reuse કરી શકે છે.`
+    );
+
+    await refreshOrders();
+    setActionId(null);
+  }
+
+  function isNewOrder(order: Order) {
+    const status = effectiveWorkflowStatus(order);
+    const work = activeWorkByOrder.get(order.id);
+
+    const isOpen =
+      order.current_stage !== "completed" &&
+      order.current_stage !== "cancelled";
+
+    return (
+      isOpen &&
+      (!work ||
+        (!work.started_at &&
+          ["waiting", "assigned"].includes(status)))
+    );
+  }
+
+  function needsAttention(order: Order) {
+    const status = effectiveWorkflowStatus(order);
+    const work = activeWorkByOrder.get(order.id);
+
+    const isOpen =
+      order.current_stage !== "completed" &&
+      order.current_stage !== "cancelled";
+
+    if (!isOpen) return false;
+
+    const overdue =
+      Boolean(order.due_date) &&
+      String(order.due_date) < todayIndia;
+
+    return (
+      !work?.primary_employee_id ||
+      ["ready_for_approval", "hold", "rework"].includes(status) ||
+      overdue
+    );
+  }
+
+  function isProductionOrder(order: Order) {
+    const isOpen =
+      order.current_stage !== "completed" &&
+      order.current_stage !== "cancelled";
+
+    return (
+      isOpen &&
+      !isNewOrder(order) &&
+      !needsAttention(order)
+    );
+  }
+
   const filteredOrders = useMemo(() => {
     const query = searchText.trim().toLowerCase();
 
@@ -2211,74 +2345,44 @@ export default function AdminOrdersPage() {
       const priorityMatch =
         filterPriority === "all" || order.priority === filterPriority;
 
-      const work = activeWorkByOrder.get(order.id);
-      const effectiveStatus = effectiveWorkflowStatus(order);
-      const isOpen =
-        order.current_stage !== "completed" &&
-        order.current_stage !== "cancelled";
+      let tabMatch = true;
 
-      let quickMatch = true;
-
-      if (quickFilter === "running") {
-        quickMatch =
-          isOpen &&
-          ["assigned", "in_progress", "hold", "rework"].includes(
-            effectiveStatus
-          );
-      } else if (quickFilter === "approval") {
-        quickMatch = isOpen && effectiveStatus === "ready_for_approval";
-      } else if (quickFilter === "needs_assignment") {
-        quickMatch = isOpen && !work?.primary_employee_id;
-      } else if (quickFilter === "completed_today") {
-        quickMatch =
-          order.current_stage === "completed" &&
-          indiaDateKey(order.completed_at) === todayIndia;
+      if (orderTab === "new") {
+        tabMatch = isNewOrder(order);
+      } else if (orderTab === "production") {
+        tabMatch = isProductionOrder(order);
+      } else if (orderTab === "attention") {
+        tabMatch = needsAttention(order);
+      } else if (orderTab === "completed") {
+        tabMatch =
+          order.current_stage === "completed" ||
+          order.workflow_status === "completed";
       }
 
-      return searchMatch && stageMatch && priorityMatch && quickMatch;
+      return searchMatch && stageMatch && priorityMatch && tabMatch;
     });
   }, [
     orders,
     searchText,
     filterStage,
     filterPriority,
-    quickFilter,
+    orderTab,
     activeWorkByOrder,
+    stageWorks,
     todayIndia,
   ]);
 
-  const runningCount = orders.filter((order) => {
-    const status = effectiveWorkflowStatus(order);
+  const newOrdersCount = orders.filter(isNewOrder).length;
+  const productionCount = orders.filter(isProductionOrder).length;
+  const needsAttentionCount = orders.filter(needsAttention).length;
 
-    return (
-      order.current_stage !== "completed" &&
-      order.current_stage !== "cancelled" &&
-      ["assigned", "in_progress", "hold", "rework"].includes(status)
-    );
-  }).length;
-
-  const approvalCount = orders.filter(
+  const completedCount = orders.filter(
     (order) =>
-      order.current_stage !== "completed" &&
-      order.current_stage !== "cancelled" &&
-      effectiveWorkflowStatus(order) === "ready_for_approval"
+      order.current_stage === "completed" ||
+      order.workflow_status === "completed"
   ).length;
 
-  const needsAssignmentCount = orders.filter((order) => {
-    const work = activeWorkByOrder.get(order.id);
-
-    return (
-      order.current_stage !== "completed" &&
-      order.current_stage !== "cancelled" &&
-      !work?.primary_employee_id
-    );
-  }).length;
-
-  const completedTodayCount = orders.filter(
-    (order) =>
-      order.current_stage === "completed" &&
-      indiaDateKey(order.completed_at) === todayIndia
-  ).length;
+  const allOrdersCount = orders.length;
 
   if (loading) {
     return (
@@ -2296,13 +2400,13 @@ export default function AdminOrdersPage() {
         <div className="yf-container py-5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
             <p className="text-xs font-black tracking-[0.15em] text-blue-100">
-              YASHFLOW WORKFLOW V3
+              YASHFLOW WORKFLOW V4
             </p>
             <h1 className="text-2xl sm:text-3xl font-black text-white mt-1">
               Admin Orders
             </h1>
             <p className="text-blue-100 text-sm font-semibold mt-1">
-              Workflow V3 • Auto Progress • Approval Queue • Needs Assignment
+              Workflow V4 • Auto Progress • Compact Orders • Employee Assignment
             </p>
           </div>
 
@@ -2333,142 +2437,89 @@ export default function AdminOrdersPage() {
           </div>
         )}
 
-        <section className="grid grid-cols-2 xl:grid-cols-4 gap-3 mb-5">
-          <button
-            type="button"
-            onClick={() =>
-              setQuickFilter((current) =>
-                current === "running" ? "all" : "running"
-              )
-            }
-            className={`yf-card p-4 text-left transition ${
-              quickFilter === "running"
-                ? "ring-2 ring-blue-400 bg-blue-50"
-                : "hover:border-blue-300"
-            }`}
-          >
-            <p className="text-xs font-black text-slate-500">RUNNING</p>
-            <p className="text-3xl font-black text-blue-700 mt-1">
-              {runningCount}
-            </p>
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              setQuickFilter((current) =>
-                current === "approval" ? "all" : "approval"
-              )
-            }
-            className={`yf-card p-4 text-left transition ${
-              quickFilter === "approval"
-                ? "ring-2 ring-purple-400 bg-purple-50"
-                : "hover:border-purple-300"
-            }`}
-          >
-            <p className="text-xs font-black text-slate-500">WAITING APPROVAL</p>
-            <p className="text-3xl font-black text-purple-700 mt-1">
-              {approvalCount}
-            </p>
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              setQuickFilter((current) =>
-                current === "needs_assignment" ? "all" : "needs_assignment"
-              )
-            }
-            className={`yf-card p-4 text-left transition ${
-              quickFilter === "needs_assignment"
-                ? "ring-2 ring-amber-400 bg-amber-50"
-                : "hover:border-amber-300"
-            }`}
-          >
-            <p className="text-xs font-black text-slate-500">NEEDS ASSIGNMENT</p>
-            <p className="text-3xl font-black text-amber-700 mt-1">
-              {needsAssignmentCount}
-            </p>
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              setQuickFilter((current) =>
-                current === "completed_today" ? "all" : "completed_today"
-              )
-            }
-            className={`yf-card p-4 text-left transition ${
-              quickFilter === "completed_today"
-                ? "ring-2 ring-green-400 bg-green-50"
-                : "hover:border-green-300"
-            }`}
-          >
-            <p className="text-xs font-black text-slate-500">COMPLETED TODAY</p>
-            <p className="text-3xl font-black text-green-700 mt-1">
-              {completedTodayCount}
-            </p>
-          </button>
-        </section>
-
-        <section className="yf-card p-4 sm:p-5 mb-5">
-          <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
-            <div className="flex-1 grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
-              <input
-                type="text"
-                value={searchText}
-                onChange={(event) => setSearchText(event.target.value)}
-                placeholder="Search Order / Customer / Product..."
-                className="yf-input xl:col-span-2"
-              />
-
-              <select
-                value={filterStage}
-                onChange={(event) => setFilterStage(event.target.value)}
-                className="yf-input"
-              >
-                <option value="all">All Stages</option>
-                {workflowStages.map((stage) => (
-                  <option key={stage.id} value={stage.code}>
-                    {stage.name}
-                  </option>
-                ))}
-                <option value="completed">Completed</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
-
-              <select
-                value={filterPriority}
-                onChange={(event) => setFilterPriority(event.target.value)}
-                className="yf-input"
-              >
-                <option value="all">All Priority</option>
-                <option value="low">Low</option>
-                <option value="normal">Normal</option>
-                <option value="high">High</option>
-                <option value="urgent">Urgent</option>
-              </select>
+        <section className="yf-card p-3 sm:p-4 mb-4">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div>
+              <p className="text-[10px] font-black tracking-[0.14em] text-blue-700">
+                ORDER CENTER
+              </p>
+              <h2 className="text-lg font-black text-slate-900">
+                Compact Orders
+              </h2>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              {quickFilter !== "all" && (
-                <button
-                  type="button"
-                  onClick={() => setQuickFilter("all")}
-                  className="yf-btn yf-btn-secondary whitespace-nowrap"
-                >
-                  Clear Quick Filter ✕
-                </button>
-              )}
+            <button
+              type="button"
+              onClick={() => setShowCreate((current) => !current)}
+              className="yf-btn yf-btn-primary whitespace-nowrap"
+            >
+              {showCreate ? "✕ Close" : "+ New Order"}
+            </button>
+          </div>
 
+          <div className="grid grid-cols-5 gap-1.5">
+            {[
+              ["new", "New Orders", newOrdersCount],
+              ["production", "Production", productionCount],
+              ["attention", "Needs Attention", needsAttentionCount],
+              ["completed", "Completed", completedCount],
+              ["all", "All Orders", allOrdersCount],
+            ].map(([tab, label, count]) => (
               <button
                 type="button"
-                onClick={() => setShowCreate((current) => !current)}
-                className="yf-btn yf-btn-primary whitespace-nowrap"
+                key={String(tab)}
+                onClick={() => setOrderTab(tab as OrderTab)}
+                className={`rounded-xl border px-2 py-2.5 text-center transition ${
+                  orderTab === tab
+                    ? "border-blue-500 bg-blue-600 text-white"
+                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
               >
-                {showCreate ? "✕ Close" : "+ New Order"}
+                <p className="text-[9px] sm:text-[10px] font-black leading-tight">
+                  {label}
+                </p>
+                <p className="text-base sm:text-lg font-black mt-0.5">
+                  {count}
+                </p>
               </button>
-            </div>
+            ))}
+          </div>
+
+          <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-2 mt-3">
+            <input
+              type="text"
+              value={searchText}
+              onChange={(event) => setSearchText(event.target.value)}
+              placeholder="Search Order / Customer / Product..."
+              className="yf-input xl:col-span-2"
+            />
+
+            <select
+              value={filterStage}
+              onChange={(event) => setFilterStage(event.target.value)}
+              className="yf-input"
+            >
+              <option value="all">All Stages</option>
+              {workflowStages.map((stage) => (
+                <option key={stage.id} value={stage.code}>
+                  {stage.name}
+                </option>
+              ))}
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+
+            <select
+              value={filterPriority}
+              onChange={(event) => setFilterPriority(event.target.value)}
+              className="yf-input"
+            >
+              <option value="all">All Priority</option>
+              <option value="low">Low</option>
+              <option value="normal">Normal</option>
+              <option value="high">High</option>
+              <option value="urgent">Urgent</option>
+            </select>
           </div>
         </section>
 
@@ -2489,12 +2540,14 @@ export default function AdminOrdersPage() {
                 <label className="block text-sm font-black mb-2">
                   Order Number
                 </label>
-                <input
-                  value={orderNumber}
-                  onChange={(event) => setOrderNumber(event.target.value)}
-                  placeholder="YL-1001"
-                  className="yf-input"
-                />
+                <div className="yf-input flex items-center justify-between gap-3 bg-blue-50 border-blue-200">
+                  <span className="font-black text-blue-800">
+                    Auto Generated
+                  </span>
+                  <span className="text-xs font-bold text-blue-600">
+                    YL-0001 format
+                  </span>
+                </div>
               </div>
 
               <div>
@@ -2674,131 +2727,147 @@ export default function AdminOrdersPage() {
         )}
 
         <section className="yf-card overflow-hidden">
-          <div className="p-5 border-b border-slate-200 flex items-center justify-between gap-4">
+          <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-3">
             <div>
-              <h2 className="yf-section-title">All Orders</h2>
-              <p className="yf-section-subtitle mt-1">
-                {filteredOrders.length} order(s) shown
+              <p className="text-[10px] font-black tracking-[0.14em] text-blue-700">
+                {orderTab === "new"
+                  ? "NEW ORDERS"
+                  : orderTab === "production"
+                  ? "PRODUCTION"
+                  : orderTab === "attention"
+                  ? "NEEDS ATTENTION"
+                  : orderTab === "completed"
+                  ? "COMPLETED"
+                  : "ALL ORDERS"}
               </p>
+
+              <h2 className="text-lg font-black text-slate-900 mt-0.5">
+                Orders
+              </h2>
             </div>
+
+            <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-black text-slate-700">
+              {filteredOrders.length}
+            </span>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[940px]">
-              <thead className="bg-slate-50">
-                <tr className="text-xs font-black text-slate-500 uppercase">
-                  <th className="text-left px-4 py-3">Order</th>
-                  <th className="text-left px-4 py-3">Customer</th>
-                  <th className="text-left px-4 py-3">Product</th>
-                  <th className="text-left px-4 py-3">Stage / Status</th>
-                  <th className="text-left px-4 py-3">Working By</th>
-                  <th className="text-left px-4 py-3">Proof</th>
-                  <th className="text-left px-4 py-3">Action</th>
-                </tr>
-              </thead>
+          <div className="p-3 space-y-2">
+            {filteredOrders.map((order) => {
+              const stage = getOrderStage(order);
+              const status = effectiveWorkflowStatus(order);
+              const employeeName = workingByName(order);
+              const overdue =
+                Boolean(order.due_date) &&
+                String(order.due_date) < todayIndia &&
+                order.current_stage !== "completed" &&
+                order.current_stage !== "cancelled";
 
-              <tbody>
-                {filteredOrders.map((order) => {
-                  const stage = getOrderStage(order);
-
-                  return (
-                    <tr
-                      key={order.id}
-                      className="border-t border-slate-100 hover:bg-blue-50/30"
-                    >
-                      <td className="px-4 py-3">
+              return (
+                <div
+                  key={order.id}
+                  className="rounded-2xl border border-slate-200 bg-white p-3 hover:border-blue-300 hover:shadow-sm transition"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         <button
                           type="button"
                           onClick={() => openOrder(order)}
-                          className="font-black text-blue-700 hover:underline"
+                          className="text-base font-black text-blue-700 hover:underline"
                         >
                           {order.order_number}
                         </button>
-                        <p className="text-xs text-slate-400 mt-1">
+
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[9px] font-black ${priorityStyle(
+                            order.priority
+                          )}`}
+                        >
                           {order.priority.toUpperCase()}
-                        </p>
-                      </td>
-
-                      <td className="px-4 py-3">
-                        <p className="font-bold text-slate-900">
-                          {order.customer_name}
-                        </p>
-                        <p className="text-xs text-slate-400 mt-1">
-                          {order.customer_mobile || "-"}
-                        </p>
-                      </td>
-
-                      <td className="px-4 py-3">
-                        <p className="font-bold">{order.product_name}</p>
-                        <p className="text-xs text-slate-500 mt-1">
-                          Qty: {order.quantity}
-                        </p>
-                      </td>
-
-                      <td className="px-4 py-3">
-                        <span className="yf-badge bg-blue-100 text-blue-700">
-                          {stage?.name || formatStage(order.current_stage)}
                         </span>
-                        <div className="mt-1">
-                          <span
-                            className={`yf-badge ${statusStyle(
-                              effectiveWorkflowStatus(order)
-                            )}`}
-                          >
-                            {statusLabel(effectiveWorkflowStatus(order))}
+
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[9px] font-black ${statusStyle(
+                            status
+                          )}`}
+                        >
+                          {statusLabel(status)}
+                        </span>
+
+                        {overdue && (
+                          <span className="rounded-full bg-red-100 text-red-700 px-2 py-0.5 text-[9px] font-black">
+                            OVERDUE
                           </span>
-                        </div>
-                      </td>
+                        )}
+                      </div>
 
-                      <td className="px-4 py-3">
-                        <p
-                          className={`font-bold ${
-                            workingByName(order) === "Needs Assignment"
-                              ? "text-amber-700"
-                              : workingByName(order) === "No Worker Record"
-                              ? "text-slate-400"
-                              : "text-slate-900"
-                          }`}
-                        >
-                          {workingByName(order)}
-                        </p>
-                      </td>
+                      <p className="font-black text-sm text-slate-900 mt-1 truncate">
+                        {order.customer_name}
+                      </p>
 
-                      <td className="px-4 py-3">
-                        <button
-                          type="button"
-                          onClick={() => openOrder(order)}
-                          className="text-xs font-black text-blue-700 hover:underline"
-                        >
-                          View Proof
-                        </button>
-                      </td>
+                      <p className="text-xs font-semibold text-slate-500 mt-0.5 truncate">
+                        {order.product_name} • Qty {order.quantity}
+                      </p>
+                    </div>
 
-                      <td className="px-4 py-3">
-                        <button
-                          type="button"
-                          onClick={() => openOrder(order)}
-                          className="yf-btn yf-btn-secondary"
-                        >
-                          Actions ▾
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-
-                {filteredOrders.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={7}
-                      className="px-5 py-12 text-center text-slate-400 font-semibold"
+                    <button
+                      type="button"
+                      onClick={() => openOrder(order)}
+                      className="shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[10px] font-black text-slate-700"
                     >
-                      કોઈ Order મળ્યો નથી.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                      View
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-1.5 mt-3">
+                    <div className="rounded-xl bg-blue-50 px-2.5 py-2 min-w-0">
+                      <p className="text-[8px] font-black text-blue-600">
+                        STAGE
+                      </p>
+                      <p className="text-[10px] sm:text-xs font-black text-blue-900 mt-0.5 truncate">
+                        {stage?.name || formatStage(order.current_stage)}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl bg-slate-50 px-2.5 py-2 min-w-0">
+                      <p className="text-[8px] font-black text-slate-500">
+                        EMPLOYEE
+                      </p>
+                      <p
+                        className={`text-[10px] sm:text-xs font-black mt-0.5 truncate ${
+                          employeeName === "Needs Assignment"
+                            ? "text-amber-700"
+                            : employeeName === "No Employee Record"
+                            ? "text-slate-400"
+                            : "text-slate-900"
+                        }`}
+                      >
+                        {employeeName}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl bg-slate-50 px-2.5 py-2 min-w-0">
+                      <p className="text-[8px] font-black text-slate-500">
+                        DUE
+                      </p>
+                      <p
+                        className={`text-[10px] sm:text-xs font-black mt-0.5 truncate ${
+                          overdue ? "text-red-700" : "text-slate-900"
+                        }`}
+                      >
+                        {order.due_date || "-"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {filteredOrders.length === 0 && (
+              <div className="py-10 text-center text-slate-400 font-semibold">
+                આ sectionમાં કોઈ Order નથી.
+              </div>
+            )}
           </div>
         </section>
       </div>
@@ -2888,7 +2957,7 @@ export default function AdminOrdersPage() {
 
               <div className="yf-card p-4">
                 <p className="text-xs font-black text-slate-400 mb-3">
-                  WORKING BY
+                  ASSIGNED EMPLOYEE
                 </p>
 
                 <div className="flex gap-2">
@@ -3731,6 +3800,29 @@ export default function AdminOrdersPage() {
                   Full Details / History →
                 </button>
               </div>
+
+              {isSafeDeleteCandidate(selectedOrder) && (
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
+                  <p className="text-xs font-black text-red-700">
+                    MISTAKEN LATEST ORDER
+                  </p>
+                  <p className="text-xs font-semibold text-slate-600 mt-1">
+                    આ latest Order હજુ production start થયું નથી. Safe delete પછી
+                    next Order આ number reuse કરી શકે છે.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() => deleteMistakenDraft(selectedOrder)}
+                    disabled={actionId === `delete-${selectedOrder.id}`}
+                    className="yf-btn bg-red-600 text-white hover:bg-red-700 mt-3 disabled:opacity-50"
+                  >
+                    {actionId === `delete-${selectedOrder.id}`
+                      ? "Deleting..."
+                      : "Delete Mistaken Draft"}
+                  </button>
+                </div>
+              )}
 
               {showEdit && (
                 <div className="yf-card p-4">

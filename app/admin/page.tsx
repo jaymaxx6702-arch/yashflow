@@ -676,7 +676,8 @@ export default function AdminPage() {
         .from("employees")
         .select("*")
         .eq("approval_status", "approved")
-        .eq("is_active", true),
+        .eq("is_active", true)
+        .eq("is_hidden", false),
 
       supabase
         .from("employees")
