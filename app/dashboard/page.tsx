@@ -158,8 +158,10 @@ export default function EmployeeDashboard() {
   const [summaryDrawer, setSummaryDrawer] =
     useState<SummaryDrawerKey>(null);
 
-  // Browser/mobile Back button માટે current drawer stateનું stable ref.
+  // Stable refs for Android/browser Back handling.
   const summaryDrawerRef = useRef<SummaryDrawerKey>(null);
+  const allowDashboardExitRef = useRef(false);
+  const dashboardGuardInstalledRef = useRef(false);
 
   function getDateInTimeZone(timeZone: string) {
     const parts = new Intl.DateTimeFormat("en-CA", {
@@ -376,10 +378,7 @@ export default function EmployeeDashboard() {
           ? window.history.state
           : {};
 
-      /*
-        Drawer પહેલેથી open હોય ત્યારે ફરી history entry add ન કરવી.
-        આથી Back દબાવતા એક જ stepમાં drawer close થાય છે.
-      */
+      // Drawer માટે માત્ર એક history entry રાખવી.
       if (!summaryDrawerRef.current) {
         window.history.pushState(
           { ...currentState, yfEmployeeDrawer: true },
@@ -398,10 +397,6 @@ export default function EmployeeDashboard() {
       typeof window !== "undefined" &&
       window.history.state?.yfEmployeeDrawer
     ) {
-      /*
-        X / backdrop close અને Android/browser Back બંને same history entry
-        consume કરે છે. Session/logout સાથે તેનો કોઈ સંબંધ નથી.
-      */
       window.history.back();
       return;
     }
@@ -419,11 +414,6 @@ export default function EmployeeDashboard() {
 
       if (currentState.yfEmployeeDrawer) {
         const { yfEmployeeDrawer: _remove, ...rest } = currentState;
-
-        /*
-          Drawer marker current entryમાંથી remove કરીએ જેથી destination page
-          પરથી Back કરતાં stale drawer state reopen ન થાય.
-        */
         window.history.replaceState(rest, "", window.location.href);
       }
     }
@@ -606,14 +596,50 @@ export default function EmployeeDashboard() {
   }, []);
 
   useEffect(() => {
+    summaryDrawerRef.current = summaryDrawer;
+  }, [summaryDrawer]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    /*
+      Dashboard base guard:
+      Login પછી Android/browser Back દબાવતા app Login screen તરફ જતું હતું.
+      Dashboard mount થાય ત્યારે એક same-page guard entry બનાવીએ.
+      Back:
+      1) Drawer open હોય → drawer close.
+      2) Base dashboard હોય → history.forward() કરીને Dashboard પર જ રાખે.
+      Logout button જ dashboardમાંથી session exit કરવાની મંજૂરી આપે.
+    */
+    if (!dashboardGuardInstalledRef.current) {
+      const currentState =
+        window.history.state && typeof window.history.state === "object"
+          ? window.history.state
+          : {};
+
+      if (!currentState.yfEmployeeDashboardGuard) {
+        window.history.pushState(
+          { ...currentState, yfEmployeeDashboardGuard: true },
+          "",
+          window.location.href
+        );
+      }
+
+      dashboardGuardInstalledRef.current = true;
+    }
+
     function handleBrowserBack() {
-      /*
-        Drawer open હોય ત્યારે Backનો પ્રથમ press ફક્ત drawer close કરે છે.
-        signOut અહીં ક્યારેય થતું નથી.
-      */
       if (summaryDrawerRef.current) {
         summaryDrawerRef.current = null;
         setSummaryDrawer(null);
+        return;
+      }
+
+      if (!allowDashboardExitRef.current) {
+        // Guard entry હજુ forward historyમાં છે; ત્યાં પાછા જઈ Dashboard જ રાખો.
+        window.setTimeout(() => {
+          window.history.forward();
+        }, 0);
       }
     }
 
@@ -623,27 +649,6 @@ export default function EmployeeDashboard() {
       window.removeEventListener("popstate", handleBrowserBack);
     };
   }, []);
-
-  useEffect(() => {
-    /*
-      Page reload drawer-open history entry પર થઈ હોય તો stale marker remove.
-      Reload પછી invisible drawer history trap રહે નહીં.
-    */
-    if (
-      typeof window !== "undefined" &&
-      window.history.state?.yfEmployeeDrawer &&
-      !summaryDrawerRef.current
-    ) {
-      const currentState = window.history.state;
-      const { yfEmployeeDrawer: _remove, ...rest } = currentState;
-      window.history.replaceState(rest, "", window.location.href);
-    }
-  }, []);
-
-
-  useEffect(() => {
-    summaryDrawerRef.current = summaryDrawer;
-  }, [summaryDrawer]);
 
   useEffect(() => {
     async function loadDashboard() {
@@ -806,6 +811,14 @@ export default function EmployeeDashboard() {
       return;
     }
 
+    const confirmed = window.confirm(
+      attendance.check_out
+        ? "Check Out time ફરી update કરવો છે? Current Check Out નવી GPS timeથી replace થશે."
+        : "હમણાં Check Out કરવું છે?"
+    );
+
+    if (!confirmed) return;
+
     setAttendanceLoading(true);
     setMessage("📍 GPS Location મેળવી રહ્યા છીએ...");
 
@@ -857,8 +870,11 @@ export default function EmployeeDashboard() {
   }
 
   async function handleLogout() {
+    allowDashboardExitRef.current = true;
+
     const supabase = createClient();
     await supabase.auth.signOut();
+
     router.replace("/");
     router.refresh();
   }
@@ -1030,9 +1046,21 @@ export default function EmployeeDashboard() {
               )}
 
               {attendance?.check_out && (
-                <span className="yf-badge yf-badge-green">
-                  Done ✓
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="yf-badge yf-badge-green">
+                    Done ✓
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={handleCheckOut}
+                    disabled={attendanceLoading}
+                    className="yf-btn yf-btn-warning disabled:opacity-60"
+                    title="Accidental checkout હોય તો actual leaving time પર ફરી update કરો"
+                  >
+                    {attendanceLoading ? "Wait..." : "Update Check Out"}
+                  </button>
+                </div>
               )}
             </div>
           </div>
