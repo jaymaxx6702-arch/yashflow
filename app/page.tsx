@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
@@ -13,7 +13,74 @@ export default function Home() {
   const [showPin, setShowPin] = useState(false);
 
   const [loading, setLoading] = useState(false);
+  const [sessionChecking, setSessionChecking] = useState(true);
   const [message, setMessage] = useState("");
+
+  /*
+    Back-button/session guard:
+    જો already logged-in user "/" પર પાછો આવે,
+    તો Login screen બતાવવાને બદલે correct dashboard પર મોકલો.
+    Temporary profile/network error આવે તો અહીં automatic signOut નહીં કરીએ.
+  */
+  useEffect(() => {
+    let cancelled = false;
+
+    async function checkExistingSession() {
+      const supabase = createClient();
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (cancelled) return;
+
+      if (userError || !user) {
+        setSessionChecking(false);
+        return;
+      }
+
+      const { data: employee, error: employeeError } = await supabase
+        .from("employees")
+        .select(`
+          id,
+          role,
+          approval_status,
+          is_active
+        `)
+        .eq("auth_user_id", user.id)
+        .maybeSingle();
+
+      if (cancelled) return;
+
+      if (
+        !employeeError &&
+        employee &&
+        employee.approval_status === "approved" &&
+        employee.is_active
+      ) {
+        if (employee.role === "admin") {
+          router.replace("/admin");
+        } else {
+          router.replace("/dashboard");
+        }
+
+        return;
+      }
+
+      /*
+        Profile/network errorથી session destroy ન કરવો.
+        Login screen બતાવીશું, પરંતુ automatic logout નહીં.
+      */
+      setSessionChecking(false);
+    }
+
+    checkExistingSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   async function handleLogin() {
     setMessage("");
@@ -97,18 +164,36 @@ export default function Home() {
       return;
     }
 
+    /*
+      IMPORTANT:
+      Login પછી router.push નહીં.
+      router.replace Login pageને browser historyમાંથી replace કરે છે,
+      એટલે mobile/browser Back દબાવતા Login screen પર પાછા નહીં જશો.
+    */
     if (employee.role === "admin") {
-      router.push("/admin");
+      router.replace("/admin");
       return;
     }
 
-    router.push("/dashboard");
+    router.replace("/dashboard");
+  }
+
+  if (sessionChecking) {
+    return (
+      <main className="yf-page flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="mx-auto h-10 w-10 rounded-full border-4 border-slate-200 border-t-blue-600 animate-spin" />
+          <p className="mt-4 font-semibold text-slate-500">
+            YashFlow session ચેક થઈ રહી છે...
+          </p>
+        </div>
+      </main>
+    );
   }
 
   return (
     <main className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white rounded-3xl shadow-xl overflow-hidden">
-
         <div className="bg-gradient-to-br from-blue-700 to-blue-500 px-7 pt-10 pb-12 text-white text-center">
           <div className="mx-auto mb-4 w-20 h-20 rounded-2xl bg-white flex items-center justify-center shadow-lg">
             <span className="text-blue-700 text-4xl font-black">

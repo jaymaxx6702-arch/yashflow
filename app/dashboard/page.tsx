@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import TodaysWork from "./TodaysWork";
@@ -157,6 +157,9 @@ export default function EmployeeDashboard() {
   const [message, setMessage] = useState("");
   const [summaryDrawer, setSummaryDrawer] =
     useState<SummaryDrawerKey>(null);
+
+  // Browser/mobile Back button માટે current drawer stateનું stable ref.
+  const summaryDrawerRef = useRef<SummaryDrawerKey>(null);
 
   function getDateInTimeZone(timeZone: string) {
     const parts = new Intl.DateTimeFormat("en-CA", {
@@ -373,13 +376,20 @@ export default function EmployeeDashboard() {
           ? window.history.state
           : {};
 
-      window.history.pushState(
-        { ...currentState, yfEmployeeDrawer: true },
-        "",
-        window.location.href
-      );
+      /*
+        Drawer પહેલેથી open હોય ત્યારે ફરી history entry add ન કરવી.
+        આથી Back દબાવતા એક જ stepમાં drawer close થાય છે.
+      */
+      if (!summaryDrawerRef.current) {
+        window.history.pushState(
+          { ...currentState, yfEmployeeDrawer: true },
+          "",
+          window.location.href
+        );
+      }
     }
 
+    summaryDrawerRef.current = key;
     setSummaryDrawer(key);
   }
 
@@ -388,10 +398,15 @@ export default function EmployeeDashboard() {
       typeof window !== "undefined" &&
       window.history.state?.yfEmployeeDrawer
     ) {
+      /*
+        X / backdrop close અને Android/browser Back બંને same history entry
+        consume કરે છે. Session/logout સાથે તેનો કોઈ સંબંધ નથી.
+      */
       window.history.back();
       return;
     }
 
+    summaryDrawerRef.current = null;
     setSummaryDrawer(null);
   }
 
@@ -404,10 +419,16 @@ export default function EmployeeDashboard() {
 
       if (currentState.yfEmployeeDrawer) {
         const { yfEmployeeDrawer: _remove, ...rest } = currentState;
+
+        /*
+          Drawer marker current entryમાંથી remove કરીએ જેથી destination page
+          પરથી Back કરતાં stale drawer state reopen ન થાય.
+        */
         window.history.replaceState(rest, "", window.location.href);
       }
     }
 
+    summaryDrawerRef.current = null;
     setSummaryDrawer(null);
     router.push(path);
   }
@@ -586,13 +607,42 @@ export default function EmployeeDashboard() {
 
   useEffect(() => {
     function handleBrowserBack() {
-      if (summaryDrawer) {
+      /*
+        Drawer open હોય ત્યારે Backનો પ્રથમ press ફક્ત drawer close કરે છે.
+        signOut અહીં ક્યારેય થતું નથી.
+      */
+      if (summaryDrawerRef.current) {
+        summaryDrawerRef.current = null;
         setSummaryDrawer(null);
       }
     }
 
     window.addEventListener("popstate", handleBrowserBack);
-    return () => window.removeEventListener("popstate", handleBrowserBack);
+
+    return () => {
+      window.removeEventListener("popstate", handleBrowserBack);
+    };
+  }, []);
+
+  useEffect(() => {
+    /*
+      Page reload drawer-open history entry પર થઈ હોય તો stale marker remove.
+      Reload પછી invisible drawer history trap રહે નહીં.
+    */
+    if (
+      typeof window !== "undefined" &&
+      window.history.state?.yfEmployeeDrawer &&
+      !summaryDrawerRef.current
+    ) {
+      const currentState = window.history.state;
+      const { yfEmployeeDrawer: _remove, ...rest } = currentState;
+      window.history.replaceState(rest, "", window.location.href);
+    }
+  }, []);
+
+
+  useEffect(() => {
+    summaryDrawerRef.current = summaryDrawer;
   }, [summaryDrawer]);
 
   useEffect(() => {
