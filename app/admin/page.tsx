@@ -7,6 +7,8 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import AdminNotificationBell from "./AdminNotificationBell";
 
+type AnyRow = Record<string, any>;
+
 type DashboardCounts = {
   totalStaff: number;
   pendingEmployees: number;
@@ -46,6 +48,45 @@ type Tone =
   | "cyan"
   | "slate";
 
+type DrawerItem = {
+  id: string;
+  title: string;
+  subtitle?: string;
+  meta?: string;
+  badge?: string;
+};
+
+type DrawerState = {
+  open: boolean;
+  title: string;
+  subtitle: string;
+  items: DrawerItem[];
+  href?: Route;
+  hrefLabel?: string;
+};
+
+type DashboardDetails = {
+  totalStaff: DrawerItem[];
+  presentToday: DrawerItem[];
+  leaveToday: DrawerItem[];
+  pendingAttendance: DrawerItem[];
+  openOrders: DrawerItem[];
+  completedOrders: DrawerItem[];
+  pendingEmployees: DrawerItem[];
+  pendingLeave: DrawerItem[];
+  overdueOrders: DrawerItem[];
+  delayedWorkflow: DrawerItem[];
+  overdueTasks: DrawerItem[];
+  readyForApproval: DrawerItem[];
+  missingAttendance: DrawerItem[];
+  lowStock: DrawerItem[];
+  design: DrawerItem[];
+  cutting: DrawerItem[];
+  production: DrawerItem[];
+  packing: DrawerItem[];
+  transportation: DrawerItem[];
+};
+
 const initialCounts: DashboardCounts = {
   totalStaff: 0,
   pendingEmployees: 0,
@@ -71,6 +112,28 @@ const initialAttentionCounts: AttentionCounts = {
   lowStock: 0,
 };
 
+const emptyDetails: DashboardDetails = {
+  totalStaff: [],
+  presentToday: [],
+  leaveToday: [],
+  pendingAttendance: [],
+  openOrders: [],
+  completedOrders: [],
+  pendingEmployees: [],
+  pendingLeave: [],
+  overdueOrders: [],
+  delayedWorkflow: [],
+  overdueTasks: [],
+  readyForApproval: [],
+  missingAttendance: [],
+  lowStock: [],
+  design: [],
+  cutting: [],
+  production: [],
+  packing: [],
+  transportation: [],
+};
+
 function getIndiaDate() {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Kolkata",
@@ -94,6 +157,60 @@ function getIndiaDisplayDate() {
     month: "short",
     year: "numeric",
   }).format(new Date());
+}
+
+function formatDateTime(value: unknown) {
+  if (!value) return "-";
+
+  const date = new Date(String(value));
+  if (!Number.isFinite(date.getTime())) return String(value);
+
+  return new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function firstValue(row: AnyRow, keys: string[]) {
+  for (const key of keys) {
+    const value = row?.[key];
+    if (value !== null && value !== undefined && String(value).trim() !== "") {
+      return String(value);
+    }
+  }
+  return "";
+}
+
+function orderNumber(order: AnyRow) {
+  return (
+    firstValue(order, ["order_number", "order_no", "order_code"]) ||
+    `#${String(order.id || "").slice(0, 8)}`
+  );
+}
+
+function customerName(order: AnyRow) {
+  return (
+    firstValue(order, [
+      "customer_name",
+      "customer",
+      "client_name",
+      "party_name",
+    ]) || "Customer"
+  );
+}
+
+function productName(order: AnyRow) {
+  return (
+    firstValue(order, [
+      "product_name",
+      "product",
+      "order_type",
+      "product_type",
+    ]) || "Order"
+  );
 }
 
 const toneStyles: Record<
@@ -156,43 +273,50 @@ function SummaryCard({
   subtitle,
   tone,
   icon,
+  onClick,
 }: {
   title: string;
   value: number;
   subtitle: string;
   tone: Tone;
   icon: string;
+  onClick: () => void;
 }) {
   const styles = toneStyles[tone];
 
   return (
-    <div
-      className={`yf-card yf-card-hover relative overflow-hidden p-5 ${styles.shell}`}
+    <button
+      type="button"
+      onClick={onClick}
+      className={`yf-card yf-card-hover relative overflow-hidden p-4 text-left w-full ${styles.shell}`}
     >
       <div className={`absolute left-0 top-0 h-full w-1 ${styles.line}`} />
 
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className={`text-xs font-black tracking-wide ${styles.label}`}>
+          <p className={`text-[11px] font-black tracking-wide ${styles.label}`}>
             {title.toUpperCase()}
           </p>
 
-          <p className={`text-3xl font-black mt-2 ${styles.value}`}>
+          <p className={`text-3xl font-black mt-1 ${styles.value}`}>
             {value}
           </p>
         </div>
 
         <div
-          className={`w-11 h-11 rounded-2xl flex items-center justify-center text-xl ${styles.icon}`}
+          className={`w-10 h-10 rounded-2xl flex items-center justify-center text-lg ${styles.icon}`}
         >
           {icon}
         </div>
       </div>
 
-      <p className="text-xs font-semibold text-slate-500 mt-3">
-        {subtitle}
-      </p>
-    </div>
+      <div className="flex items-center justify-between gap-2 mt-2">
+        <p className="text-[11px] font-semibold text-slate-500 line-clamp-1">
+          {subtitle}
+        </p>
+        <span className={`text-xs font-black ${styles.label}`}>View ›</span>
+      </div>
+    </button>
   );
 }
 
@@ -202,22 +326,26 @@ function WorkflowCard({
   tone,
   icon,
   subtitle,
+  onClick,
 }: {
   title: string;
   value: number;
   tone: Tone;
   icon: string;
   subtitle: string;
+  onClick: () => void;
 }) {
   const styles = toneStyles[tone];
 
   return (
-    <div
-      className={`yf-card yf-card-hover p-4 ${styles.shell}`}
+    <button
+      type="button"
+      onClick={onClick}
+      className={`yf-card yf-card-hover p-3 text-left w-full ${styles.shell}`}
     >
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center justify-between gap-2">
         <div
-          className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${styles.icon}`}
+          className={`w-9 h-9 rounded-xl flex items-center justify-center text-base ${styles.icon}`}
         >
           {icon}
         </div>
@@ -227,153 +355,228 @@ function WorkflowCard({
         </span>
       </div>
 
-      <h3 className="font-black text-slate-900 mt-4">{title}</h3>
+      <h3 className="font-black text-sm text-slate-900 mt-3">{title}</h3>
 
-      <p className="text-xs font-semibold text-slate-500 mt-1">
-        {subtitle}
-      </p>
-    </div>
+      <div className="flex items-center justify-between gap-2 mt-1">
+        <p className="text-[10px] font-semibold text-slate-500">
+          {subtitle}
+        </p>
+        <span className={`text-[10px] font-black ${styles.label}`}>View ›</span>
+      </div>
+    </button>
   );
 }
 
-
 function AttentionCard({
-  href,
   title,
   value,
   description,
   icon,
   tone,
+  onClick,
 }: {
-  href: Route;
   title: string;
   value: number;
   description: string;
   icon: string;
   tone: Tone;
+  onClick: () => void;
 }) {
   const styles = toneStyles[tone];
 
   return (
-    <Link
-      href={href}
-      className={`yf-card yf-card-hover group relative overflow-hidden p-5 ${styles.shell}`}
+    <button
+      type="button"
+      onClick={onClick}
+      className={`yf-card yf-card-hover group relative overflow-hidden p-4 text-left w-full ${styles.shell}`}
     >
       <div className={`absolute left-0 top-0 h-full w-1.5 ${styles.line}`} />
 
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className={`text-xs font-black tracking-wide ${styles.label}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className={`text-[11px] font-black tracking-wide ${styles.label}`}>
             {title.toUpperCase()}
           </p>
 
-          <p className={`text-4xl font-black mt-2 ${styles.value}`}>
+          <p className={`text-3xl font-black mt-1 ${styles.value}`}>
             {value}
           </p>
 
-          <p className="text-xs font-semibold text-slate-500 mt-2 leading-5">
+          <p className="text-[11px] font-semibold text-slate-500 mt-1 leading-4 line-clamp-2">
             {description}
           </p>
         </div>
 
         <div
-          className={`w-12 h-12 shrink-0 rounded-2xl flex items-center justify-center text-2xl ${styles.icon}`}
+          className={`w-10 h-10 shrink-0 rounded-2xl flex items-center justify-center text-lg ${styles.icon}`}
         >
           {icon}
         </div>
       </div>
 
-      <div className="mt-4 border-t border-slate-200/70 pt-3 flex items-center justify-between">
-        <span className={`text-xs font-black ${styles.label}`}>
-          Review Now
+      <div className="mt-3 border-t border-slate-200/70 pt-2 flex items-center justify-between">
+        <span className={`text-[11px] font-black ${styles.label}`}>
+          View Details
         </span>
-
-        <span
-          className={`font-black transition-transform group-hover:translate-x-1 ${styles.label}`}
-        >
-          →
-        </span>
+        <span className={`font-black ${styles.label}`}>›</span>
       </div>
-    </Link>
+    </button>
   );
 }
 
-function ModuleCard({
+function ToolButton({
   href,
   label,
-  title,
-  description,
   icon,
-  tone,
   badge,
 }: {
   href: Route;
   label: string;
-  title: string;
-  description: string;
   icon: string;
-  tone: Tone;
   badge?: string;
 }) {
-  const styles = toneStyles[tone];
-
   return (
     <Link
       href={href}
-      className={`yf-card yf-card-hover group relative overflow-hidden p-5 ${styles.shell}`}
+      className="relative flex flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition min-h-[92px]"
     >
-      <div className={`absolute left-0 top-0 h-full w-1 ${styles.line}`} />
+      {badge && (
+        <span className="absolute right-2 top-2 min-w-5 h-5 px-1 rounded-full bg-red-600 text-white text-[10px] font-black flex items-center justify-center">
+          {badge}
+        </span>
+      )}
 
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className={`text-xs font-black tracking-wide ${styles.label}`}>
-            {label}
-          </p>
+      <div className="w-11 h-11 rounded-2xl bg-slate-100 flex items-center justify-center text-xl">
+        {icon}
+      </div>
 
-          <h3 className="text-lg font-black text-slate-900 mt-1">
-            {title}
-          </h3>
+      <span className="text-[11px] sm:text-xs font-black text-slate-700 text-center leading-tight">
+        {label}
+      </span>
+    </Link>
+  );
+}
 
-          <p className="text-sm text-slate-600 mt-2 leading-6">
-            {description}
-          </p>
+function DetailDrawer({
+  state,
+  onClose,
+}: {
+  state: DrawerState;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    if (!state.open) return;
 
-          {badge && (
-            <span
-              className={`yf-badge mt-4 ${
-                tone === "green"
-                  ? "yf-badge-green"
-                  : tone === "orange"
-                  ? "yf-badge-orange"
-                  : tone === "purple"
-                  ? "yf-badge-purple"
-                  : "yf-badge-blue"
-              }`}
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [state.open, onClose]);
+
+  if (!state.open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100]">
+      <button
+        type="button"
+        aria-label="Close drawer"
+        onClick={onClose}
+        className="absolute inset-0 bg-slate-950/45 backdrop-blur-[1px]"
+      />
+
+      <aside className="absolute right-0 top-0 h-full w-full sm:max-w-lg bg-slate-50 shadow-2xl flex flex-col">
+        <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white px-5 py-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[10px] font-black tracking-[0.16em] text-blue-300">
+                QUICK DETAILS
+              </p>
+              <h2 className="text-xl font-black mt-1">{state.title}</h2>
+              <p className="text-xs text-slate-300 mt-1">
+                {state.subtitle}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-10 h-10 rounded-xl bg-white/10 border border-white/15 text-xl font-black"
             >
-              {badge}
-            </span>
+              ×
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4">
+          {state.items.length === 0 ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+              <div className="text-3xl">✅</div>
+              <p className="font-black text-slate-800 mt-3">No records found</p>
+              <p className="text-xs text-slate-500 mt-1">
+                આ count માટે હાલમાં કોઈ matching record નથી.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {state.items.map((item) => (
+                <div
+                  key={item.id}
+                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-black text-sm text-slate-900 break-words">
+                        {item.title}
+                      </p>
+
+                      {item.subtitle && (
+                        <p className="text-xs font-semibold text-slate-600 mt-1 break-words">
+                          {item.subtitle}
+                        </p>
+                      )}
+
+                      {item.meta && (
+                        <p className="text-[11px] text-slate-500 mt-2 break-words">
+                          {item.meta}
+                        </p>
+                      )}
+                    </div>
+
+                    {item.badge && (
+                      <span className="shrink-0 rounded-full bg-blue-50 border border-blue-100 text-blue-700 px-2.5 py-1 text-[10px] font-black">
+                        {item.badge}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
-        <div
-          className={`w-12 h-12 shrink-0 rounded-2xl flex items-center justify-center text-2xl ${styles.icon}`}
-        >
-          {icon}
+        <div className="border-t border-slate-200 bg-white p-4 flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="yf-btn yf-btn-secondary flex-1 justify-center"
+          >
+            Close
+          </button>
+
+          {state.href && (
+            <Link
+              href={state.href}
+              onClick={onClose}
+              className="yf-btn yf-btn-primary flex-1 justify-center"
+            >
+              {state.hrefLabel || "Open Module"} →
+            </Link>
+          )}
         </div>
-      </div>
-
-      <div className="mt-5 flex items-center justify-between border-t border-slate-200/70 pt-4">
-        <span className={`text-sm font-black ${styles.label}`}>
-          Open Module
-        </span>
-
-        <span
-          className={`text-lg font-black transition-transform group-hover:translate-x-1 ${styles.label}`}
-        >
-          →
-        </span>
-      </div>
-    </Link>
+      </aside>
+    </div>
   );
 }
 
@@ -381,11 +584,20 @@ export default function AdminPage() {
   const router = useRouter();
 
   const [counts, setCounts] = useState<DashboardCounts>(initialCounts);
-  const [attentionCounts, setAttentionCounts] = useState<AttentionCounts>(initialAttentionCounts);
+  const [attentionCounts, setAttentionCounts] = useState<AttentionCounts>(
+    initialAttentionCounts
+  );
+  const [details, setDetails] = useState<DashboardDetails>(emptyDetails);
   const [adminId, setAdminId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState("");
+  const [drawer, setDrawer] = useState<DrawerState>({
+    open: false,
+    title: "",
+    subtitle: "",
+    items: [],
+  });
 
   const today = useMemo(() => getIndiaDate(), []);
   const displayDate = useMemo(() => getIndiaDisplayDate(), []);
@@ -418,6 +630,27 @@ export default function AdminPage() {
       ? "/admin/orders"
       : "/admin/attendance-approval";
 
+  function openDrawer(
+    title: string,
+    subtitle: string,
+    items: DrawerItem[],
+    href?: Route,
+    hrefLabel?: string
+  ) {
+    setDrawer({
+      open: true,
+      title,
+      subtitle,
+      items,
+      href,
+      hrefLabel,
+    });
+  }
+
+  function closeDrawer() {
+    setDrawer((prev) => ({ ...prev, open: false }));
+  }
+
   async function loadDashboardCounts() {
     const supabase = createClient();
 
@@ -425,7 +658,6 @@ export default function AdminPage() {
     setMessage("");
 
     const [
-      totalStaffResult,
       activeEmployeesResult,
       pendingEmployeesResult,
       attendanceResult,
@@ -438,94 +670,66 @@ export default function AdminPage() {
       stageWorksResult,
       delaySettingsResult,
       inventoryResult,
+      workflowStagesResult,
     ] = await Promise.all([
       supabase
         .from("employees")
-        .select("id", { count: "exact", head: true })
+        .select("*")
         .eq("approval_status", "approved")
         .eq("is_active", true),
 
       supabase
         .from("employees")
-        .select("id, role")
-        .eq("approval_status", "approved")
-        .eq("is_active", true),
-
-      supabase
-        .from("employees")
-        .select("id", { count: "exact", head: true })
+        .select("*")
         .eq("approval_status", "pending"),
 
       supabase
         .from("attendance")
-        .select("id, employee_id, approval_status")
+        .select("*")
         .eq("attendance_date", today),
 
       supabase
         .from("leave_requests")
-        .select("id, employee_id")
+        .select("*")
         .eq("status", "approved")
         .lte("start_date", today)
         .gte("end_date", today),
 
       supabase
         .from("leave_requests")
-        .select("id", { count: "exact", head: true })
+        .select("*")
         .eq("status", "pending"),
 
       supabase
         .from("attendance")
-        .select("id", { count: "exact", head: true })
+        .select("*")
         .eq("approval_required", true)
         .eq("approval_status", "pending"),
 
       supabase
         .from("manual_attendance_requests")
-        .select("id", { count: "exact", head: true })
+        .select("*")
         .eq("status", "pending"),
 
-      supabase
-        .from("orders")
-        .select(`
-          id,
-          current_stage,
-          workflow_status,
-          due_date
-        `),
+      supabase.from("orders").select("*"),
 
-      supabase
-        .from("tasks")
-        .select("id, status, due_date"),
+      supabase.from("tasks").select("*"),
 
-      supabase
-        .from("order_stage_work")
-        .select(`
-          id,
-          status,
-          status_changed_at
-        `),
+      supabase.from("order_stage_work").select("*"),
 
       supabase
         .from("workflow_delay_settings")
-        .select(`
-          status,
-          delay_minutes,
-          enabled
-        `),
+        .select("status, delay_minutes, enabled"),
 
       supabase
         .from("inventory_items")
-        .select(`
-          id,
-          current_stock,
-          minimum_stock,
-          is_active
-        `)
+        .select("*")
         .eq("is_active", true),
+
+      supabase.from("workflow_stages").select("id, code, name"),
     ]);
 
     const firstError =
-      totalStaffResult.error ||
       activeEmployeesResult.error ||
       pendingEmployeesResult.error ||
       attendanceResult.error ||
@@ -537,7 +741,8 @@ export default function AdminPage() {
       tasksResult.error ||
       stageWorksResult.error ||
       delaySettingsResult.error ||
-      inventoryResult.error;
+      inventoryResult.error ||
+      workflowStagesResult.error;
 
     if (firstError) {
       setMessage(`Dashboard Load Error: ${firstError.message}`);
@@ -545,146 +750,312 @@ export default function AdminPage() {
       return;
     }
 
-    const presentToday = (attendanceResult.data || []).filter(
+    const activeEmployees = (activeEmployeesResult.data || []) as AnyRow[];
+    const pendingEmployees = (pendingEmployeesResult.data || []) as AnyRow[];
+    const attendanceRows = (attendanceResult.data || []) as AnyRow[];
+    const leaveTodayRows = (leaveTodayResult.data || []) as AnyRow[];
+    const pendingLeaveRows = (pendingLeaveResult.data || []) as AnyRow[];
+    const pendingAttendanceRows = (pendingAttendanceResult.data || []) as AnyRow[];
+    const manualPunchRows = (manualPunchPendingResult.data || []) as AnyRow[];
+    const orderRows = (ordersResult.data || []) as AnyRow[];
+    const taskRows = (tasksResult.data || []) as AnyRow[];
+    const stageRows = (stageWorksResult.data || []) as AnyRow[];
+    const inventoryRows = (inventoryResult.data || []) as AnyRow[];
+    const workflowStageRows = (workflowStagesResult.data || []) as AnyRow[];
+
+    const employeeMap = new Map(
+      activeEmployees.map((employee) => [
+        employee.id,
+        firstValue(employee, ["full_name", "name"]) || "Employee",
+      ])
+    );
+
+    for (const employee of pendingEmployees) {
+      if (!employeeMap.has(employee.id)) {
+        employeeMap.set(
+          employee.id,
+          firstValue(employee, ["full_name", "name"]) || "Employee"
+        );
+      }
+    }
+
+    const orderMap = new Map(orderRows.map((order) => [order.id, order]));
+    const stageNameMap = new Map<string, string>();
+
+    for (const stage of workflowStageRows) {
+      if (stage.id) stageNameMap.set(String(stage.id), String(stage.name || stage.code || "Stage"));
+      if (stage.code) stageNameMap.set(String(stage.code), String(stage.name || stage.code));
+    }
+
+    const presentRows = attendanceRows.filter(
       (row) => row.approval_status !== "rejected"
-    ).length;
+    );
 
-    const orderRows = ordersResult.data || [];
+    const leaveEmployeeIds = new Set(
+      leaveTodayRows.map((row) => row.employee_id).filter(Boolean)
+    );
 
-    const stageCount = (stage: string) =>
-      orderRows.filter(
-        (order) => order.current_stage === stage
-      ).length;
+    const presentEmployeeIds = new Set(
+      presentRows.map((row) => row.employee_id).filter(Boolean)
+    );
 
-    const openOrders = orderRows.filter(
-      (order) =>
-        order.current_stage !== "completed" &&
-        order.current_stage !== "cancelled"
-    ).length;
+    const openOrderRows = orderRows.filter((order) => {
+      const stage = String(order.current_stage || "");
+      const workflowStatus = String(order.workflow_status || "");
 
-    const normalAttendancePending =
-      pendingAttendanceResult.count || 0;
-
-    const manualAttendancePending =
-      manualPunchPendingResult.count || 0;
-
-    setCounts({
-      totalStaff: totalStaffResult.count || 0,
-      pendingEmployees: pendingEmployeesResult.count || 0,
-      presentToday,
-      leaveToday: leaveTodayResult.data?.length || 0,
-      pendingLeave: pendingLeaveResult.count || 0,
-      pendingAttendance:
-        normalAttendancePending + manualAttendancePending,
-      openOrders,
-      completedOrders: stageCount("completed"),
-      design: stageCount("design"),
-      cutting: stageCount("cutting"),
-      production: stageCount("production"),
-      packing: stageCount("packing"),
-      transportation: stageCount("transportation_dispatch"),
+      return (
+        stage !== "completed" &&
+        stage !== "cancelled" &&
+        workflowStatus !== "completed" &&
+        workflowStatus !== "cancelled"
+      );
     });
 
-    // -----------------------------------------------------
-    // ATTENTION REQUIRED
-    // -----------------------------------------------------
-
-    const overdueOrders = orderRows.filter((order) => {
-      if (!order.due_date || order.due_date >= today) {
-        return false;
-      }
-
+    const completedOrderRows = orderRows.filter((order) => {
       return (
-        order.current_stage !== "completed" &&
-        order.current_stage !== "cancelled" &&
-        order.workflow_status !== "completed" &&
-        order.workflow_status !== "cancelled"
+        order.current_stage === "completed" ||
+        order.workflow_status === "completed"
       );
-    }).length;
+    });
 
-    const overdueTasks = (tasksResult.data || []).filter((task) => {
+    const stageOrders = (stageCode: string) =>
+      openOrderRows.filter((order) => order.current_stage === stageCode);
+
+    const overdueOrderRows = openOrderRows.filter((order) => {
+      return !!order.due_date && String(order.due_date) < today;
+    });
+
+    const overdueTaskRows = taskRows.filter((task) => {
       return (
         !!task.due_date &&
-        task.due_date < today &&
-        (task.status === "pending" ||
-          task.status === "in_progress")
+        String(task.due_date) < today &&
+        (task.status === "pending" || task.status === "in_progress")
       );
-    }).length;
+    });
 
-    const stageRows = stageWorksResult.data || [];
-
-    const readyForApproval = stageRows.filter(
+    const readyApprovalRows = stageRows.filter(
       (work) => work.status === "ready_for_approval"
-    ).length;
+    );
 
     const delaySettings = new Map(
       ((delaySettingsResult.data || []) as DelaySetting[])
         .filter((item) => item.enabled)
-        .map((item) => [
-          item.status,
-          item.delay_minutes,
-        ])
+        .map((item) => [item.status, item.delay_minutes])
     );
 
     const nowMs = Date.now();
 
-    const delayedWorkflow = stageRows.filter((work) => {
+    const delayedStageRows = stageRows.filter((work) => {
       const delayMinutes = delaySettings.get(work.status);
 
       if (!delayMinutes || !work.status_changed_at) {
         return false;
       }
 
-      const changedAtMs = new Date(
-        work.status_changed_at
-      ).getTime();
+      const changedAtMs = new Date(work.status_changed_at).getTime();
 
       if (!Number.isFinite(changedAtMs)) {
         return false;
       }
 
       return nowMs - changedAtMs >= delayMinutes * 60 * 1000;
-    }).length;
+    });
 
-    const presentEmployeeIds = new Set(
-      (attendanceResult.data || [])
-        .filter((row) => row.approval_status !== "rejected")
-        .map((row) => row.employee_id)
-    );
-
-    const leaveEmployeeIds = new Set(
-      (leaveTodayResult.data || []).map(
-        (row) => row.employee_id
-      )
-    );
-
-    const missingAttendance = (
-      activeEmployeesResult.data || []
-    ).filter((employee) => {
-      // Admins are not included in missing staff attendance alerts.
-      if (employee.role === "admin") {
-        return false;
-      }
+    const missingEmployeeRows = activeEmployees.filter((employee) => {
+      if (employee.role === "admin") return false;
 
       return (
         !presentEmployeeIds.has(employee.id) &&
         !leaveEmployeeIds.has(employee.id)
       );
-    }).length;
+    });
 
-    const lowStock = (inventoryResult.data || []).filter(
+    const lowStockRows = inventoryRows.filter(
       (item) =>
         Number(item.current_stock || 0) <=
         Number(item.minimum_stock || 0)
-    ).length;
+    );
+
+    function employeeItems(rows: AnyRow[]): DrawerItem[] {
+      return rows.map((employee) => ({
+        id: String(employee.id),
+        title: firstValue(employee, ["full_name", "name"]) || "Employee",
+        subtitle:
+          [
+            firstValue(employee, ["department"]),
+            firstValue(employee, ["role"]),
+          ]
+            .filter(Boolean)
+            .join(" • ") || "Employee",
+        meta:
+          firstValue(employee, ["mobile", "phone", "phone_number"]) ||
+          firstValue(employee, ["approval_status"]) ||
+          "",
+        badge: employee.is_active === false ? "Inactive" : "Active",
+      }));
+    }
+
+    function attendanceItems(rows: AnyRow[]): DrawerItem[] {
+      return rows.map((row) => {
+        const employee = employeeMap.get(row.employee_id) || "Employee";
+        const inTime = firstValue(row, [
+          "check_in",
+          "check_in_time",
+          "punch_in",
+          "punch_in_at",
+        ]);
+        const outTime = firstValue(row, [
+          "check_out",
+          "check_out_time",
+          "punch_out",
+          "punch_out_at",
+        ]);
+
+        return {
+          id: String(row.id),
+          title: employee,
+          subtitle:
+            firstValue(row, ["attendance_status", "status"]) ||
+            "Attendance",
+          meta: `In: ${formatDateTime(inTime)} • Out: ${formatDateTime(outTime)}`,
+          badge: firstValue(row, ["approval_status"]) || "Recorded",
+        };
+      });
+    }
+
+    function leaveItems(rows: AnyRow[]): DrawerItem[] {
+      return rows.map((row) => ({
+        id: String(row.id),
+        title: employeeMap.get(row.employee_id) || "Employee",
+        subtitle:
+          firstValue(row, ["leave_type", "reason"]) || "Leave Request",
+        meta: `${firstValue(row, ["start_date"]) || "-"} → ${
+          firstValue(row, ["end_date"]) || "-"
+        }`,
+        badge: firstValue(row, ["status"]) || "Leave",
+      }));
+    }
+
+    function orderItems(rows: AnyRow[]): DrawerItem[] {
+      return rows.map((order) => ({
+        id: String(order.id),
+        title: `${orderNumber(order)} • ${customerName(order)}`,
+        subtitle: productName(order),
+        meta: `Stage: ${
+          stageNameMap.get(String(order.current_stage)) ||
+          firstValue(order, ["current_stage"]) ||
+          "-"
+        } • Due: ${firstValue(order, ["due_date"]) || "-"}`,
+        badge:
+          firstValue(order, ["workflow_status", "status"]) ||
+          firstValue(order, ["current_stage"]) ||
+          "Order",
+      }));
+    }
+
+    function taskItems(rows: AnyRow[]): DrawerItem[] {
+      return rows.map((task) => ({
+        id: String(task.id),
+        title: firstValue(task, ["title"]) || "Task",
+        subtitle:
+          employeeMap.get(task.assigned_to) ||
+          firstValue(task, ["assigned_to"]) ||
+          "Unassigned",
+        meta: `Due: ${firstValue(task, ["due_date"]) || "-"} • Priority: ${
+          firstValue(task, ["priority"]) || "-"
+        }`,
+        badge: firstValue(task, ["status"]) || "Task",
+      }));
+    }
+
+    function stageWorkItems(rows: AnyRow[]): DrawerItem[] {
+      return rows.map((work) => {
+        const order = orderMap.get(work.order_id) || {};
+        const stageName =
+          stageNameMap.get(String(work.stage_id)) ||
+          firstValue(order, ["current_stage"]) ||
+          "Stage";
+
+        return {
+          id: String(work.id),
+          title: `${orderNumber(order)} • ${stageName}`,
+          subtitle:
+            work.primary_employee_id
+              ? employeeMap.get(work.primary_employee_id) || "Assigned Employee"
+              : "No Employee Assigned",
+          meta: `Status since: ${formatDateTime(work.status_changed_at)}`,
+          badge: firstValue(work, ["status"]) || "Stage",
+        };
+      });
+    }
+
+    const pendingAttendanceItems: DrawerItem[] = [
+      ...attendanceItems(pendingAttendanceRows),
+      ...manualPunchRows.map((row) => ({
+        id: `manual-${row.id}`,
+        title: employeeMap.get(row.employee_id) || "Employee",
+        subtitle: "Manual Punch Request",
+        meta: firstValue(row, ["reason", "note", "request_type"]) || "",
+        badge: "Pending",
+      })),
+    ];
+
+    const nextDetails: DashboardDetails = {
+      totalStaff: employeeItems(activeEmployees),
+      presentToday: attendanceItems(presentRows),
+      leaveToday: leaveItems(leaveTodayRows),
+      pendingAttendance: pendingAttendanceItems,
+      openOrders: orderItems(openOrderRows),
+      completedOrders: orderItems(completedOrderRows),
+      pendingEmployees: employeeItems(pendingEmployees),
+      pendingLeave: leaveItems(pendingLeaveRows),
+      overdueOrders: orderItems(overdueOrderRows),
+      delayedWorkflow: stageWorkItems(delayedStageRows),
+      overdueTasks: taskItems(overdueTaskRows),
+      readyForApproval: stageWorkItems(readyApprovalRows),
+      missingAttendance: employeeItems(missingEmployeeRows),
+      lowStock: lowStockRows.map((item) => ({
+        id: String(item.id),
+        title: firstValue(item, ["item_name", "name", "material_name"]) || "Inventory Item",
+        subtitle: `Current: ${Number(item.current_stock || 0)} • Minimum: ${Number(
+          item.minimum_stock || 0
+        )}`,
+        meta: firstValue(item, ["unit", "sku", "code"]) || "",
+        badge:
+          Number(item.current_stock || 0) <= 0 ? "Out of Stock" : "Low Stock",
+      })),
+      design: orderItems(stageOrders("design")),
+      cutting: orderItems(stageOrders("cutting")),
+      production: orderItems(stageOrders("production")),
+      packing: orderItems(stageOrders("packing")),
+      transportation: orderItems(stageOrders("transportation_dispatch")),
+    };
+
+    setDetails(nextDetails);
+
+    setCounts({
+      totalStaff: nextDetails.totalStaff.length,
+      pendingEmployees: nextDetails.pendingEmployees.length,
+      presentToday: nextDetails.presentToday.length,
+      leaveToday: nextDetails.leaveToday.length,
+      pendingLeave: nextDetails.pendingLeave.length,
+      pendingAttendance: nextDetails.pendingAttendance.length,
+      openOrders: nextDetails.openOrders.length,
+      completedOrders: nextDetails.completedOrders.length,
+      design: nextDetails.design.length,
+      cutting: nextDetails.cutting.length,
+      production: nextDetails.production.length,
+      packing: nextDetails.packing.length,
+      transportation: nextDetails.transportation.length,
+    });
 
     setAttentionCounts({
-      overdueOrders,
-      delayedWorkflow,
-      overdueTasks,
-      readyForApproval,
-      missingAttendance,
-      lowStock,
+      overdueOrders: nextDetails.overdueOrders.length,
+      delayedWorkflow: nextDetails.delayedWorkflow.length,
+      overdueTasks: nextDetails.overdueTasks.length,
+      readyForApproval: nextDetails.readyForApproval.length,
+      missingAttendance: nextDetails.missingAttendance.length,
+      lowStock: nextDetails.lowStock.length,
     });
 
     setRefreshing(false);
@@ -704,12 +1075,11 @@ export default function AdminPage() {
         return;
       }
 
-      const { data: adminProfile, error: adminError } =
-        await supabase
-          .from("employees")
-          .select("id, role, approval_status, is_active")
-          .eq("auth_user_id", user.id)
-          .single();
+      const { data: adminProfile, error: adminError } = await supabase
+        .from("employees")
+        .select("id, role, approval_status, is_active")
+        .eq("auth_user_id", user.id)
+        .single();
 
       if (
         adminError ||
@@ -733,9 +1103,7 @@ export default function AdminPage() {
 
   async function handleLogout() {
     const supabase = createClient();
-
     await supabase.auth.signOut();
-
     router.replace("/");
     router.refresh();
   }
@@ -755,63 +1123,55 @@ export default function AdminPage() {
 
   return (
     <main className="yf-page">
+      <DetailDrawer state={drawer} onClose={closeDrawer} />
+
       <header className="yf-header">
-        <div className="yf-container py-5">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-white/15 border border-white/20 flex items-center justify-center text-2xl shadow-sm">
+        <div className="yf-container py-4">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-white/15 border border-white/20 flex items-center justify-center text-xl shadow-sm">
                 ⚡
               </div>
 
               <div>
-                <p className="text-xs font-black tracking-[0.18em] text-blue-100">
+                <p className="text-[10px] font-black tracking-[0.18em] text-blue-100">
                   YASH LASER
                 </p>
-
-                <h1 className="text-2xl sm:text-3xl font-black text-white mt-0.5">
+                <h1 className="text-xl sm:text-2xl font-black text-white mt-0.5">
                   YashFlow Admin
                 </h1>
-
-                <p className="text-blue-100 text-sm font-semibold mt-1">
+                <p className="text-blue-100 text-xs font-semibold mt-0.5">
                   Management Control Center
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-              <div className="rounded-xl bg-white/10 border border-white/15 px-4 py-2.5">
-                <p className="text-[11px] font-bold text-blue-100">
-                  TODAY
-                </p>
-
-                <p className="text-sm font-black text-white mt-0.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="rounded-xl bg-white/10 border border-white/15 px-3 py-2">
+                <p className="text-[9px] font-bold text-blue-100">TODAY</p>
+                <p className="text-xs font-black text-white mt-0.5">
                   {displayDate}
                 </p>
               </div>
 
-              <div className="flex gap-2 items-center">
-                {adminId && (
-                  <AdminNotificationBell employeeId={adminId} />
-                )}
+              {adminId && <AdminNotificationBell employeeId={adminId} />}
 
-                <button
-                  type="button"
-                  onClick={loadDashboardCounts}
-                  disabled={refreshing}
-                  className="yf-btn bg-white/15 border-white/20 text-white hover:bg-white/25 disabled:opacity-60"
-                >
-                  <span>↻</span>
-                  {refreshing ? "Refreshing..." : "Refresh"}
-                </button>
+              <button
+                type="button"
+                onClick={loadDashboardCounts}
+                disabled={refreshing}
+                className="yf-btn bg-white/15 border-white/20 text-white hover:bg-white/25 disabled:opacity-60"
+              >
+                ↻ {refreshing ? "Refreshing..." : "Refresh"}
+              </button>
 
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="yf-btn bg-white text-blue-700 hover:bg-blue-50"
-                >
-                  Logout
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="yf-btn bg-white text-blue-700 hover:bg-blue-50"
+              >
+                Logout
+              </button>
             </div>
           </div>
         </div>
@@ -825,60 +1185,89 @@ export default function AdminPage() {
         )}
 
         <section className="yf-card overflow-hidden">
-          <div className="p-5 sm:p-6 border-b border-slate-200 bg-gradient-to-r from-slate-900 to-slate-800 text-white">
-            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+          <div className="p-4 border-b border-slate-200 bg-gradient-to-r from-slate-900 to-slate-800 text-white">
+            <div className="flex items-end justify-between gap-3">
               <div>
-                <p className="text-xs font-black tracking-[0.15em] text-blue-300">
+                <p className="text-[10px] font-black tracking-[0.15em] text-blue-300">
                   LIVE OPERATIONS
                 </p>
-
-                <h2 className="text-2xl font-black mt-1">
-                  Today at a Glance
-                </h2>
-
-                <p className="text-sm text-slate-300 mt-1">
-                  Staff, attendance, leave and production status in one view.
-                </p>
+                <h2 className="text-xl font-black mt-0.5">Today at a Glance</h2>
               </div>
 
-              <span className="yf-badge bg-white/10 text-white border border-white/15">
-                Live Data
+              <span className="text-[10px] font-black rounded-full bg-white/10 border border-white/15 px-3 py-1.5">
+                Click any card
               </span>
             </div>
           </div>
 
-          <div className="p-5 sm:p-6">
-            <div className="yf-summary-grid">
+          <div className="p-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
               <SummaryCard
                 title="Total Staff"
                 value={counts.totalStaff}
                 subtitle={`${counts.pendingEmployees} approval pending`}
                 tone="blue"
                 icon="👥"
+                onClick={() =>
+                  openDrawer(
+                    "Total Staff",
+                    "All approved active Employees",
+                    details.totalStaff,
+                    "/admin/employees",
+                    "Employees"
+                  )
+                }
               />
 
               <SummaryCard
                 title="Present Today"
                 value={counts.presentToday}
-                subtitle="Checked-in staff"
+                subtitle="Checked-in Employees"
                 tone="green"
                 icon="🟢"
+                onClick={() =>
+                  openDrawer(
+                    "Present Today",
+                    "Today attendance records",
+                    details.presentToday,
+                    "/admin/attendance",
+                    "Attendance"
+                  )
+                }
               />
 
               <SummaryCard
                 title="Leave Today"
                 value={counts.leaveToday}
-                subtitle={`${counts.pendingLeave} leave request pending`}
+                subtitle={`${counts.pendingLeave} pending`}
                 tone="purple"
                 icon="🗓️"
+                onClick={() =>
+                  openDrawer(
+                    "Leave Today",
+                    "Approved leave covering today",
+                    details.leaveToday,
+                    "/admin/leave",
+                    "Leave"
+                  )
+                }
               />
 
               <SummaryCard
                 title="Pending Approval"
                 value={counts.pendingAttendance}
-                subtitle="Late / Half Day / Manual Punch"
+                subtitle="Attendance / Manual Punch"
                 tone="orange"
                 icon="✅"
+                onClick={() =>
+                  openDrawer(
+                    "Pending Attendance Approval",
+                    "Late, Half Day and Manual Punch requests",
+                    details.pendingAttendance,
+                    "/admin/attendance-approval",
+                    "Review"
+                  )
+                }
               />
 
               <SummaryCard
@@ -887,14 +1276,32 @@ export default function AdminPage() {
                 subtitle="Current production work"
                 tone="cyan"
                 icon="📦"
+                onClick={() =>
+                  openDrawer(
+                    "Open Orders",
+                    "All active production orders",
+                    details.openOrders,
+                    "/admin/orders",
+                    "Orders"
+                  )
+                }
               />
 
               <SummaryCard
                 title="Completed Orders"
                 value={counts.completedOrders}
-                subtitle="Total completed"
+                subtitle="Completed workflow"
                 tone="green"
                 icon="🏁"
+                onClick={() =>
+                  openDrawer(
+                    "Completed Orders",
+                    "Completed orders",
+                    details.completedOrders,
+                    "/admin/orders",
+                    "Orders"
+                  )
+                }
               />
 
               <SummaryCard
@@ -903,409 +1310,409 @@ export default function AdminPage() {
                 subtitle="Registration approval"
                 tone="blue"
                 icon="🪪"
+                onClick={() =>
+                  openDrawer(
+                    "Pending Employees",
+                    "Employee registrations waiting for approval",
+                    details.pendingEmployees,
+                    "/admin/employees",
+                    "Review"
+                  )
+                }
               />
 
               <SummaryCard
                 title="Pending Leave"
                 value={counts.pendingLeave}
-                subtitle="Awaiting admin action"
+                subtitle="Awaiting Admin action"
                 tone="purple"
                 icon="⏳"
+                onClick={() =>
+                  openDrawer(
+                    "Pending Leave",
+                    "Leave requests waiting for action",
+                    details.pendingLeave,
+                    "/admin/leave",
+                    "Review"
+                  )
+                }
               />
             </div>
           </div>
         </section>
 
-        <section className="mt-6 yf-card overflow-hidden">
-          <div
-            className={`p-5 sm:p-6 border-b ${
+        <section className="mt-4 yf-card overflow-hidden">
+          <button
+            type="button"
+            onClick={() =>
+              openDrawer(
+                "Items Need Your Attention",
+                `${totalAttention} total attention items`,
+                [
+                  ...details.overdueOrders,
+                  ...details.delayedWorkflow,
+                  ...details.overdueTasks,
+                  ...details.pendingAttendance,
+                  ...details.pendingLeave,
+                  ...details.pendingEmployees,
+                  ...details.readyForApproval,
+                  ...details.missingAttendance,
+                  ...details.lowStock,
+                ]
+              )
+            }
+            className={`w-full text-left p-4 border-b ${
               totalAttention > 0
                 ? "border-red-200 bg-gradient-to-r from-red-700 to-orange-600 text-white"
                 : "border-green-200 bg-gradient-to-r from-emerald-700 to-green-600 text-white"
             }`}
           >
-            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+            <div className="flex items-end justify-between gap-3">
               <div>
-                <p className="text-xs font-black tracking-[0.15em] text-white/80">
+                <p className="text-[10px] font-black tracking-[0.15em] text-white/80">
                   ATTENTION REQUIRED
                 </p>
-
-                <h2 className="text-2xl font-black mt-1">
-                  {totalAttention > 0
-                    ? "Items Need Your Attention"
-                    : "All Clear"}
+                <h2 className="text-xl font-black mt-0.5">
+                  {totalAttention > 0 ? "Items Need Your Attention" : "All Clear"}
                 </h2>
-
-                <p className="text-sm text-white/80 mt-1">
-                  Overdue work, approvals, attendance અને stock alerts એક જગ્યાએ.
+                <p className="text-xs text-white/80 mt-1">
+                  Tap here to open all attention items.
                 </p>
               </div>
 
-              <span className="inline-flex w-fit rounded-full bg-white/15 border border-white/20 px-4 py-2 text-sm font-black">
-                {totalAttention} Attention Items
+              <span className="shrink-0 rounded-full bg-white/15 border border-white/20 px-3 py-1.5 text-xs font-black">
+                {totalAttention}
               </span>
             </div>
-          </div>
+          </button>
 
-          <div className="p-5 sm:p-6">
-            <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="p-4">
+            <div className="grid grid-cols-2 xl:grid-cols-6 gap-3">
               <AttentionCard
-                href="/admin/orders"
                 title="Overdue Orders"
                 value={attentionCounts.overdueOrders}
-                description="Due date પસાર થયેલા open orders."
+                description="Due date passed."
                 icon="🚨"
-                tone={
-                  attentionCounts.overdueOrders > 0
-                    ? "orange"
-                    : "slate"
+                tone={attentionCounts.overdueOrders > 0 ? "orange" : "slate"}
+                onClick={() =>
+                  openDrawer(
+                    "Overdue Orders",
+                    "Open orders past due date",
+                    details.overdueOrders,
+                    "/admin/orders",
+                    "Orders"
+                  )
                 }
               />
 
               <AttentionCard
-                href="/admin/orders"
                 title="Delayed Workflow"
                 value={attentionCounts.delayedWorkflow}
-                description="Configured delay limit કરતાં લાંબા સમયથી અટકેલા stages."
+                description="Stage delay limit passed."
                 icon="⏱️"
-                tone={
-                  attentionCounts.delayedWorkflow > 0
-                    ? "orange"
-                    : "slate"
+                tone={attentionCounts.delayedWorkflow > 0 ? "orange" : "slate"}
+                onClick={() =>
+                  openDrawer(
+                    "Delayed Workflow",
+                    "Stages beyond configured delay limit",
+                    details.delayedWorkflow,
+                    "/admin/orders",
+                    "Orders"
+                  )
                 }
               />
 
               <AttentionCard
-                href="/admin/tasks"
                 title="Overdue Tasks"
                 value={attentionCounts.overdueTasks}
-                description="Pending / In Progress tasks જેની due date પસાર થઈ ગઈ છે."
+                description="Pending / In Progress."
                 icon="📋"
-                tone={
-                  attentionCounts.overdueTasks > 0
-                    ? "purple"
-                    : "slate"
+                tone={attentionCounts.overdueTasks > 0 ? "purple" : "slate"}
+                onClick={() =>
+                  openDrawer(
+                    "Overdue Tasks",
+                    "Tasks past due date",
+                    details.overdueTasks,
+                    "/admin/tasks",
+                    "Tasks"
+                  )
                 }
               />
 
               <AttentionCard
-                href={pendingApprovalRoute}
-                title="All Pending Approvals"
+                title="All Approvals"
                 value={totalApprovals}
-                description={`Attendance ${counts.pendingAttendance} • Leave ${counts.pendingLeave} • Staff ${counts.pendingEmployees} • Workflow ${attentionCounts.readyForApproval}`}
+                description={`Attendance ${counts.pendingAttendance} • Leave ${counts.pendingLeave} • Employee ${counts.pendingEmployees} • Workflow ${attentionCounts.readyForApproval}`}
                 icon="✅"
-                tone={
-                  totalApprovals > 0
-                    ? "blue"
-                    : "slate"
+                tone={totalApprovals > 0 ? "blue" : "slate"}
+                onClick={() =>
+                  openDrawer(
+                    "All Pending Approvals",
+                    "Attendance, Leave, Employee and Workflow approvals",
+                    [
+                      ...details.pendingAttendance,
+                      ...details.pendingLeave,
+                      ...details.pendingEmployees,
+                      ...details.readyForApproval,
+                    ],
+                    pendingApprovalRoute,
+                    "Review"
+                  )
                 }
               />
 
               <AttentionCard
-                href="/admin/attendance"
                 title="Missing Attendance"
                 value={attentionCounts.missingAttendance}
-                description="Active non-admin staff: attendance નથી અને approved leave પણ નથી."
+                description="No attendance / approved leave."
                 icon="🕘"
-                tone={
-                  attentionCounts.missingAttendance > 0
-                    ? "orange"
-                    : "slate"
+                tone={attentionCounts.missingAttendance > 0 ? "orange" : "slate"}
+                onClick={() =>
+                  openDrawer(
+                    "Missing Attendance",
+                    "Active Employees without attendance or approved leave",
+                    details.missingAttendance,
+                    "/admin/attendance",
+                    "Attendance"
+                  )
                 }
               />
 
               <AttentionCard
-                href="/admin/inventory"
                 title="Low Stock"
                 value={attentionCounts.lowStock}
-                description="Minimum stock level અથવા તેનાથી નીચે આવેલા active materials."
+                description="At/below minimum stock."
                 icon="📦"
-                tone={
-                  attentionCounts.lowStock > 0
-                    ? "orange"
-                    : "slate"
+                tone={attentionCounts.lowStock > 0 ? "orange" : "slate"}
+                onClick={() =>
+                  openDrawer(
+                    "Low Stock",
+                    "Inventory at or below minimum level",
+                    details.lowStock,
+                    "/admin/inventory",
+                    "Inventory"
+                  )
                 }
               />
             </div>
+          </div>
+        </section>
 
-            {totalApprovals > 0 && (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {counts.pendingAttendance > 0 && (
-                  <Link
-                    href="/admin/attendance-approval"
-                    className="yf-btn yf-btn-secondary"
-                  >
-                    Attendance Approval ({counts.pendingAttendance}) →
-                  </Link>
-                )}
-
-                {counts.pendingLeave > 0 && (
-                  <Link
-                    href="/admin/leave"
-                    className="yf-btn yf-btn-secondary"
-                  >
-                    Leave Approval ({counts.pendingLeave}) →
-                  </Link>
-                )}
-
-                {counts.pendingEmployees > 0 && (
-                  <Link
-                    href="/admin/employees"
-                    className="yf-btn yf-btn-secondary"
-                  >
-                    Employee Approval ({counts.pendingEmployees}) →
-                  </Link>
-                )}
-
-                {attentionCounts.readyForApproval > 0 && (
-                  <Link
-                    href="/admin/orders"
-                    className="yf-btn yf-btn-secondary"
-                  >
-                    Workflow Approval ({attentionCounts.readyForApproval}) →
-                  </Link>
-                )}
+        <section className="mt-4 yf-card overflow-hidden">
+          <button
+            type="button"
+            onClick={() =>
+              openDrawer(
+                "Production Flow",
+                "All active orders grouped by current stage",
+                [
+                  ...details.design,
+                  ...details.cutting,
+                  ...details.production,
+                  ...details.packing,
+                  ...details.transportation,
+                ],
+                "/admin/orders",
+                "Open Orders"
+              )
+            }
+            className="w-full text-left p-4 border-b border-slate-200 bg-white"
+          >
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-black tracking-[0.15em] text-cyan-700">
+                  PRODUCTION FLOW
+                </p>
+                <h2 className="text-xl font-black text-slate-900 mt-0.5">
+                  Order Workflow
+                </h2>
               </div>
-            )}
-          </div>
-        </section>
 
-        <section className="mt-6 yf-card p-5 sm:p-6">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-            <div>
-              <p className="text-xs font-black tracking-[0.15em] text-cyan-700">
-                PRODUCTION FLOW
-              </p>
-
-              <h2 className="yf-section-title mt-1">
-                Order Workflow
-              </h2>
-
-              <p className="yf-section-subtitle mt-1">
-                Orders currently waiting at each production stage.
-              </p>
+              <span className="text-xs font-black text-cyan-700">View All ›</span>
             </div>
+          </button>
 
-            <Link
-              href="/admin/orders"
-              className="yf-btn yf-btn-primary"
-            >
-              Open Orders →
-            </Link>
-          </div>
+          <div className="p-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+              <WorkflowCard
+                title="Design"
+                value={counts.design}
+                tone="blue"
+                icon="🎨"
+                subtitle="Current stage"
+                onClick={() =>
+                  openDrawer(
+                    "Design",
+                    "Orders currently in Design",
+                    details.design,
+                    "/admin/orders",
+                    "Orders"
+                  )
+                }
+              />
 
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mt-5">
-            <WorkflowCard
-              title="Design"
-              value={counts.design}
-              tone="blue"
-              icon="🎨"
-              subtitle="Current stage"
-            />
+              <WorkflowCard
+                title="Cutting"
+                value={counts.cutting}
+                tone="orange"
+                icon="✂️"
+                subtitle="Current stage"
+                onClick={() =>
+                  openDrawer(
+                    "Cutting",
+                    "Orders currently in Cutting",
+                    details.cutting,
+                    "/admin/orders",
+                    "Orders"
+                  )
+                }
+              />
 
-            <WorkflowCard
-              title="Cutting"
-              value={counts.cutting}
-              tone="orange"
-              icon="✂️"
-              subtitle="Current stage"
-            />
+              <WorkflowCard
+                title="Production"
+                value={counts.production}
+                tone="purple"
+                icon="🏭"
+                subtitle="Current stage"
+                onClick={() =>
+                  openDrawer(
+                    "Production",
+                    "Orders currently in Production",
+                    details.production,
+                    "/admin/orders",
+                    "Orders"
+                  )
+                }
+              />
 
-            <WorkflowCard
-              title="Production"
-              value={counts.production}
-              tone="purple"
-              icon="🏭"
-              subtitle="Current stage"
-            />
+              <WorkflowCard
+                title="Packing"
+                value={counts.packing}
+                tone="slate"
+                icon="📦"
+                subtitle="Current stage"
+                onClick={() =>
+                  openDrawer(
+                    "Packing",
+                    "Orders currently in Packing",
+                    details.packing,
+                    "/admin/orders",
+                    "Orders"
+                  )
+                }
+              />
 
-            <WorkflowCard
-              title="Packing"
-              value={counts.packing}
-              tone="slate"
-              icon="📦"
-              subtitle="Current stage"
-            />
-
-            <WorkflowCard
-              title="Transportation"
-              value={counts.transportation}
-              tone="cyan"
-              icon="🚚"
-              subtitle="Transportation / Dispatch"
-            />
+              <WorkflowCard
+                title="Transportation"
+                value={counts.transportation}
+                tone="cyan"
+                icon="🚚"
+                subtitle="Dispatch stage"
+                onClick={() =>
+                  openDrawer(
+                    "Transportation / Dispatch",
+                    "Orders currently in Transportation / Dispatch",
+                    details.transportation,
+                    "/admin/orders",
+                    "Orders"
+                  )
+                }
+              />
+            </div>
           </div>
         </section>
 
-        <section className="mt-6 yf-card p-5 sm:p-6">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+        <section className="mt-4 yf-card p-4">
+          <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-black tracking-[0.15em] text-blue-700">
+              <p className="text-[10px] font-black tracking-[0.15em] text-blue-700">
                 ADMIN TOOLS
               </p>
-
-              <h2 className="yf-section-title mt-1">
-                Management Modules
+              <h2 className="text-lg font-black text-slate-900 mt-0.5">
+                Quick Apps
               </h2>
-
-              <p className="yf-section-subtitle mt-1">
-                Daily workની priority પ્રમાણે modules ગોઠવેલા છે.
-              </p>
             </div>
 
-            <span className="yf-badge yf-badge-blue">
-              14 Modules
+            <span className="text-[10px] font-black rounded-full bg-blue-50 text-blue-700 px-3 py-1.5">
+              Compact View
             </span>
           </div>
 
-          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4 mt-6">
-            <ModuleCard
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-3 mt-4">
+            <ToolButton
               href="/admin/orders"
-              label="ORDERS"
-              title="Order Management"
-              description="Orders create કરો અને production workflow track કરો."
+              label="Orders"
               icon="📦"
-              tone="cyan"
-              badge={`${counts.openOrders} Open`}
+              badge={counts.openOrders > 0 ? String(counts.openOrders) : undefined}
             />
-
-            <ModuleCard
-              href="/admin/tasks"
-              label="TASKS"
-              title="Task Management"
-              description="Employeeને task assign કરો અને progress track કરો."
-              icon="📋"
-              tone="purple"
-            />
-
-            <ModuleCard
+            <ToolButton href="/admin/tasks" label="Tasks" icon="📋" />
+            <ToolButton
               href="/admin/employees"
-              label="STAFF"
-              title="Employee Approval"
-              description="Employee approve/reject અને departments manage કરો."
+              label="Employees"
               icon="👥"
-              tone="blue"
               badge={
                 counts.pendingEmployees > 0
-                  ? `${counts.pendingEmployees} Pending`
+                  ? String(counts.pendingEmployees)
                   : undefined
               }
             />
-
-            <ModuleCard
+            <ToolButton
               href="/admin/attendance"
-              label="ATTENDANCE"
-              title="Attendance Management"
-              description="Check In/Out, Manual Punch અને daily status જુઓ."
+              label="Attendance"
               icon="🕘"
-              tone="green"
-              badge={`${counts.presentToday} Present`}
             />
-
-            <ModuleCard
+            <ToolButton
               href="/admin/work-calendar"
-              label="CALENDAR"
-              title="Work Calendar"
-              description="Daily staff availability, present, leave અને missing attendance જુઓ."
+              label="Calendar"
               icon="🗓️"
-              tone="cyan"
             />
-
-            <ModuleCard
+            <ToolButton
               href="/admin/attendance-approval"
-              label="APPROVAL"
-              title="Attendance Approval"
-              description="Late અને Half Day attendance approve/reject કરો."
+              label="Approval"
               icon="✅"
-              tone="orange"
               badge={
                 counts.pendingAttendance > 0
-                  ? `${counts.pendingAttendance} Pending`
+                  ? String(counts.pendingAttendance)
                   : undefined
               }
             />
-
-            <ModuleCard
+            <ToolButton
               href="/admin/leave"
-              label="LEAVE"
-              title="Leave Management"
-              description="Leave requests approve/reject કરો."
-              icon="🗓️"
-              tone="purple"
+              label="Leave"
+              icon="🌴"
               badge={
-                counts.pendingLeave > 0
-                  ? `${counts.pendingLeave} Pending`
+                counts.pendingLeave > 0 ? String(counts.pendingLeave) : undefined
+              }
+            />
+            <ToolButton href="/admin/holidays" label="Holidays" icon="📅" />
+            <ToolButton
+              href="/admin/attendance-report"
+              label="Reports"
+              icon="📊"
+            />
+            <ToolButton
+              href="/admin/performance"
+              label="Performance"
+              icon="🏆"
+            />
+            <ToolButton href="/admin/products" label="Products" icon="🧩" />
+            <ToolButton
+              href="/admin/inventory"
+              label="Inventory"
+              icon="🏷️"
+              badge={
+                attentionCounts.lowStock > 0
+                  ? String(attentionCounts.lowStock)
                   : undefined
               }
             />
-
-            <ModuleCard
-              href="/admin/holidays"
-              label="HOLIDAYS"
-              title="Holiday Management"
-              description="Company holidays add/edit/activate કરો."
-              icon="📅"
-              tone="green"
-            />
-
-            <ModuleCard
-              href="/admin/attendance-report"
-              label="REPORTS"
-              title="Monthly Attendance Report"
-              description="Monthly attendance, leave અને working hours જુઓ."
-              icon="📊"
-              tone="blue"
-            />
-
-            <ModuleCard
-              href="/admin/performance"
-              label="PERFORMANCE"
-              title="Team Performance"
-              description="Employee-wise completed stages, tasks, attendance અને working hours compare કરો."
-              icon="🏆"
-              tone="green"
-            />
-
-            <ModuleCard
-              href="/admin/products"
-              label="PRODUCTS"
-              title="Product Master"
-              description="Products અને dynamic customization options manage કરો."
-              icon="🧩"
-              tone="purple"
-            />
-
-            <ModuleCard
-              href="/admin/inventory"
-              label="INVENTORY"
-              title="Inventory Management"
-              description="Inventory items અને stock movement manage કરો."
-              icon="🏷️"
-              tone="slate"
-            />
-
-            <ModuleCard
-              href="/dashboard/purchase"
-              label="PURCHASE"
-              title="Purchase Management"
-              description="Supplier purchase orders બનાવો અને material receive કરતાં stock auto update કરો."
-              icon="🛒"
-              tone="orange"
-            />
-
-            <ModuleCard
-              href="/dashboard/dispatch"
-              label="DISPATCH"
-              title="Dispatch Management"
-              description="Completed ordersને Ready, Packed, Dispatched અને Delivered statusથી track કરો."
-              icon="🚚"
-              tone="blue"
-            />
+            <ToolButton href="/dashboard/purchase" label="Purchase" icon="🛒" />
+            <ToolButton href="/dashboard/dispatch" label="Dispatch" icon="🚚" />
           </div>
         </section>
 
-        <div className="py-6 text-center">
-          <p className="text-xs font-bold text-slate-400">
+        <div className="py-5 text-center">
+          <p className="text-[10px] font-bold text-slate-400">
             YashFlow • Yash Laser Work Management
           </p>
         </div>

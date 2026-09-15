@@ -156,7 +156,7 @@ export default function AdminTasksPage() {
       });
 
     if (error) {
-      setMessage(`Support Worker Load Error: ${error.message}`);
+      setMessage(`Support Employee Load Error: ${error.message}`);
       return;
     }
 
@@ -268,7 +268,7 @@ export default function AdminTasksPage() {
       employee_id: employeeId,
       notification_type: "task",
       title: "Task Support Assigned",
-      message: `${taskTitle} માં તમને Support Worker તરીકે add કરવામાં આવ્યા છે.`,
+      message: `${taskTitle} માં તમને Support Employee તરીકે add કરવામાં આવ્યા છે.`,
       related_type: "task",
       related_id: taskId,
     });
@@ -339,7 +339,7 @@ export default function AdminTasksPage() {
 
       if (supportError) {
         setMessage(
-          `Task create થયો, પરંતુ Support Worker add ન થયો: ${supportError.message}`
+          `Task create થયો, પરંતુ Support Employee add ન થયો: ${supportError.message}`
         );
       } else {
         await sendSupportNotification(
@@ -360,7 +360,7 @@ export default function AdminTasksPage() {
     if (!newTaskSupport) {
       setMessage("Task સફળતાપૂર્વક assign થયો ✅");
     } else {
-      setMessage("Task + Support Worker સફળતાપૂર્વક assign થયા ✅");
+      setMessage("Task + Support Employee સફળતાપૂર્વક assign થયા ✅");
     }
 
     await refreshTasks();
@@ -374,12 +374,12 @@ export default function AdminTasksPage() {
     const employeeId = supportPickers[task.id];
 
     if (!employeeId) {
-      setMessage("Support Worker પસંદ કરો.");
+      setMessage("Support Employee પસંદ કરો.");
       return;
     }
 
     if (employeeId === task.assigned_to) {
-      setMessage("Primary Employee ને Support Worker બનાવી શકાતો નથી.");
+      setMessage("Primary Employee ને Support Employee બનાવી શકાતો નથી.");
       return;
     }
 
@@ -405,7 +405,7 @@ export default function AdminTasksPage() {
       );
 
     if (error) {
-      setMessage(`Support Worker Error: ${error.message}`);
+      setMessage(`Support Employee Error: ${error.message}`);
       setActionId(null);
       return;
     }
@@ -417,7 +417,7 @@ export default function AdminTasksPage() {
       [task.id]: "",
     }));
 
-    setMessage("Support Worker add થયો ✅");
+    setMessage("Support Employee add થયો ✅");
 
     await loadSupportWorkers();
 
@@ -429,10 +429,10 @@ export default function AdminTasksPage() {
     support: TaskSupportWorker
   ) {
     const employee = employeeMap.get(support.employee_id);
-    const name = employee?.full_name || "આ Support Worker";
+    const name = employee?.full_name || "આ Support Employee";
 
     const confirmed = window.confirm(
-      `${name} ને "${task.title}" માંથી Support Worker તરીકે remove કરવો છે?`
+      `${name} ને "${task.title}" માંથી Support Employee તરીકે remove કરવો છે?`
     );
 
     if (!confirmed) return;
@@ -456,7 +456,7 @@ export default function AdminTasksPage() {
       return;
     }
 
-    setMessage("Support Worker remove થયો ✅");
+    setMessage("Support Employee remove થયો ✅");
 
     await loadSupportWorkers();
 
@@ -590,7 +590,7 @@ export default function AdminTasksPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <main className="yf-page flex items-center justify-center">
         <p className="font-semibold text-slate-500">
           Task Management લોડ થઈ રહ્યું છે...
         </p>
@@ -599,9 +599,9 @@ export default function AdminTasksPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50">
-      <header className="bg-slate-900 text-white">
-        <div className="max-w-7xl mx-auto px-5 py-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <main className="yf-page">
+      <header className="yf-header">
+        <div className="yf-container flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-black">
               YashFlow Admin
@@ -615,22 +615,22 @@ export default function AdminTasksPage() {
           <button
             type="button"
             onClick={() => router.push("/admin")}
-            className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl font-semibold"
+            className="yf-btn border-white/20 bg-white/10 text-white hover:bg-white/20"
           >
             ← Admin Dashboard
           </button>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto p-5">
+      <div className="yf-container">
         {message && (
-          <div className="mb-5 bg-blue-50 border border-blue-200 rounded-xl p-4 font-semibold text-blue-800">
+          <div className="yf-alert yf-alert-info mb-5">
             {message}
           </div>
         )}
 
-        <section className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-5">
-          <div className="bg-white border border-slate-200 rounded-2xl p-5">
+        <section className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mb-5">
+          <div className="yf-metric-card">
             <p className="text-sm font-semibold text-slate-500">
               Pending
             </p>
@@ -640,7 +640,7 @@ export default function AdminTasksPage() {
             </p>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-2xl p-5">
+          <div className="yf-metric-card">
             <p className="text-sm font-semibold text-slate-500">
               In Progress
             </p>
@@ -650,7 +650,7 @@ export default function AdminTasksPage() {
             </p>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-2xl p-5">
+          <div className="yf-metric-card">
             <p className="text-sm font-semibold text-slate-500">
               Completed
             </p>
@@ -660,7 +660,7 @@ export default function AdminTasksPage() {
             </p>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-2xl p-5">
+          <div className="yf-metric-card">
             <p className="text-sm font-semibold text-slate-500">
               Urgent Open
             </p>
@@ -670,7 +670,7 @@ export default function AdminTasksPage() {
             </p>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-2xl p-5">
+          <div className="yf-metric-card">
             <p className="text-sm font-semibold text-slate-500">
               Support Links
             </p>
@@ -681,14 +681,14 @@ export default function AdminTasksPage() {
           </div>
         </section>
 
-        <section className="bg-white border border-slate-200 rounded-2xl p-6">
+        <section className="yf-card p-4 sm:p-6">
           <div>
             <h2 className="text-xl font-black text-slate-900">
               Assign New Task
             </h2>
 
             <p className="text-sm text-slate-500 mt-1">
-              Primary Employee સાથે optional Support Worker પણ assign કરી શકો છો.
+              Primary Employee સાથે optional Support Employee પણ assign કરી શકો છો.
             </p>
           </div>
 
@@ -703,7 +703,7 @@ export default function AdminTasksPage() {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Example: Acrylic orders complete કરો"
-                className="w-full border border-slate-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+                className="yf-input"
               />
             </div>
 
@@ -722,7 +722,7 @@ export default function AdminTasksPage() {
                     setNewTaskSupport("");
                   }
                 }}
-                className="w-full border border-slate-300 rounded-xl px-4 py-3 bg-white outline-none focus:ring-2 focus:ring-blue-500"
+                className="yf-input"
               >
                 <option value="">
                   Employee પસંદ કરો
@@ -753,10 +753,10 @@ export default function AdminTasksPage() {
               <select
                 value={newTaskSupport}
                 onChange={(e) => setNewTaskSupport(e.target.value)}
-                className="w-full border border-slate-300 rounded-xl px-4 py-3 bg-white"
+                className="yf-input"
               >
                 <option value="">
-                  No Support Worker
+                  No Support Employee
                 </option>
 
                 {employees
@@ -791,7 +791,7 @@ export default function AdminTasksPage() {
                       | "urgent"
                   )
                 }
-                className="w-full border border-slate-300 rounded-xl px-4 py-3 bg-white"
+                className="yf-input"
               >
                 <option value="low">
                   Low
@@ -820,7 +820,7 @@ export default function AdminTasksPage() {
                 type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                className="w-full border border-slate-300 rounded-xl px-4 py-3"
+                className="yf-input"
               />
             </div>
 
@@ -843,7 +843,7 @@ export default function AdminTasksPage() {
                 type="button"
                 onClick={handleCreateTask}
                 disabled={saving}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold disabled:opacity-50"
+                className="yf-btn yf-btn-primary px-6 disabled:opacity-50"
               >
                 {saving
                   ? "Assigning..."
@@ -853,7 +853,7 @@ export default function AdminTasksPage() {
           </div>
         </section>
 
-        <section className="bg-white border border-slate-200 rounded-2xl mt-5 overflow-hidden">
+        <section className="yf-card mt-5 overflow-hidden">
           <div className="p-6 border-b border-slate-100">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
               <div>
@@ -862,7 +862,7 @@ export default function AdminTasksPage() {
                 </h2>
 
                 <p className="text-sm text-slate-500 mt-1">
-                  Primary + Support Worker team અહીંથી manage કરો.
+                  Primary + Support Employee team અહીંથી manage કરો.
                 </p>
               </div>
 
@@ -870,7 +870,7 @@ export default function AdminTasksPage() {
                 <select
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
-                  className="border border-slate-300 rounded-xl px-4 py-2 bg-white"
+                  className="yf-input"
                 >
                   <option value="all">
                     All Status
@@ -892,7 +892,7 @@ export default function AdminTasksPage() {
                 <select
                   value={filterEmployee}
                   onChange={(e) => setFilterEmployee(e.target.value)}
-                  className="border border-slate-300 rounded-xl px-4 py-2 bg-white"
+                  className="yf-input"
                 >
                   <option value="all">
                     All Employees
@@ -911,8 +911,8 @@ export default function AdminTasksPage() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1380px]">
+          <div className="yf-table-wrap">
+            <table className="yf-table min-w-[1380px]">
               <thead className="bg-slate-100">
                 <tr>
                   <th className="text-left px-5 py-4 text-sm">
@@ -924,7 +924,7 @@ export default function AdminTasksPage() {
                   </th>
 
                   <th className="text-left px-5 py-4 text-sm">
-                    Support Workers
+                    Support Employees
                   </th>
 
                   <th className="text-left px-5 py-4 text-sm">
@@ -1038,7 +1038,7 @@ export default function AdminTasksPage() {
 
                           {taskSupport.length === 0 && (
                             <p className="text-sm text-slate-400">
-                              No Support Worker
+                              No Support Employee
                             </p>
                           )}
 
@@ -1054,7 +1054,7 @@ export default function AdminTasksPage() {
                                       [task.id]: e.target.value,
                                     }))
                                   }
-                                  className="flex-1 min-w-0 border border-slate-300 rounded-lg px-2.5 py-2 bg-white text-xs"
+                                  className="yf-input flex-1 min-w-0 text-xs"
                                 >
                                   <option value="">
                                     Add Support...
@@ -1077,7 +1077,7 @@ export default function AdminTasksPage() {
                                     `support-add-${task.id}`
                                   }
                                   onClick={() => addSupportWorker(task)}
-                                  className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-lg text-xs font-bold disabled:opacity-50"
+                                  className="yf-btn yf-btn-sm bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50"
                                 >
                                   Add
                                 </button>

@@ -222,7 +222,7 @@ export default function HolidayManagementPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <main className="yf-page flex items-center justify-center">
         <p className="font-semibold text-slate-500">
           Holiday Management લોડ થઈ રહ્યું છે...
         </p>
@@ -231,9 +231,9 @@ export default function HolidayManagementPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50">
-      <header className="bg-slate-900 text-white">
-        <div className="max-w-6xl mx-auto px-5 py-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <main className="yf-page">
+      <header className="yf-header">
+        <div className="yf-container max-w-6xl flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-black">
               YashFlow Admin
@@ -247,21 +247,21 @@ export default function HolidayManagementPage() {
           <button
             type="button"
             onClick={() => router.push("/admin")}
-            className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl font-semibold"
+            className="yf-btn border-white/20 bg-white/10 text-white hover:bg-white/20"
           >
             ← Admin Dashboard
           </button>
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto p-5">
+      <div className="yf-container max-w-6xl">
         {message && (
-          <div className="mb-5 bg-blue-50 border border-blue-200 rounded-xl p-4 font-semibold text-blue-800">
+          <div className="yf-alert yf-alert-info mb-5">
             {message}
           </div>
         )}
 
-        <section className="bg-white border border-slate-200 rounded-2xl p-6">
+        <section className="yf-card p-4 sm:p-6">
           <h2 className="text-xl font-black text-slate-900">
             Add Company Holiday
           </h2>
@@ -278,7 +278,7 @@ export default function HolidayManagementPage() {
                 onChange={(e) =>
                   setHolidayDate(e.target.value)
                 }
-                className="w-full border border-slate-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+                className="yf-input"
               />
             </div>
 
@@ -294,7 +294,7 @@ export default function HolidayManagementPage() {
                   setHolidayName(e.target.value)
                 }
                 placeholder="Example: Diwali"
-                className="w-full border border-slate-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+                className="yf-input"
               />
             </div>
 
@@ -303,7 +303,7 @@ export default function HolidayManagementPage() {
                 type="button"
                 onClick={handleAddHoliday}
                 disabled={saving}
-                className="w-full bg-blue-600 text-white px-5 py-3 rounded-xl font-bold disabled:opacity-50"
+                className="yf-btn yf-btn-primary w-full disabled:opacity-50"
               >
                 {saving ? "Saving..." : "Add Holiday"}
               </button>
@@ -311,15 +311,15 @@ export default function HolidayManagementPage() {
           </div>
         </section>
 
-        <section className="bg-white border border-slate-200 rounded-2xl mt-5 overflow-hidden">
+        <section className="yf-card mt-5 overflow-hidden">
           <div className="px-6 py-5 border-b border-slate-100">
             <h2 className="text-xl font-black text-slate-900">
               Holiday List
             </h2>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[700px]">
+          <div className="yf-table-wrap">
+            <table className="yf-table min-w-[700px]">
               <thead className="bg-slate-100">
                 <tr>
                   <th className="text-left px-5 py-4 text-sm">
@@ -351,7 +351,7 @@ export default function HolidayManagementPage() {
       type="date"
       value={editDate}
       onChange={(e) => setEditDate(e.target.value)}
-      className="border border-slate-300 rounded-lg px-3 py-2"
+      className="yf-input"
     />
   ) : (
     holiday.holiday_date
@@ -364,7 +364,7 @@ export default function HolidayManagementPage() {
       type="text"
       value={editName}
       onChange={(e) => setEditName(e.target.value)}
-      className="border border-slate-300 rounded-lg px-3 py-2 w-full"
+      className="yf-input"
     />
   ) : (
     holiday.holiday_name
@@ -373,11 +373,11 @@ export default function HolidayManagementPage() {
 
                     <td className="px-5 py-4">
                       {holiday.is_active ? (
-                        <span className="bg-green-100 text-green-700 px-3 py-1.5 rounded-full text-xs font-bold">
+                        <span className="yf-badge yf-badge-green">
                           Active
                         </span>
                       ) : (
-                        <span className="bg-slate-100 text-slate-600 px-3 py-1.5 rounded-full text-xs font-bold">
+                        <span className="yf-badge yf-badge-slate">
                           Inactive
                         </span>
                       )}
@@ -389,7 +389,7 @@ export default function HolidayManagementPage() {
         type="button"
         onClick={() => handleSaveEdit(holiday.id)}
         disabled={saving}
-        className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-50"
+        className="yf-btn yf-btn-primary yf-btn-sm disabled:opacity-50"
       >
         Save
       </button>
@@ -397,7 +397,7 @@ export default function HolidayManagementPage() {
       <button
         type="button"
         onClick={handleCancelEdit}
-        className="bg-slate-100 text-slate-700 px-4 py-2 rounded-xl text-sm font-bold"
+        className="yf-btn yf-btn-secondary yf-btn-sm"
       >
         Cancel
       </button>
@@ -407,7 +407,7 @@ export default function HolidayManagementPage() {
       <button
         type="button"
         onClick={() => handleStartEdit(holiday)}
-        className="bg-blue-50 text-blue-700 hover:bg-blue-100 px-4 py-2 rounded-xl text-sm font-bold"
+        className="yf-btn yf-btn-sm bg-blue-50 text-blue-700 hover:bg-blue-100"
       >
         Edit
       </button>
@@ -415,7 +415,7 @@ export default function HolidayManagementPage() {
       <button
         type="button"
         onClick={() => handleToggleHoliday(holiday)}
-        className={`px-4 py-2 rounded-xl text-sm font-bold ${
+        className={`yf-btn yf-btn-sm ${
           holiday.is_active
             ? "bg-red-50 text-red-700 hover:bg-red-100"
             : "bg-green-50 text-green-700 hover:bg-green-100"

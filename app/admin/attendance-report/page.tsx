@@ -500,7 +500,7 @@ if (date >= firstDay && date < today) {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <main className="yf-page flex items-center justify-center">
         <p className="font-semibold text-slate-500">
           Monthly Report લોડ થઈ રહ્યું છે...
         </p>
@@ -509,9 +509,9 @@ if (date >= firstDay && date < today) {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50">
-      <header className="bg-slate-900 text-white">
-        <div className="max-w-7xl mx-auto px-5 py-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <main className="yf-page">
+      <header className="yf-header">
+        <div className="yf-container flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-black">
               YashFlow Admin
@@ -525,15 +525,15 @@ if (date >= firstDay && date < today) {
           <button
             type="button"
             onClick={() => router.push("/admin")}
-            className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl font-semibold"
+            className="yf-btn border-white/20 bg-white/10 text-white hover:bg-white/20"
           >
             ← Admin Dashboard
           </button>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto p-5">
-        <section className="bg-white border border-slate-200 rounded-2xl p-5">
+      <div className="yf-container">
+        <section className="yf-card p-4 sm:p-5">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
             <div>
               <h2 className="text-2xl font-black text-slate-900">
@@ -556,21 +556,21 @@ if (date >= firstDay && date < today) {
                 onChange={(e) =>
                   setSelectedMonth(e.target.value)
                 }
-                className="border border-slate-300 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500"
+                className="yf-input"
               />
             </div>
           </div>
         </section>
 
         {message && (
-          <div className="mt-5 bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 font-semibold">
+          <div className="yf-alert yf-alert-danger mt-5">
             {message}
           </div>
         )}
 
-        <section className="bg-white border border-slate-200 rounded-2xl mt-5 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1150px]">
+        <section className="yf-card mt-5 overflow-hidden">
+          <div className="yf-table-wrap">
+            <table className="yf-table min-w-[1150px]">
               <thead className="bg-slate-100">
                 <tr>
                   <th className="text-left px-4 py-4 text-sm">
@@ -625,7 +625,7 @@ if (date >= firstDay && date < today) {
                 {reportLoading ? (
                   <tr>
                     <td
-                      colSpan={10}
+                      colSpan={12}
                       className="px-5 py-10 text-center text-slate-400"
                     >
                       Monthly data લોડ થઈ રહ્યું છે...

@@ -759,7 +759,7 @@ async function saveValueDependencies(item: OptionValue) {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-50 text-slate-900 flex items-center justify-center">
+      <main className="yf-page flex items-center justify-center">
         <p className="font-bold text-slate-600">
           Product Master લોડ થઈ રહ્યું છે...
         </p>
@@ -768,9 +768,9 @@ async function saveValueDependencies(item: OptionValue) {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900">
-      <header className="bg-slate-900 text-white">
-        <div className="max-w-7xl mx-auto px-5 py-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <main className="yf-page">
+      <header className="yf-header">
+        <div className="yf-container flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-black">Product Master</h1>
             <p className="text-slate-300 text-sm mt-1">
@@ -781,21 +781,21 @@ async function saveValueDependencies(item: OptionValue) {
           <button
             type="button"
             onClick={() => router.push("/admin")}
-            className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl font-bold"
+            className="yf-btn border-white/20 bg-white/10 text-white hover:bg-white/20"
           >
             ← Admin Dashboard
           </button>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto p-4 md:p-5">
+      <div className="yf-container">
         {message && (
-          <div className="mb-5 bg-blue-50 border border-blue-200 rounded-2xl p-4 font-bold text-blue-800">
+          <div className="yf-alert yf-alert-info mb-5">
             {message}
           </div>
         )}
 
-        <section className="bg-white border border-slate-200 rounded-3xl p-5 md:p-6 shadow-sm">
+        <section className="yf-card p-4 sm:p-6">
           <div className="flex items-center justify-between gap-4">
             <div>
               <h2 className="text-xl font-black">Add Product</h2>
@@ -804,7 +804,7 @@ async function saveValueDependencies(item: OptionValue) {
               </p>
             </div>
 
-            <div className="bg-blue-50 text-blue-700 rounded-xl px-4 py-2 font-black">
+            <div className="yf-badge yf-badge-blue">
               {products.length} Products
             </div>
           </div>
@@ -819,7 +819,7 @@ async function saveValueDependencies(item: OptionValue) {
                 value={productName}
                 onChange={(e) => setProductName(e.target.value)}
                 placeholder="Example: ID CARD"
-                className="w-full bg-white text-slate-900 border border-slate-300 rounded-xl px-4 py-3"
+                className="yf-input"
               />
             </div>
 
@@ -832,7 +832,7 @@ async function saveValueDependencies(item: OptionValue) {
                 value={productImageUrl}
                 onChange={(e) => setProductImageUrl(e.target.value)}
                 placeholder="Image URL"
-                className="w-full bg-white text-slate-900 border border-slate-300 rounded-xl px-4 py-3"
+                className="yf-input"
               />
             </div>
           </div>
@@ -841,14 +841,14 @@ async function saveValueDependencies(item: OptionValue) {
             type="button"
             onClick={handleAddProduct}
             disabled={saving}
-            className="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-black disabled:opacity-50"
+            className="yf-btn yf-btn-primary mt-4 px-6 disabled:opacity-50"
           >
             + Add Product
           </button>
         </section>
 
         <section className="grid lg:grid-cols-[320px_1fr] gap-5 mt-5">
-          <aside className="bg-white border border-slate-200 rounded-3xl p-4 shadow-sm h-fit">
+          <aside className="yf-card p-4 h-fit">
             <h2 className="text-lg font-black px-2 py-2">
               Products
             </h2>
@@ -899,7 +899,7 @@ async function saveValueDependencies(item: OptionValue) {
           <div>
             {selectedProduct && (
               <>
-                <section className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
+                <section className="yf-card p-4 sm:p-5">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
                       <p className="text-xs text-blue-600 font-black">
@@ -912,7 +912,7 @@ async function saveValueDependencies(item: OptionValue) {
 
                     <button
                       onClick={() => handleToggleProduct(selectedProduct)}
-                      className="border border-slate-300 rounded-xl px-4 py-2 font-black"
+                      className="yf-btn yf-btn-secondary"
                     >
                       {selectedProduct.is_active
                         ? "Deactivate Product"
@@ -921,7 +921,7 @@ async function saveValueDependencies(item: OptionValue) {
                   </div>
                 </section>
 
-                <section className="bg-white border border-slate-200 rounded-3xl p-5 mt-5 shadow-sm">
+                <section className="yf-card p-4 sm:p-5 mt-5">
                   <h2 className="text-xl font-black">
                     Add Configuration Field
                   </h2>
@@ -931,7 +931,7 @@ async function saveValueDependencies(item: OptionValue) {
                       value={newOptionName}
                       onChange={(e) => setNewOptionName(e.target.value)}
                       placeholder="Category / Sub Category / Pattern..."
-                      className="w-full border border-slate-300 rounded-xl px-4 py-3"
+                      className="yf-input"
                     />
 
                     <label className="flex items-center gap-2 border rounded-xl px-4 py-3 font-bold">
@@ -948,7 +948,7 @@ async function saveValueDependencies(item: OptionValue) {
                     <button
                       onClick={handleAddOption}
                       disabled={saving}
-                      className="bg-slate-900 text-white px-5 py-3 rounded-xl font-black"
+                      className="yf-btn bg-slate-900 text-white"
                     >
                       + Add Field
                     </button>
@@ -972,7 +972,7 @@ async function saveValueDependencies(item: OptionValue) {
                     return (
                       <section
                         key={option.id}
-                        className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm"
+                        className="yf-card p-4 sm:p-5"
                       >
                         <div className="flex justify-between gap-4">
                           <div className="flex items-center gap-3">
@@ -985,7 +985,7 @@ async function saveValueDependencies(item: OptionValue) {
                             </h3>
 
                             {option.is_required && (
-                              <span className="text-xs font-black bg-red-50 text-red-700 px-2 py-1 rounded-full">
+                              <span className="yf-badge yf-badge-red">
                                 REQUIRED
                               </span>
                             )}
@@ -1014,7 +1014,7 @@ async function saveValueDependencies(item: OptionValue) {
                                 [option.id]: e.target.value,
                               }))
                             }
-                            className="w-full border border-slate-300 rounded-xl px-4 py-3"
+                            className="yf-input"
                           />
                         </div>
 
@@ -1037,7 +1037,7 @@ async function saveValueDependencies(item: OptionValue) {
                               }))
                             }
                             placeholder={"Red\nBlue\nBlack\nWhite"}
-                            className="w-full bg-white text-slate-900 border border-slate-300 rounded-xl px-4 py-3 resize-y"
+                            className="yf-input resize-y"
                           />
                         </div>
 
@@ -1090,7 +1090,7 @@ async function saveValueDependencies(item: OptionValue) {
                             handleAddValue(option, previousOption)
                           }
                           disabled={saving}
-                          className="mt-5 bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl font-black disabled:opacity-50"
+                          className="yf-btn yf-btn-primary mt-5 disabled:opacity-50"
                         >
                           + Add Value
                         </button>
@@ -1103,7 +1103,7 @@ async function saveValueDependencies(item: OptionValue) {
                           disabled={
                             saving || !(bulkValueInputs[option.id] || "").trim()
                           }
-                          className="mt-5 ml-0 sm:ml-3 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-black disabled:opacity-50"
+                          className="yf-btn yf-btn-success mt-3 sm:mt-5 sm:ml-3 disabled:opacity-50"
                         >
                           + Add All Values
                         </button>
@@ -1154,7 +1154,7 @@ async function saveValueDependencies(item: OptionValue) {
             <button
               type="button"
               onClick={() => startEditValue(item)}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-xl text-xs font-black"
+              className="yf-btn yf-btn-primary yf-btn-sm"
             >
               Edit Applicable To
             </button>
@@ -1176,7 +1176,7 @@ async function saveValueDependencies(item: OptionValue) {
             type="button"
             onClick={() => handleDeleteValue(item)}
             disabled={saving}
-            className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-xl text-xs font-black disabled:opacity-50"
+            className="yf-btn yf-btn-danger yf-btn-sm disabled:opacity-50"
           >
             Delete
           </button>
@@ -1221,7 +1221,7 @@ async function saveValueDependencies(item: OptionValue) {
               type="button"
               disabled={saving}
               onClick={() => saveValueDependencies(item)}
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl text-sm font-black disabled:opacity-50"
+              className="yf-btn yf-btn-success yf-btn-sm disabled:opacity-50"
             >
               Save Changes
             </button>
@@ -1232,7 +1232,7 @@ async function saveValueDependencies(item: OptionValue) {
                 setEditingValueId(null);
                 setEditParents([]);
               }}
-              className="bg-slate-100 text-slate-700 px-4 py-2 rounded-xl text-sm font-black"
+              className="yf-btn yf-btn-secondary yf-btn-sm"
             >
               Cancel
             </button>

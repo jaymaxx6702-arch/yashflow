@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 /* =========================================================
-   YashFlow Professional Light Theme
-   Global UI foundation for Admin + Employee modules
+   YashFlow Professional Light Theme V2
+   Unified UI foundation for Admin + Employee modules
    ========================================================= */
 
 :root {
@@ -21,12 +21,15 @@
   --primary-soft: #eff6ff;
 
   --success: #16a34a;
+  --success-hover: #15803d;
   --success-soft: #f0fdf4;
 
   --warning: #d97706;
+  --warning-hover: #b45309;
   --warning-soft: #fffbeb;
 
   --danger: #dc2626;
+  --danger-hover: #b91c1c;
   --danger-soft: #fef2f2;
 
   --info: #0891b2;
@@ -47,6 +50,9 @@
   --shadow-md:
     0 8px 24px rgba(15, 23, 42, 0.07),
     0 2px 6px rgba(15, 23, 42, 0.04);
+  --shadow-drawer:
+    -12px 0 36px rgba(15, 23, 42, 0.14),
+    0 -10px 36px rgba(15, 23, 42, 0.12);
 
   --focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.16);
 }
@@ -59,7 +65,7 @@
 }
 
 /*
-  YashFlow V1 intentionally stays in Light Theme.
+  YashFlow intentionally stays in Light Theme.
   This prevents phone/browser dark-mode settings from making
   forms, tables and cards inconsistent across employees.
 */
@@ -67,9 +73,12 @@ html {
   color-scheme: light;
   background: var(--background);
   scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
@@ -77,16 +86,21 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(circle at top left, rgba(37, 99, 235, 0.035), transparent 28rem),
+    radial-gradient(
+      circle at top left,
+      rgba(37, 99, 235, 0.035),
+      transparent 28rem
+    ),
     var(--background);
   color: var(--foreground);
   font-family:
+    var(--font-geist-sans),
+    "Segoe UI",
     Arial,
     Helvetica,
     system-ui,
     -apple-system,
     BlinkMacSystemFont,
-    "Segoe UI",
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -128,14 +142,14 @@ body {
 input,
 select,
 textarea {
-  color: #0f172a;
-  background-color: #ffffff;
+  color: var(--foreground);
+  background-color: var(--surface);
   accent-color: var(--primary);
 }
 
 input::placeholder,
 textarea::placeholder {
-  color: #94a3b8;
+  color: var(--text-soft);
 }
 
 input:focus,
@@ -160,7 +174,8 @@ button {
     box-shadow 160ms ease,
     opacity 160ms ease,
     background-color 160ms ease,
-    border-color 160ms ease;
+    border-color 160ms ease,
+    color 160ms ease;
 }
 
 button:active:not(:disabled) {
@@ -169,6 +184,11 @@ button:active:not(:disabled) {
 
 button:disabled {
   cursor: not-allowed;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
 }
 
 table {
@@ -185,6 +205,10 @@ th {
   vertical-align: middle;
 }
 
+/* =========================================================
+   PAGE / LAYOUT
+   ========================================================= */
+
 .yf-page {
   min-height: 100vh;
   background: var(--background);
@@ -199,17 +223,77 @@ th {
 }
 
 .yf-header {
+  position: relative;
+  z-index: 20;
   background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
   color: #ffffff;
   border-bottom: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 4px 18px rgba(37, 99, 235, 0.13);
 }
 
+.yf-header-compact .yf-container {
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.yf-section {
+  margin-top: 16px;
+}
+
+.yf-divider {
+  height: 1px;
+  background: var(--border);
+}
+
+/* =========================================================
+   TYPOGRAPHY
+   ========================================================= */
+
+.yf-eyebrow {
+  color: var(--primary);
+  font-size: 0.625rem;
+  line-height: 1.2;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.yf-section-title {
+  color: var(--foreground);
+  font-size: 1.25rem;
+  line-height: 1.35;
+  font-weight: 900;
+}
+
+.yf-section-subtitle {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+.yf-muted {
+  color: var(--text-muted);
+}
+
+.yf-soft {
+  color: var(--text-soft);
+}
+
+/* =========================================================
+   CARDS / PANELS
+   ========================================================= */
+
 .yf-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
+}
+
+.yf-card-soft {
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
 }
 
 .yf-card-hover {
@@ -225,17 +309,42 @@ th {
   border-color: #bfdbfe;
 }
 
-.yf-section-title {
-  color: #0f172a;
-  font-size: 1.25rem;
-  line-height: 1.4;
-  font-weight: 900;
+.yf-metric-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  box-shadow: var(--shadow-sm);
 }
 
-.yf-section-subtitle {
+.yf-metric-label {
   color: var(--text-muted);
-  font-size: 0.875rem;
-  line-height: 1.55;
+  font-size: 0.625rem;
+  line-height: 1.2;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.yf-metric-value {
+  color: var(--foreground);
+  font-size: 1.5rem;
+  line-height: 1.1;
+  font-weight: 900;
+  margin-top: 4px;
+}
+
+/* =========================================================
+   FORM CONTROLS
+   ========================================================= */
+
+.yf-label {
+  display: block;
+  margin-bottom: 6px;
+  color: #475569;
+  font-size: 0.75rem;
+  line-height: 1.3;
+  font-weight: 900;
 }
 
 .yf-input {
@@ -243,18 +352,38 @@ th {
   min-height: 44px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
-  background: #ffffff;
-  color: #0f172a;
+  background: var(--surface);
+  color: var(--foreground);
   padding: 10px 12px;
   transition:
     border-color 160ms ease,
-    box-shadow 160ms ease;
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+
+.yf-input:hover:not(:disabled) {
+  border-color: #94a3b8;
 }
 
 .yf-input:focus {
   border-color: #60a5fa;
   box-shadow: var(--focus-ring);
 }
+
+.yf-input:disabled {
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+textarea.yf-input {
+  min-height: 88px;
+  resize: vertical;
+}
+
+/* =========================================================
+   BUTTONS
+   ========================================================= */
 
 .yf-btn {
   display: inline-flex;
@@ -264,8 +393,17 @@ th {
   min-height: 42px;
   border-radius: 12px;
   padding: 9px 16px;
+  font-size: 0.875rem;
+  line-height: 1.2;
   font-weight: 800;
   border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.yf-btn:focus-visible,
+.yf-input:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .yf-btn-primary {
@@ -273,7 +411,7 @@ th {
   background: var(--primary);
 }
 
-.yf-btn-primary:hover {
+.yf-btn-primary:hover:not(:disabled) {
   background: var(--primary-hover);
 }
 
@@ -282,24 +420,69 @@ th {
   background: var(--success);
 }
 
+.yf-btn-success:hover:not(:disabled) {
+  background: var(--success-hover);
+}
+
+.yf-btn-warning {
+  color: #ffffff;
+  background: var(--warning);
+}
+
+.yf-btn-warning:hover:not(:disabled) {
+  background: var(--warning-hover);
+}
+
 .yf-btn-danger {
   color: #ffffff;
   background: var(--danger);
 }
 
+.yf-btn-danger:hover:not(:disabled) {
+  background: var(--danger-hover);
+}
+
 .yf-btn-secondary {
   color: #334155;
-  background: #ffffff;
+  background: var(--surface);
   border-color: var(--border-strong);
 }
 
-.yf-btn-secondary:hover {
-  background: #f8fafc;
+.yf-btn-secondary:hover:not(:disabled) {
+  background: var(--surface-soft);
 }
+
+.yf-btn-ghost {
+  color: #475569;
+  background: transparent;
+  border-color: transparent;
+}
+
+.yf-btn-ghost:hover:not(:disabled) {
+  background: var(--surface-muted);
+}
+
+.yf-btn-sm {
+  min-height: 36px;
+  border-radius: 10px;
+  padding: 7px 11px;
+  font-size: 0.75rem;
+}
+
+.yf-btn-icon {
+  width: 42px;
+  min-width: 42px;
+  padding-inline: 0;
+}
+
+/* =========================================================
+   BADGES
+   ========================================================= */
 
 .yf-badge {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   min-height: 26px;
   border-radius: 999px;
@@ -335,19 +518,277 @@ th {
   background: #ede9fe;
 }
 
+.yf-badge-slate {
+  color: #475569;
+  background: #e2e8f0;
+}
+
+.yf-badge-cyan {
+  color: #0e7490;
+  background: #cffafe;
+}
+
+/* =========================================================
+   ALERTS / STATES
+   ========================================================= */
+
+.yf-alert {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  font-weight: 700;
+}
+
+.yf-alert-info {
+  color: #1e40af;
+  background: var(--primary-soft);
+  border-color: #bfdbfe;
+}
+
+.yf-alert-success {
+  color: #166534;
+  background: var(--success-soft);
+  border-color: #bbf7d0;
+}
+
+.yf-alert-warning {
+  color: #92400e;
+  background: var(--warning-soft);
+  border-color: #fde68a;
+}
+
+.yf-alert-danger {
+  color: #991b1b;
+  background: var(--danger-soft);
+  border-color: #fecaca;
+}
+
+.yf-empty {
+  display: flex;
+  min-height: 140px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 24px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.yf-empty-title {
+  color: #334155;
+  font-weight: 900;
+}
+
+/* =========================================================
+   TABS / FILTERS / TOOLBAR
+   ========================================================= */
+
+.yf-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.yf-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.yf-tab {
+  flex: 0 0 auto;
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface);
+  color: #475569;
+  padding: 8px 12px;
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
+.yf-tab:hover {
+  background: var(--surface-soft);
+}
+
+.yf-tab-active {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #ffffff;
+}
+
+.yf-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.yf-toolbar > .yf-input {
+  flex: 1 1 220px;
+}
+
+/* =========================================================
+   TABLES
+   ========================================================= */
+
 .yf-table-wrap {
   width: 100%;
   overflow-x: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  background: #ffffff;
+  background: var(--surface);
 }
+
+.yf-table {
+  width: 100%;
+  min-width: 720px;
+}
+
+.yf-table thead {
+  background: var(--surface-muted);
+}
+
+.yf-table th {
+  color: #475569;
+  padding: 12px 14px;
+  font-size: 0.6875rem;
+  line-height: 1.2;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.yf-table td {
+  padding: 12px 14px;
+  border-top: 1px solid #f1f5f9;
+  font-size: 0.875rem;
+}
+
+.yf-table tbody tr:hover {
+  background: rgba(239, 246, 255, 0.45);
+}
+
+/* =========================================================
+   GRID HELPERS
+   ========================================================= */
 
 .yf-summary-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
+
+.yf-app-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+/* =========================================================
+   DRAWER / MODAL / BOTTOM SHEET
+   ========================================================= */
+
+.yf-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(15, 23, 42, 0.48);
+  backdrop-filter: blur(2px);
+}
+
+.yf-drawer {
+  position: fixed;
+  z-index: 90;
+  right: 0;
+  top: 0;
+  height: 100%;
+  width: min(100%, 560px);
+  overflow-y: auto;
+  background: var(--surface);
+  box-shadow: var(--shadow-drawer);
+}
+
+.yf-drawer-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.96);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+}
+
+.yf-drawer-body {
+  padding: 16px;
+}
+
+.yf-modal {
+  position: fixed;
+  z-index: 90;
+  left: 50%;
+  top: 50%;
+  width: min(calc(100% - 28px), 620px);
+  max-height: calc(100% - 28px);
+  overflow-y: auto;
+  transform: translate(-50%, -50%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+}
+
+/* =========================================================
+   MOBILE NAV
+   ========================================================= */
+
+.yf-bottom-nav {
+  position: fixed;
+  z-index: 70;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  padding: 8px max(8px, env(safe-area-inset-left))
+    calc(8px + env(safe-area-inset-bottom))
+    max(8px, env(safe-area-inset-right));
+  background: rgba(255, 255, 255, 0.96);
+  border-top: 1px solid var(--border);
+  backdrop-filter: blur(12px);
+}
+
+.yf-bottom-nav-item {
+  min-height: 46px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border-radius: 10px;
+  color: #64748b;
+  font-size: 0.625rem;
+  line-height: 1.1;
+  font-weight: 900;
+}
+
+.yf-bottom-nav-item-active {
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
 
 @media (min-width: 768px) {
   .yf-container {
@@ -357,6 +798,10 @@ th {
   .yf-summary-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 16px;
+  }
+
+  .yf-app-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
@@ -369,6 +814,11 @@ th {
     padding: 14px;
   }
 
+  .yf-header .yf-container {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
   button,
   .yf-btn {
     min-height: 44px;
@@ -378,6 +828,37 @@ th {
   select,
   textarea {
     font-size: 16px;
+  }
+
+  .yf-section-title {
+    font-size: 1.125rem;
+  }
+
+  .yf-card {
+    border-radius: 16px;
+  }
+
+  .yf-drawer {
+    top: auto;
+    bottom: 0;
+    width: 100%;
+    height: auto;
+    max-height: 90%;
+    border-radius: 22px 22px 0 0;
+  }
+
+  .yf-drawer-header {
+    border-radius: 22px 22px 0 0;
+  }
+
+  .yf-table-wrap {
+    border-radius: 16px;
+  }
+}
+
+@media (min-width: 641px) {
+  .yf-bottom-nav {
+    display: none;
   }
 }
 

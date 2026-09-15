@@ -458,8 +458,8 @@ export default function EmployeeApprovalPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 p-4 md:p-8 text-slate-900">
-      <div className="max-w-6xl mx-auto">
+    <main className="yf-page">
+      <div className="yf-container max-w-6xl">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <Link
@@ -481,19 +481,19 @@ export default function EmployeeApprovalPage() {
           <button
             type="button"
             onClick={loadPage}
-            className="bg-white border border-slate-300 px-5 py-3 rounded-xl font-semibold hover:bg-slate-100"
+            className="yf-btn yf-btn-secondary"
           >
             Refresh
           </button>
         </div>
 
         {message && (
-          <div className="mt-5 rounded-xl border border-blue-200 bg-blue-50 p-4 text-blue-800 font-semibold">
+          <div className="yf-alert yf-alert-info mt-5">
             {message}
           </div>
         )}
 
-        <div className="mt-8 bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <div className="yf-card mt-5 overflow-hidden">
           {loading ? (
             <div className="p-8 text-center text-slate-500">
               માહિતી લોડ થઈ રહી છે...
@@ -519,7 +519,7 @@ export default function EmployeeApprovalPage() {
                           </h2>
 
                           <span
-                            className={`text-xs font-bold px-3 py-1 rounded-full ${statusClass(
+                            className={`yf-badge ${statusClass(
                               employee.approval_status
                             )}`}
                           >
@@ -592,7 +592,7 @@ export default function EmployeeApprovalPage() {
                         <button
                           type="button"
                           onClick={() => startDepartmentEdit(employee)}
-                          className="px-4 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold"
+                          className="yf-btn yf-btn-primary"
                         >
                           Manage Departments
                         </button>
@@ -604,7 +604,7 @@ export default function EmployeeApprovalPage() {
                             employee.approval_status === "approved"
                           }
                           onClick={() => updateStatus(employee.id, "approved")}
-                          className="px-5 py-3 rounded-xl bg-green-600 disabled:bg-slate-300 text-white font-bold"
+                          className="yf-btn yf-btn-success disabled:bg-slate-300"
                         >
                           {updatingId === employee.id ? "અપડેટ..." : "મંજૂર કરો"}
                         </button>
@@ -616,7 +616,7 @@ export default function EmployeeApprovalPage() {
                             employee.approval_status === "rejected"
                           }
                           onClick={() => updateStatus(employee.id, "rejected")}
-                          className="px-5 py-3 rounded-xl bg-red-600 disabled:bg-slate-300 text-white font-bold"
+                          className="yf-btn yf-btn-danger disabled:bg-slate-300"
                         >
                           નામંજૂર કરો
                         </button>
@@ -624,7 +624,7 @@ export default function EmployeeApprovalPage() {
                     </div>
 
                     {isEditing && (
-                      <div className="mt-5 bg-slate-50 border border-slate-200 rounded-2xl p-5">
+                      <div className="yf-card-soft mt-5 p-4 sm:p-5">
                         <h3 className="font-black text-lg">
                           Manage Departments — {employee.full_name}
                         </h3>
@@ -639,7 +639,7 @@ export default function EmployeeApprovalPage() {
                             onChange={(e) =>
                               handlePrimaryDepartmentChange(e.target.value)
                             }
-                            className="w-full md:max-w-md bg-white text-slate-900 border border-slate-300 rounded-xl px-4 py-3"
+                            className="yf-input md:max-w-md"
                           >
                             <option value="">Select Primary Department</option>
 
@@ -671,7 +671,7 @@ export default function EmployeeApprovalPage() {
                               return (
                                 <label
                                   key={department.id}
-                                  className={`flex items-center gap-3 border rounded-xl px-3 py-3 ${
+                                  className={`flex items-center gap-3 border rounded-xl px-3 py-3 transition ${
                                     isPrimary
                                       ? "bg-slate-100 border-slate-200 opacity-60"
                                       : checked
@@ -735,7 +735,7 @@ export default function EmployeeApprovalPage() {
                                       return (
                                         <label
                                           key={permission.id}
-                                          className={`flex items-start gap-3 border rounded-xl px-3 py-3 cursor-pointer ${
+                                          className={`flex items-start gap-3 border rounded-xl px-3 py-3 cursor-pointer transition ${
                                             checked
                                               ? "bg-emerald-50 border-emerald-400"
                                               : "bg-white border-slate-200"
@@ -780,7 +780,7 @@ export default function EmployeeApprovalPage() {
                             type="button"
                             disabled={updatingId === employee.id}
                             onClick={() => saveDepartmentAssignments(employee)}
-                            className="bg-green-600 hover:bg-green-700 text-white px-5 py-3 rounded-xl font-black disabled:opacity-50"
+                            className="yf-btn yf-btn-success disabled:opacity-50"
                           >
                             {updatingId === employee.id
                               ? "Saving..."
@@ -795,7 +795,7 @@ export default function EmployeeApprovalPage() {
                               setEditAdditionalDepartmentIds([]);
                               setEditPermissionIds([]);
                             }}
-                            className="bg-white border border-slate-300 text-slate-700 px-5 py-3 rounded-xl font-black"
+                            className="yf-btn yf-btn-secondary"
                           >
                             Cancel
                           </button>

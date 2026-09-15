@@ -97,6 +97,8 @@ type CompleteStageResult = {
   status?: WorkflowStatus;
 };
 
+type EmployeeOrderTab = "assigned" | "in_progress" | "attention" | "all";
+
 function statusLabel(status: WorkflowStatus) {
   if (status === "in_progress") return "In Progress";
   if (status === "ready_for_approval") return "Ready for Approval";
@@ -152,6 +154,8 @@ export default function EmployeeOrdersPage() {
   const [actionId, setActionId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [orderTab, setOrderTab] = useState<EmployeeOrderTab>("assigned");
+  const [searchText, setSearchText] = useState("");
 
   const stageMap = useMemo(
     () => new Map(stages.map((stage) => [stage.id, stage])),
@@ -224,6 +228,8 @@ export default function EmployeeOrdersPage() {
   }
 
   function stageNeedsApproval(order: Order, work: StageWork) {
+    // Workflow V4 rule: AUTO never waits for Admin Approval.
+    if (order.workflow_mode === "auto") return false;
     if (order.workflow_mode === "admin_controlled") return true;
     if (order.workflow_mode === "manual") return true;
 
@@ -832,7 +838,7 @@ export default function EmployeeOrdersPage() {
     }
 
     const { data, error } = await supabase.rpc(
-      "employee_complete_stage_v3",
+      "employee_complete_stage_v4",
       {
         p_work_id: work.id,
       }
@@ -904,7 +910,7 @@ export default function EmployeeOrdersPage() {
 
     const supabase = createClient();
 
-    const { data, error } = await supabase.rpc("employee_complete_stage_v3", {
+    const { data, error } = await supabase.rpc("employee_complete_stage_v4", {
       p_work_id: work.id,
     });
 
@@ -975,6 +981,42 @@ export default function EmployeeOrdersPage() {
     (order) => workByOrder.get(order.id)?.status === "ready_for_approval"
   ).length;
 
+  const attentionCount = myOrders.filter((order) => {
+    const status = workByOrder.get(order.id)?.status;
+    return (
+      status === "waiting" ||
+      status === "ready_for_approval" ||
+      status === "hold" ||
+      status === "rework"
+    );
+  }).length;
+
+  const filteredMyOrders = useMemo(() => {
+    const query = searchText.trim().toLowerCase();
+
+    return myOrders.filter((order) => {
+      const status = workByOrder.get(order.id)?.status;
+      const searchMatch =
+        !query ||
+        order.order_number.toLowerCase().includes(query) ||
+        order.customer_name.toLowerCase().includes(query) ||
+        order.product_name.toLowerCase().includes(query);
+
+      let tabMatch = true;
+      if (orderTab === "assigned") tabMatch = status === "assigned";
+      if (orderTab === "in_progress") tabMatch = status === "in_progress";
+      if (orderTab === "attention") {
+        tabMatch =
+          status === "waiting" ||
+          status === "ready_for_approval" ||
+          status === "hold" ||
+          status === "rework";
+      }
+
+      return searchMatch && tabMatch;
+    });
+  }, [myOrders, searchText, orderTab, workByOrder]);
+
   if (loading) {
     return (
       <main className="yf-page flex items-center justify-center">
@@ -988,17 +1030,17 @@ export default function EmployeeOrdersPage() {
   return (
     <main className="yf-page">
       <header className="yf-header">
-        <div className="yf-container py-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="yf-container py-3 flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-black tracking-[0.15em] text-blue-100">
-              YASHFLOW WORKFLOW V3
+            <p className="text-[9px] font-black tracking-[0.15em] text-blue-100">
+              YASHFLOW WORKFLOW V4
             </p>
 
-            <h1 className="text-2xl sm:text-3xl font-black text-white mt-1">
+            <h1 className="text-lg sm:text-xl font-black text-white mt-0.5">
               My Assigned Orders
             </h1>
 
-            <p className="text-blue-100 text-sm font-semibold mt-1">
+            <p className="text-blue-100 text-[10px] sm:text-xs font-semibold mt-0.5">
               {employee?.full_name} • {employee?.department || "Employee"}
             </p>
           </div>
@@ -1020,33 +1062,51 @@ export default function EmployeeOrdersPage() {
           </div>
         )}
 
-        <section className="grid grid-cols-3 gap-3 mb-5">
-          <div className="yf-card p-4">
-            <p className="text-xs font-black text-slate-500">ASSIGNED</p>
-            <p className="text-3xl font-black text-cyan-700 mt-1">
-              {assignedCount}
-            </p>
+        <section className="yf-card p-3 sm:p-4 mb-3">
+          <div className="grid grid-cols-4 gap-1.5">
+            {[
+              ["assigned", "Assigned", assignedCount],
+              ["in_progress", "In Progress", inProgressCount],
+              ["attention", "Attention", attentionCount],
+              ["all", "All", myOrders.length],
+            ].map(([tab, label, count]) => (
+              <button
+                type="button"
+                key={String(tab)}
+                onClick={() => setOrderTab(tab as EmployeeOrderTab)}
+                className={`rounded-xl border px-2 py-2.5 text-center ${
+                  orderTab === tab
+                    ? "border-blue-500 bg-blue-600 text-white"
+                    : "border-slate-200 bg-white text-slate-700"
+                }`}
+              >
+                <p className="text-[9px] sm:text-[10px] font-black leading-tight">
+                  {label}
+                </p>
+                <p className="text-base sm:text-lg font-black mt-0.5">
+                  {count}
+                </p>
+              </button>
+            ))}
           </div>
 
-          <div className="yf-card p-4">
-            <p className="text-xs font-black text-slate-500">IN PROGRESS</p>
-            <p className="text-3xl font-black text-blue-700 mt-1">
-              {inProgressCount}
-            </p>
-          </div>
+          <input
+            type="text"
+            value={searchText}
+            onChange={(event) => setSearchText(event.target.value)}
+            placeholder="Search Order / Customer / Product..."
+            className="yf-input mt-3"
+          />
 
-          <div className="yf-card p-4">
-            <p className="text-xs font-black text-slate-500">
-              READY FOR APPROVAL
+          {readyCount > 0 && (
+            <p className="mt-2 text-[10px] font-black text-purple-700">
+              {readyCount} item Admin Approval માટે pending છે.
             </p>
-            <p className="text-3xl font-black text-purple-700 mt-1">
-              {readyCount}
-            </p>
-          </div>
+          )}
         </section>
 
-        <section className="space-y-4">
-          {myOrders.map((order) => {
+        <section className="space-y-2">
+          {filteredMyOrders.map((order) => {
             const work = workByOrder.get(order.id);
 
             if (!work) return null;
@@ -1070,14 +1130,14 @@ export default function EmployeeOrdersPage() {
             const hasPhotoProof = photoProofs.length > 0;
 
             return (
-              <article key={order.id} className="yf-card p-5">
-                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+              <article key={order.id} className="yf-card p-3 sm:p-4">
+                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
                   <div className="flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
                         onClick={() => setSelectedOrder(order)}
-                        className="text-xl font-black text-blue-700 hover:underline"
+                        className="text-base sm:text-lg font-black text-blue-700 hover:underline"
                       >
                         {order.order_number}
                       </button>
@@ -1103,11 +1163,11 @@ export default function EmployeeOrdersPage() {
                       )}
                     </div>
 
-                    <h3 className="font-black text-slate-900 mt-2">
+                    <h3 className="font-black text-sm sm:text-base text-slate-900 mt-1">
                       {order.product_name}
                     </h3>
 
-                    <p className="text-sm text-slate-500 mt-1">
+                    <p className="text-xs text-slate-500 mt-1">
                       Customer:{" "}
                       <span className="font-bold text-slate-700">
                         {order.customer_name}
@@ -1119,22 +1179,22 @@ export default function EmployeeOrdersPage() {
                       </span>
                     </p>
 
-                    <div className="mt-3 grid sm:grid-cols-3 gap-2">
-                      <div className="rounded-xl bg-blue-50 p-3">
+                    <div className="mt-2 grid grid-cols-3 gap-1.5">
+                      <div className="rounded-xl bg-blue-50 p-2.5 min-w-0">
                         <p className="text-xs font-black text-blue-500">STAGE</p>
                         <p className="font-black text-blue-900 mt-1">
                           {stage?.name || order.current_stage}
                         </p>
                       </div>
 
-                      <div className="rounded-xl bg-slate-50 p-3">
+                      <div className="rounded-xl bg-slate-50 p-2.5 min-w-0">
                         <p className="text-xs font-black text-slate-400">ROLE</p>
                         <p className="font-black text-slate-800 mt-1">
-                          {isPrimary ? "Primary Worker" : "Support Worker"}
+                          {isPrimary ? "Primary Employee" : "Support Employee"}
                         </p>
                       </div>
 
-                      <div className="rounded-xl bg-slate-50 p-3">
+                      <div className="rounded-xl bg-slate-50 p-2.5 min-w-0">
                         <p className="text-xs font-black text-slate-400">
                           DUE DATE
                         </p>
@@ -1162,7 +1222,21 @@ export default function EmployeeOrdersPage() {
                       </p>
                     )}
 
-                    <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <details className="mt-3 rounded-2xl border border-slate-200 bg-slate-50">
+                      <summary className="cursor-pointer list-none px-3 py-3 flex items-center justify-between gap-3">
+                        <span className="text-xs font-black text-slate-700">
+                          📎 Stage Proof • Photos {photoProofs.length} • Videos {videoProofs.length}
+                        </span>
+                        <span className={`rounded-full px-2 py-1 text-[9px] font-black ${
+                          hasPhotoProof
+                            ? "bg-green-100 text-green-700"
+                            : "bg-red-100 text-red-700"
+                        }`}>
+                          {hasPhotoProof ? "Photo Ready" : "Photo Required"}
+                        </span>
+                      </summary>
+
+                      <div className="border-t border-slate-200 p-3">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                         <div>
                           <p className="text-xs font-black tracking-[0.12em] text-slate-500">
@@ -1288,10 +1362,11 @@ export default function EmployeeOrdersPage() {
                           Complete Stage / Ready for Approval પહેલાં ઓછામાં ઓછો 1 Photo upload ફરજિયાત છે.
                         </p>
                       )}
-                    </div>
+                      </div>
+                    </details>
                   </div>
 
-                  <div className="flex flex-wrap lg:flex-col gap-2 lg:min-w-[210px]">
+                  <div className="grid grid-cols-2 lg:flex lg:flex-col gap-2 lg:min-w-[190px]">
                     {canAct &&
                       (work.status === "assigned" || work.status === "rework") && (
                         <button
@@ -1386,7 +1461,7 @@ export default function EmployeeOrdersPage() {
             );
           })}
 
-          {myOrders.length === 0 && (
+          {filteredMyOrders.length === 0 && (
             <div className="yf-card p-10 text-center">
               <p className="text-2xl">✅</p>
               <h3 className="font-black text-slate-900 mt-2">
@@ -1406,10 +1481,10 @@ export default function EmployeeOrdersPage() {
           onClick={() => setSelectedOrder(null)}
         >
           <div
-            className="absolute right-0 top-0 h-full w-full max-w-lg bg-white shadow-2xl overflow-y-auto"
+            className="absolute inset-x-0 bottom-0 max-h-[90vh] rounded-t-3xl bg-white shadow-2xl overflow-y-auto sm:inset-y-0 sm:left-auto sm:right-0 sm:h-full sm:max-h-none sm:max-w-lg sm:rounded-none"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="sticky top-0 bg-white border-b border-slate-200 p-5 flex items-start justify-between gap-4">
+            <div className="sticky top-0 bg-white border-b border-slate-200 p-4 flex items-start justify-between gap-4 rounded-t-3xl sm:rounded-none">
               <div>
                 <p className="text-xs font-black tracking-[0.15em] text-blue-700">
                   ORDER DETAILS

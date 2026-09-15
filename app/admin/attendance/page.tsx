@@ -731,7 +731,7 @@ const rejectedCount = rows.filter(
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <main className="yf-page flex items-center justify-center">
         <p className="font-semibold text-slate-500">
           Attendance લોડ થઈ રહ્યું છે...
         </p>
@@ -740,9 +740,9 @@ const rejectedCount = rows.filter(
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900">
-      <header className="bg-slate-900 text-white">
-        <div className="max-w-7xl mx-auto px-5 py-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <main className="yf-page">
+      <header className="yf-header">
+        <div className="yf-container flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-black">
               YashFlow Admin
@@ -756,15 +756,15 @@ const rejectedCount = rows.filter(
           <button
             type="button"
             onClick={() => router.push("/admin")}
-            className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl font-semibold"
+            className="yf-btn border-white/20 bg-white/10 text-white hover:bg-white/20"
           >
             ← Admin Dashboard
           </button>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto p-5">
-        <section className="bg-white border border-slate-200 rounded-2xl p-5">
+      <div className="yf-container">
+        <section className="yf-card p-4 sm:p-5">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
             <div>
               <h2 className="text-2xl font-black text-slate-900">
@@ -787,7 +787,7 @@ const rejectedCount = rows.filter(
                 onChange={(e) =>
                   setSelectedDate(e.target.value)
                 }
-                className="bg-white text-slate-900 border border-slate-400 rounded-xl px-4 py-2.5 font-semibold outline-none focus:ring-2 focus:ring-blue-500"
+                className="yf-input font-semibold"
               />
             </div>
           </div>
@@ -852,9 +852,9 @@ const rejectedCount = rows.filter(
           />
         </section>
 
-        <section className="bg-white border border-slate-200 rounded-2xl mt-5 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[950px] text-slate-800">
+        <section className="yf-card mt-5 overflow-hidden">
+          <div className="yf-table-wrap">
+            <table className="yf-table min-w-[950px] text-slate-800">
               <thead className="bg-slate-100">
                 <tr>
                   <th className="text-left px-5 py-4 text-sm">
@@ -919,7 +919,7 @@ const rejectedCount = rows.filter(
 
                       <td className="px-5 py-4">
                         <span
-                          className={`${status.className} px-3 py-1.5 rounded-full text-xs font-bold`}
+                          className={`yf-badge ${status.className}`}
                         >
                           {status.label}
                         </span>
@@ -959,12 +959,12 @@ const rejectedCount = rows.filter(
       -
     </span>
   ) : !row.attendance.approval_required ? (
-    <span className="bg-green-100 text-green-700 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap">
+    <span className="yf-badge yf-badge-green whitespace-nowrap">
       Auto Approved ✓
     </span>
   ) : row.attendance.approval_status === "pending" ? (
     <div className="flex flex-col gap-2 min-w-[120px]">
-      <span className="bg-amber-100 text-amber-700 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap text-center">
+      <span className="yf-badge yf-badge-orange whitespace-nowrap text-center">
         Pending ⏳
       </span>
 
@@ -978,7 +978,7 @@ const rejectedCount = rows.filter(
               "approved"
             )
           }
-          className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-50"
+          className="yf-btn yf-btn-success yf-btn-sm disabled:opacity-50"
         >
           Approve
         </button>
@@ -992,18 +992,18 @@ const rejectedCount = rows.filter(
               "rejected"
             )
           }
-          className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-50"
+          className="yf-btn yf-btn-danger yf-btn-sm disabled:opacity-50"
         >
           Reject
         </button>
       </div>
     </div>
   ) : row.attendance.approval_status === "approved" ? (
-    <span className="bg-green-100 text-green-700 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap">
+    <span className="yf-badge yf-badge-green whitespace-nowrap">
       Approved ✓
     </span>
   ) : (
-    <span className="bg-red-100 text-red-700 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap">
+    <span className="yf-badge yf-badge-red whitespace-nowrap">
       Rejected ✕
     </span>
   )}
@@ -1013,7 +1013,7 @@ const rejectedCount = rows.filter(
                         <button
                           type="button"
                           onClick={() => openManualPunch(row)}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap"
+                          className="yf-btn yf-btn-primary yf-btn-sm whitespace-nowrap"
                         >
                           {row.attendance
                             ? "Edit Punch"
@@ -1041,9 +1041,9 @@ const rejectedCount = rows.filter(
       </div>
 
       {manualEmployee && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
-            <div className="p-5 border-b flex items-start justify-between gap-4">
+        <div className="yf-overlay flex items-center justify-center p-4">
+          <div className="yf-modal max-w-lg">
+            <div className="yf-drawer-header">
               <div>
                 <p className="text-sm font-bold text-blue-700">
                   MANUAL ATTENDANCE
@@ -1068,7 +1068,7 @@ const rejectedCount = rows.filter(
               </button>
             </div>
 
-            <div className="p-5 space-y-4">
+            <div className="yf-drawer-body space-y-4">
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-2">
@@ -1081,7 +1081,7 @@ const rejectedCount = rows.filter(
                     onChange={(e) =>
                       setManualCheckIn(e.target.value)
                     }
-                    className="w-full border border-slate-300 rounded-xl px-4 py-2.5 font-semibold outline-none focus:ring-2 focus:ring-blue-500"
+                    className="yf-input font-semibold"
                   />
                 </div>
 
@@ -1096,7 +1096,7 @@ const rejectedCount = rows.filter(
                     onChange={(e) =>
                       setManualCheckOut(e.target.value)
                     }
-                    className="w-full border border-slate-300 rounded-xl px-4 py-2.5 font-semibold outline-none focus:ring-2 focus:ring-blue-500"
+                    className="yf-input font-semibold"
                   />
                 </div>
               </div>
@@ -1113,22 +1113,22 @@ const rejectedCount = rows.filter(
                     setManualNote(e.target.value)
                   }
                   placeholder="Reason / note (optional)"
-                  className="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500"
+                  className="yf-input"
                 />
               </div>
 
-              <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm text-slate-700">
+              <div className="yf-alert yf-alert-info text-sm">
                 Status Check In time પરથી automatic ગણાશે:
                 Present / Late / Half Day. Manual Punch Admin Approved રહેશે.
               </div>
             </div>
 
-            <div className="p-5 border-t flex justify-end gap-3">
+            <div className="p-4 sm:p-5 border-t border-slate-200 flex justify-end gap-3">
               <button
                 type="button"
                 onClick={closeManualPunch}
                 disabled={manualSaving}
-                className="border border-slate-300 px-4 py-2.5 rounded-xl font-bold text-slate-700 disabled:opacity-50"
+                className="yf-btn yf-btn-secondary disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -1137,7 +1137,7 @@ const rejectedCount = rows.filter(
                 type="button"
                 onClick={saveManualPunch}
                 disabled={manualSaving}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold disabled:opacity-50"
+                className="yf-btn yf-btn-primary disabled:opacity-50"
               >
                 {manualSaving ? "Saving..." : "Save Manual Punch"}
               </button>
@@ -1159,7 +1159,7 @@ function SummaryCard({
   valueClass?: string;
 }) {
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-5 text-slate-900">
+    <div className="yf-metric-card text-slate-900">
       <p className="text-sm font-semibold text-slate-700">
         {label}
       </p>

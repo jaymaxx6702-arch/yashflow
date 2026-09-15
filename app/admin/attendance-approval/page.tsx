@@ -1,8 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+
+type EmployeeMini = {
+  id: string;
+  full_name: string;
+  mobile: string | null;
+  department: string | null;
+};
 
 type PendingAttendance = {
   id: string;
@@ -16,12 +23,7 @@ type PendingAttendance = {
   approval_status: string;
   admin_note: string | null;
 
-  employees: {
-    id: string;
-    full_name: string;
-    mobile: string;
-    department: string | null;
-  } | null;
+  employees: EmployeeMini | null;
 };
 
 type ManualPunchStatus = "pending" | "approved" | "rejected";
@@ -38,12 +40,7 @@ type ManualPunchRequest = {
   reviewed_at: string | null;
   admin_note: string | null;
 
-  employees: {
-    id: string;
-    full_name: string;
-    mobile: string;
-    department: string | null;
-  } | null;
+  employees: EmployeeMini | null;
 };
 
 type ExistingAttendance = {
@@ -57,6 +54,22 @@ type ExistingAttendance = {
   working_minutes: number | null;
 };
 
+type CorrectionRequest = {
+  id: string;
+  employee_id: string;
+  attendance_date: string;
+  request_type: "absent_correction" | "late_regularization";
+  reason: string;
+  requested_check_in: string | null;
+  requested_check_out: string | null;
+  original_attendance_id: string | null;
+  original_attendance_type: string | null;
+  original_late_minutes: number | null;
+  status: "pending" | "approved" | "rejected";
+  created_at: string;
+  admin_note: string | null;
+};
+
 export default function AttendanceApprovalPage() {
   const router = useRouter();
 
@@ -64,11 +77,21 @@ export default function AttendanceApprovalPage() {
 
   const [records, setRecords] = useState<PendingAttendance[]>([]);
   const [manualRequests, setManualRequests] = useState<ManualPunchRequest[]>([]);
+  const [correctionRequests, setCorrectionRequests] = useState<
+    CorrectionRequest[]
+  >([]);
+
   const [existingAttendanceMap, setExistingAttendanceMap] =
     useState<Record<string, ExistingAttendance>>({});
+  const [employeeMap, setEmployeeMap] = useState<Record<string, EmployeeMini>>(
+    {}
+  );
 
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [manualNotes, setManualNotes] = useState<Record<string, string>>({});
+  const [correctionNotes, setCorrectionNotes] = useState<
+    Record<string, string>
+  >({});
 
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);
@@ -89,7 +112,6 @@ export default function AttendanceApprovalPage() {
     if (!value) return "-";
 
     const [hourString, minuteString] = value.split(":");
-
     const hour = Number(hourString);
     const minute = Number(minuteString);
 
@@ -135,15 +157,17 @@ export default function AttendanceApprovalPage() {
   }
 
   function attendanceLabel(type: string | null) {
-    if (type === "half_day") {
-      return "Half Day";
-    }
-
-    if (type === "late") {
-      return "Late";
-    }
-
+    if (type === "half_day") return "Half Day";
+    if (type === "late") return "Late";
     return "Present";
+  }
+
+  function correctionLabel(
+    type: CorrectionRequest["request_type"]
+  ) {
+    return type === "absent_correction"
+      ? "Absent Correction"
+      : "Late Regularization";
   }
 
   function attendanceMapKey(employeeId: string, attendanceDate: string) {
@@ -219,25 +243,265 @@ export default function AttendanceApprovalPage() {
 
     const rows = (data || []) as unknown as ManualPunchRequest[];
     setManualRequests(rows);
+  }
 
-    if (rows.length === 0) {
+  async function loadCorrectionRequests() {
+    const supabase = createClient();
+
+    const { data, error } = await supabase
+      .from("attendance_correction_requests")
+      .select(`
+        id,
+        employee_id,
+        attendance_date,
+        request_type,
+        reason,
+        requested_check_in,
+        requested_check_out,
+        original_attendance_id,
+        original_attendance_type,
+        original_late_minutes,
+        status,
+        created_at,
+        admin_note
+      `)
+      .eq("status", "pending")
+      .order("attendance_date", { ascending: false })
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      throw new Error(
+        `Attendance Correction Load Error: ${error.message}`
+      );
+    }
+
+    setCorrectionRequests((data || []) as CorrectionRequest[]);
+  }
+
+  async function loadRelatedData() {
+    const supabase = createClient();
+
+    const employeeIds = Array.from(
+      new Set([
+        ...manualRequests.map((item) => item.employee_id),
+        ...correctionRequests.map((item) => item.employee_id),
+      ])
+    );
+
+    const dateValues = [
+      ...manualRequests.map((item) => item.attendance_date),
+      ...correctionRequests.map((item) => item.attendance_date),
+    ].sort();
+
+    if (employeeIds.length === 0) {
+      setEmployeeMap({});
       setExistingAttendanceMap({});
       return;
     }
 
-    const employeeIds = Array.from(
-      new Set(rows.map((item) => item.employee_id))
-    );
+    const { data: employeesData, error: employeesError } = await supabase
+      .from("employees")
+      .select("id, full_name, mobile, department")
+      .in("id", employeeIds);
 
-    const dates = rows
-      .map((item) => item.attendance_date)
-      .sort();
+    if (employeesError) {
+      throw new Error(`Employee Load Error: ${employeesError.message}`);
+    }
 
-    const minDate = dates[0];
-    const maxDate = dates[dates.length - 1];
+    const nextEmployeeMap: Record<string, EmployeeMini> = {};
 
-    const { data: attendanceRows, error: attendanceError } =
-      await supabase
+    for (const item of (employeesData || []) as EmployeeMini[]) {
+      nextEmployeeMap[item.id] = item;
+    }
+
+    setEmployeeMap(nextEmployeeMap);
+
+    if (dateValues.length === 0) {
+      setExistingAttendanceMap({});
+      return;
+    }
+
+    const minDate = dateValues[0];
+    const maxDate = dateValues[dateValues.length - 1];
+
+    const { data: attendanceRows, error: attendanceError } = await supabase
+      .from("attendance")
+      .select(`
+        id,
+        employee_id,
+        attendance_date,
+        check_in,
+        check_out,
+        attendance_type,
+        late_minutes,
+        working_minutes
+      `)
+      .in("employee_id", employeeIds)
+      .gte("attendance_date", minDate)
+      .lte("attendance_date", maxDate);
+
+    if (attendanceError) {
+      throw new Error(
+        `Existing Attendance Load Error: ${attendanceError.message}`
+      );
+    }
+
+    const map: Record<string, ExistingAttendance> = {};
+
+    for (const item of (attendanceRows || []) as ExistingAttendance[]) {
+      map[attendanceMapKey(item.employee_id, item.attendance_date)] = item;
+    }
+
+    setExistingAttendanceMap(map);
+  }
+
+  async function loadAll() {
+    setMessage("");
+
+    try {
+      const supabase = createClient();
+
+      const [
+        attendanceResult,
+        manualResult,
+        correctionResult,
+      ] = await Promise.all([
+        supabase
+          .from("attendance")
+          .select(`
+            id,
+            employee_id,
+            attendance_date,
+            check_in,
+            check_out,
+            attendance_type,
+            late_minutes,
+            working_minutes,
+            approval_status,
+            admin_note,
+            employees!attendance_employee_id_fkey (
+              id,
+              full_name,
+              mobile,
+              department
+            )
+          `)
+          .eq("approval_required", true)
+          .eq("approval_status", "pending")
+          .order("attendance_date", { ascending: false }),
+
+        supabase
+          .from("manual_attendance_requests")
+          .select(`
+            id,
+            employee_id,
+            attendance_date,
+            punch_in_time,
+            punch_out_time,
+            reason,
+            status,
+            requested_at,
+            reviewed_at,
+            admin_note,
+            employees!manual_attendance_requests_employee_id_fkey (
+              id,
+              full_name,
+              mobile,
+              department
+            )
+          `)
+          .eq("status", "pending")
+          .order("attendance_date", { ascending: false })
+          .order("requested_at", { ascending: false }),
+
+        supabase
+          .from("attendance_correction_requests")
+          .select(`
+            id,
+            employee_id,
+            attendance_date,
+            request_type,
+            reason,
+            requested_check_in,
+            requested_check_out,
+            original_attendance_id,
+            original_attendance_type,
+            original_late_minutes,
+            status,
+            created_at,
+            admin_note
+          `)
+          .eq("status", "pending")
+          .order("attendance_date", { ascending: false })
+          .order("created_at", { ascending: false }),
+      ]);
+
+      const firstError =
+        attendanceResult.error ||
+        manualResult.error ||
+        correctionResult.error;
+
+      if (firstError) {
+        throw new Error(firstError.message);
+      }
+
+      const nextRecords =
+        (attendanceResult.data || []) as unknown as PendingAttendance[];
+
+      const nextManual =
+        (manualResult.data || []) as unknown as ManualPunchRequest[];
+
+      const nextCorrections =
+        (correctionResult.data || []) as CorrectionRequest[];
+
+      setRecords(nextRecords);
+      setManualRequests(nextManual);
+      setCorrectionRequests(nextCorrections);
+
+      const employeeIds = Array.from(
+        new Set([
+          ...nextManual.map((item) => item.employee_id),
+          ...nextCorrections.map((item) => item.employee_id),
+        ])
+      );
+
+      if (employeeIds.length === 0) {
+        setEmployeeMap({});
+        setExistingAttendanceMap({});
+        return;
+      }
+
+      const { data: employeesData, error: employeesError } = await supabase
+        .from("employees")
+        .select("id, full_name, mobile, department")
+        .in("id", employeeIds);
+
+      if (employeesError) {
+        throw new Error(employeesError.message);
+      }
+
+      const nextEmployeeMap: Record<string, EmployeeMini> = {};
+
+      for (const item of (employeesData || []) as EmployeeMini[]) {
+        nextEmployeeMap[item.id] = item;
+      }
+
+      setEmployeeMap(nextEmployeeMap);
+
+      const dateValues = [
+        ...nextManual.map((item) => item.attendance_date),
+        ...nextCorrections.map((item) => item.attendance_date),
+      ].sort();
+
+      if (dateValues.length === 0) {
+        setExistingAttendanceMap({});
+        return;
+      }
+
+      const minDate = dateValues[0];
+      const maxDate = dateValues[dateValues.length - 1];
+
+      const { data: attendanceRows, error: attendanceError } = await supabase
         .from("attendance")
         .select(`
           id,
@@ -253,34 +517,21 @@ export default function AttendanceApprovalPage() {
         .gte("attendance_date", minDate)
         .lte("attendance_date", maxDate);
 
-    if (attendanceError) {
-      throw new Error(
-        `Existing Attendance Load Error: ${attendanceError.message}`
-      );
-    }
+      if (attendanceError) {
+        throw new Error(attendanceError.message);
+      }
 
-    const map: Record<string, ExistingAttendance> = {};
+      const map: Record<string, ExistingAttendance> = {};
 
-    for (const item of (attendanceRows || []) as ExistingAttendance[]) {
-      map[attendanceMapKey(item.employee_id, item.attendance_date)] =
-        item;
-    }
+      for (const item of (attendanceRows || []) as ExistingAttendance[]) {
+        map[attendanceMapKey(item.employee_id, item.attendance_date)] = item;
+      }
 
-    setExistingAttendanceMap(map);
-  }
-
-  async function loadAll() {
-    setMessage("");
-
-    try {
-      await Promise.all([
-        loadAttendanceRecords(),
-        loadManualRequests(),
-      ]);
+      setExistingAttendanceMap(map);
     } catch (error) {
       setMessage(
         error instanceof Error
-          ? error.message
+          ? `Approval Load Error: ${error.message}`
           : "Approval data load કરવામાં problem આવી."
       );
     }
@@ -362,7 +613,6 @@ export default function AttendanceApprovalPage() {
     );
 
     await loadAll();
-
     setActionId(null);
   }
 
@@ -397,13 +647,56 @@ export default function AttendanceApprovalPage() {
     );
 
     await loadAll();
-
     setActionId(null);
   }
 
+  async function handleCorrectionAction(
+    requestId: string,
+    decision: "approved" | "rejected"
+  ) {
+    setActionId(`correction-${requestId}`);
+    setMessage("");
+
+    const supabase = createClient();
+
+    const { error } = await supabase.rpc(
+      "admin_review_attendance_correction_request",
+      {
+        p_request_id: requestId,
+        p_decision: decision,
+        p_admin_note:
+          correctionNotes[requestId]?.trim() || null,
+      }
+    );
+
+    if (error) {
+      setMessage(
+        `Attendance Correction ${
+          decision === "approved" ? "Approve" : "Reject"
+        } Error: ${error.message}`
+      );
+      setActionId(null);
+      return;
+    }
+
+    setMessage(
+      decision === "approved"
+        ? "Attendance Correction Approved અને Attendance Update થયું ✅"
+        : "Attendance Correction Request Rejected."
+    );
+
+    await loadAll();
+    setActionId(null);
+  }
+
+  const totalPending =
+    records.length +
+    manualRequests.length +
+    correctionRequests.length;
+
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <main className="yf-page flex items-center justify-center">
         <p className="font-semibold text-slate-500">
           Attendance Approval લોડ થઈ રહ્યું છે...
         </p>
@@ -411,12 +704,10 @@ export default function AttendanceApprovalPage() {
     );
   }
 
-  const totalPending = records.length + manualRequests.length;
-
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900">
-      <header className="bg-slate-900 text-white">
-        <div className="max-w-7xl mx-auto px-5 py-5 flex justify-between items-center gap-4">
+    <main className="yf-page">
+      <header className="yf-header">
+        <div className="yf-container flex justify-between items-center gap-4">
           <div>
             <h1 className="text-2xl font-black">
               YashFlow Admin
@@ -430,61 +721,330 @@ export default function AttendanceApprovalPage() {
           <button
             type="button"
             onClick={() => router.push("/admin")}
-            className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl font-semibold"
+            className="yf-btn border-white/20 bg-white/10 text-white hover:bg-white/20"
           >
             ← Admin Dashboard
           </button>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto p-5">
+      <div className="yf-container">
         {message && (
-          <div className="mb-5 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl p-4 font-semibold">
+          <div className="yf-alert yf-alert-info mb-5">
             {message}
           </div>
         )}
 
-        <section className="grid md:grid-cols-3 gap-4">
-          <div className="bg-white border rounded-2xl p-5">
-            <p className="text-sm text-slate-500">
-              Total Pending Approval
+        <section className="yf-summary-grid">
+          <div className="yf-metric-card">
+            <p className="text-xs font-black text-slate-500">
+              TOTAL PENDING
             </p>
-
-            <p className="text-4xl font-black text-orange-600 mt-1">
+            <p className="text-3xl font-black text-orange-600 mt-1">
               {totalPending}
             </p>
           </div>
 
-          <div className="bg-white border rounded-2xl p-5">
-            <p className="text-sm text-slate-500">
-              Late / Half Day
+          <div className="yf-metric-card">
+            <p className="text-xs font-black text-blue-700">
+              LATE / HALF DAY
             </p>
-
-            <p className="text-4xl font-black text-blue-700 mt-1">
+            <p className="text-3xl font-black text-blue-700 mt-1">
               {records.length}
             </p>
           </div>
 
-          <div className="bg-white border rounded-2xl p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm text-slate-500">
-                  Manual Punch
-                </p>
+          <div className="yf-metric-card">
+            <p className="text-xs font-black text-amber-700">
+              MANUAL PUNCH
+            </p>
+            <p className="text-3xl font-black text-amber-600 mt-1">
+              {manualRequests.length}
+            </p>
+          </div>
 
-                <p className="text-4xl font-black text-amber-600 mt-1">
-                  {manualRequests.length}
+          <div className="yf-metric-card">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black text-fuchsia-700">
+                  CORRECTIONS
+                </p>
+                <p className="text-3xl font-black text-fuchsia-700 mt-1">
+                  {correctionRequests.length}
                 </p>
               </div>
 
               <button
                 type="button"
                 onClick={loadAll}
-                className="border border-slate-300 bg-white text-slate-900 px-4 py-2 rounded-xl font-bold hover:bg-slate-100"
+                className="yf-btn yf-btn-secondary yf-btn-sm"
               >
-                Refresh
+                ↻ Refresh
               </button>
             </div>
+          </div>
+        </section>
+
+        <section className="yf-card mt-5 overflow-hidden border-fuchsia-200">
+          <div className="p-5 border-b border-fuchsia-200 bg-fuchsia-50">
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+              <div>
+                <p className="text-xs font-black tracking-[0.14em] text-fuchsia-700">
+                  ATTENDANCE CORRECTION
+                </p>
+
+                <h2 className="text-xl font-black mt-1">
+                  Absent & Late Requests
+                </h2>
+
+                <p className="text-sm text-slate-600 mt-1">
+                  Employee Calendarમાંથી આવેલી Absent Correction અને Late
+                  Regularization requests verify કરો.
+                </p>
+              </div>
+
+              <span className="inline-flex w-fit rounded-full border border-fuchsia-300 bg-white px-3 py-1 text-xs font-black text-fuchsia-800">
+                Pending: {correctionRequests.length}
+              </span>
+            </div>
+          </div>
+
+          <div className="p-4 sm:p-5 space-y-4">
+            {correctionRequests.map((request) => {
+              const employee = employeeMap[request.employee_id];
+
+              const existing =
+                existingAttendanceMap[
+                  attendanceMapKey(
+                    request.employee_id,
+                    request.attendance_date
+                  )
+                ];
+
+              const isAbsentCorrection =
+                request.request_type === "absent_correction";
+
+              return (
+                <div
+                  key={request.id}
+                  className="yf-card p-4 sm:p-5"
+                >
+                  <div className="flex flex-col xl:flex-row xl:items-start gap-5">
+                    <div className="xl:w-[220px] shrink-0">
+                      <p className="text-xs font-black text-slate-500">
+                        EMPLOYEE
+                      </p>
+
+                      <p className="text-lg font-black text-slate-900 mt-1">
+                        {employee?.full_name || "-"}
+                      </p>
+
+                      <p className="text-sm font-semibold text-slate-500 mt-1">
+                        {employee?.department || "-"}
+                      </p>
+
+                      <p className="text-sm font-black text-slate-800 mt-4">
+                        {formatDate(request.attendance_date)}
+                      </p>
+
+                      <span
+                        className={`inline-flex mt-2 rounded-full px-3 py-1 text-xs font-black ${
+                          isAbsentCorrection
+                            ? "bg-red-100 text-red-700"
+                            : "bg-orange-100 text-orange-700"
+                        }`}
+                      >
+                        {correctionLabel(request.request_type)}
+                      </span>
+
+                      <p className="text-xs text-slate-400 font-semibold mt-2">
+                        Requested: {formatRequestedAt(request.created_at)}
+                      </p>
+                    </div>
+
+                    <div className="flex-1 grid md:grid-cols-2 gap-4">
+                      <div className="rounded-2xl border border-fuchsia-200 bg-fuchsia-50 p-4">
+                        <p className="text-xs font-black text-fuchsia-700">
+                          EMPLOYEE REQUEST
+                        </p>
+
+                        {isAbsentCorrection && (
+                          <div className="grid grid-cols-2 gap-3 mt-3">
+                            <div>
+                              <p className="text-xs font-bold text-slate-500">
+                                Requested In
+                              </p>
+                              <p className="font-black text-slate-900 mt-1">
+                                {formatManualTime(
+                                  request.requested_check_in
+                                )}
+                              </p>
+                            </div>
+
+                            <div>
+                              <p className="text-xs font-bold text-slate-500">
+                                Requested Out
+                              </p>
+                              <p className="font-black text-slate-900 mt-1">
+                                {formatManualTime(
+                                  request.requested_check_out
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {!isAbsentCorrection && (
+                          <div className="grid grid-cols-2 gap-3 mt-3">
+                            <div>
+                              <p className="text-xs font-bold text-slate-500">
+                                Original Type
+                              </p>
+                              <p className="font-black text-slate-900 mt-1">
+                                {attendanceLabel(
+                                  request.original_attendance_type
+                                )}
+                              </p>
+                            </div>
+
+                            <div>
+                              <p className="text-xs font-bold text-slate-500">
+                                Original Late
+                              </p>
+                              <p className="font-black text-slate-900 mt-1">
+                                {request.original_late_minutes || 0} min
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="mt-4 rounded-xl bg-white border border-fuchsia-100 p-3">
+                          <p className="text-xs font-black text-slate-500">
+                            REASON
+                          </p>
+
+                          <p className="text-sm font-semibold text-slate-800 mt-1">
+                            {request.reason}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                        <p className="text-xs font-black text-blue-700">
+                          CURRENT ATTENDANCE
+                        </p>
+
+                        {existing ? (
+                          <div className="grid grid-cols-2 gap-3 mt-3">
+                            <div>
+                              <p className="text-xs font-bold text-slate-500">
+                                Check In
+                              </p>
+                              <p className="font-black text-slate-900 mt-1">
+                                {formatTime(existing.check_in)}
+                              </p>
+                            </div>
+
+                            <div>
+                              <p className="text-xs font-bold text-slate-500">
+                                Check Out
+                              </p>
+                              <p className="font-black text-slate-900 mt-1">
+                                {formatTime(existing.check_out)}
+                              </p>
+                            </div>
+
+                            <div>
+                              <p className="text-xs font-bold text-slate-500">
+                                Type
+                              </p>
+                              <p className="font-black text-slate-900 mt-1">
+                                {attendanceLabel(
+                                  existing.attendance_type
+                                )}
+                              </p>
+                            </div>
+
+                            <div>
+                              <p className="text-xs font-bold text-slate-500">
+                                Late
+                              </p>
+                              <p className="font-black text-slate-900 mt-1">
+                                {existing.late_minutes || 0} min
+                              </p>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mt-4 rounded-xl border border-blue-200 bg-white px-4 py-5 text-sm font-bold text-blue-800">
+                            Attendance record નથી. Absent Correction approve
+                            કરશો તો requested Punch time પરથી attendance બનશે.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="xl:w-[300px] shrink-0">
+                      <label className="block text-xs font-black text-slate-500 mb-2">
+                        ADMIN NOTE
+                      </label>
+
+                      <textarea
+                        value={correctionNotes[request.id] || ""}
+                        onChange={(e) =>
+                          setCorrectionNotes((current) => ({
+                            ...current,
+                            [request.id]: e.target.value,
+                          }))
+                        }
+                        placeholder="Admin Note (optional)"
+                        rows={3}
+                        className="w-full bg-white text-slate-900 placeholder:text-slate-500 border border-slate-300 rounded-xl px-3 py-2 text-sm resize-none"
+                      />
+
+                      <div className="grid grid-cols-2 gap-2 mt-3">
+                        <button
+                          type="button"
+                          disabled={
+                            actionId === `correction-${request.id}`
+                          }
+                          onClick={() =>
+                            handleCorrectionAction(
+                              request.id,
+                              "approved"
+                            )
+                          }
+                          className="bg-green-600 text-white px-4 py-2.5 rounded-xl font-black text-sm hover:bg-green-700 disabled:opacity-50"
+                        >
+                          Approve
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={
+                            actionId === `correction-${request.id}`
+                          }
+                          onClick={() =>
+                            handleCorrectionAction(
+                              request.id,
+                              "rejected"
+                            )
+                          }
+                          className="bg-red-600 text-white px-4 py-2.5 rounded-xl font-black text-sm hover:bg-red-700 disabled:opacity-50"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {correctionRequests.length === 0 && (
+              <div className="py-10 text-center text-slate-500 font-semibold">
+                કોઈ Pending Attendance Correction Request નથી ✅
+              </div>
+            )}
           </div>
         </section>
 
@@ -501,7 +1061,8 @@ export default function AttendanceApprovalPage() {
                 </h2>
 
                 <p className="text-sm text-slate-600 mt-1">
-                  Employeeએ આપેલો requested time, reason અને હાલની attendance compare કરીને approve કરો.
+                  Requested time, reason અને current attendance compare કરીને
+                  approve કરો.
                 </p>
               </div>
 
@@ -524,7 +1085,7 @@ export default function AttendanceApprovalPage() {
               return (
                 <div
                   key={request.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5"
+                  className="yf-card p-4 sm:p-5"
                 >
                   <div className="flex flex-col xl:flex-row xl:items-start gap-5">
                     <div className="xl:w-[220px] shrink-0">
@@ -545,7 +1106,8 @@ export default function AttendanceApprovalPage() {
                       </p>
 
                       <p className="text-xs text-slate-400 font-semibold mt-1">
-                        Requested: {formatRequestedAt(request.requested_at)}
+                        Requested:{" "}
+                        {formatRequestedAt(request.requested_at)}
                       </p>
                     </div>
 
@@ -560,7 +1122,6 @@ export default function AttendanceApprovalPage() {
                             <p className="text-xs font-bold text-slate-500">
                               Punch In
                             </p>
-
                             <p className="font-black text-slate-900 mt-1">
                               {formatManualTime(request.punch_in_time)}
                             </p>
@@ -570,7 +1131,6 @@ export default function AttendanceApprovalPage() {
                             <p className="text-xs font-bold text-slate-500">
                               Punch Out
                             </p>
-
                             <p className="font-black text-slate-900 mt-1">
                               {formatManualTime(request.punch_out_time)}
                             </p>
@@ -581,7 +1141,6 @@ export default function AttendanceApprovalPage() {
                           <p className="text-xs font-black text-slate-500">
                             REASON
                           </p>
-
                           <p className="text-sm font-semibold text-slate-800 mt-1">
                             {request.reason}
                           </p>
@@ -594,54 +1153,51 @@ export default function AttendanceApprovalPage() {
                         </p>
 
                         {existing ? (
-                          <>
-                            <div className="grid grid-cols-2 gap-3 mt-3">
-                              <div>
-                                <p className="text-xs font-bold text-slate-500">
-                                  Check In
-                                </p>
-
-                                <p className="font-black text-slate-900 mt-1">
-                                  {formatTime(existing.check_in)}
-                                </p>
-                              </div>
-
-                              <div>
-                                <p className="text-xs font-bold text-slate-500">
-                                  Check Out
-                                </p>
-
-                                <p className="font-black text-slate-900 mt-1">
-                                  {formatTime(existing.check_out)}
-                                </p>
-                              </div>
-
-                              <div>
-                                <p className="text-xs font-bold text-slate-500">
-                                  Type
-                                </p>
-
-                                <p className="font-black text-slate-900 mt-1">
-                                  {attendanceLabel(existing.attendance_type)}
-                                </p>
-                              </div>
-
-                              <div>
-                                <p className="text-xs font-bold text-slate-500">
-                                  Working
-                                </p>
-
-                                <p className="font-black text-slate-900 mt-1">
-                                  {formatWorkingMinutes(
-                                    existing.working_minutes
-                                  )}
-                                </p>
-                              </div>
+                          <div className="grid grid-cols-2 gap-3 mt-3">
+                            <div>
+                              <p className="text-xs font-bold text-slate-500">
+                                Check In
+                              </p>
+                              <p className="font-black text-slate-900 mt-1">
+                                {formatTime(existing.check_in)}
+                              </p>
                             </div>
-                          </>
+
+                            <div>
+                              <p className="text-xs font-bold text-slate-500">
+                                Check Out
+                              </p>
+                              <p className="font-black text-slate-900 mt-1">
+                                {formatTime(existing.check_out)}
+                              </p>
+                            </div>
+
+                            <div>
+                              <p className="text-xs font-bold text-slate-500">
+                                Type
+                              </p>
+                              <p className="font-black text-slate-900 mt-1">
+                                {attendanceLabel(
+                                  existing.attendance_type
+                                )}
+                              </p>
+                            </div>
+
+                            <div>
+                              <p className="text-xs font-bold text-slate-500">
+                                Working
+                              </p>
+                              <p className="font-black text-slate-900 mt-1">
+                                {formatWorkingMinutes(
+                                  existing.working_minutes
+                                )}
+                              </p>
+                            </div>
+                          </div>
                         ) : (
                           <div className="mt-4 rounded-xl border border-blue-200 bg-white px-4 py-5 text-sm font-bold text-blue-800">
-                            આ Date માટે Attendance record નથી. Approve કરશો તો નવો record બનશે.
+                            આ Date માટે Attendance record નથી. Approve કરશો તો
+                            નવો record બનશે.
                           </div>
                         )}
                       </div>
@@ -723,8 +1279,8 @@ export default function AttendanceApprovalPage() {
             </p>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1100px]">
+          <div className="yf-table-wrap">
+            <table className="yf-table min-w-[1100px]">
               <thead className="bg-slate-100">
                 <tr>
                   <th className="text-left px-5 py-4">Employee</th>

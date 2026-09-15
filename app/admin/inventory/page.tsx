@@ -930,7 +930,7 @@ export default function AdminInventoryPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <main className="yf-page flex items-center justify-center">
         <p className="font-semibold text-slate-500">
           Inventory Management લોડ થઈ રહ્યું છે...
         </p>
@@ -939,9 +939,9 @@ export default function AdminInventoryPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50">
-      <header className="bg-slate-900 text-white">
-        <div className="max-w-7xl mx-auto px-5 py-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <main className="yf-page">
+      <header className="yf-header">
+        <div className="yf-container flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-black">
               YashFlow Admin
@@ -959,22 +959,22 @@ export default function AdminInventoryPage() {
             onClick={() =>
               router.push("/admin")
             }
-            className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl font-semibold"
+            className="yf-btn border-white/20 bg-white/10 text-white hover:bg-white/20"
           >
             ← Admin Dashboard
           </button>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto p-5">
+      <div className="yf-container">
         {message && (
-          <div className="mb-5 bg-blue-50 border border-blue-200 rounded-xl p-4 font-semibold text-blue-800">
+          <div className="yf-alert yf-alert-info mb-5">
             {message}
           </div>
         )}
 
-        <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
-          <div className="bg-white border border-slate-200 rounded-2xl p-5">
+        <section className="yf-summary-grid mb-5">
+          <div className="yf-metric-card">
             <p className="text-sm font-semibold text-slate-500">
               Active Items
             </p>
@@ -984,7 +984,7 @@ export default function AdminInventoryPage() {
             </p>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-2xl p-5">
+          <div className="yf-metric-card">
             <p className="text-sm font-semibold text-slate-500">
               Low Stock
             </p>
@@ -994,7 +994,7 @@ export default function AdminInventoryPage() {
             </p>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-2xl p-5">
+          <div className="yf-metric-card">
             <p className="text-sm font-semibold text-slate-500">
               Out of Stock
             </p>
@@ -1004,7 +1004,7 @@ export default function AdminInventoryPage() {
             </p>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-2xl p-5">
+          <div className="yf-metric-card">
             <p className="text-sm font-semibold text-slate-500">
               Stock Value
             </p>
@@ -1022,7 +1022,7 @@ export default function AdminInventoryPage() {
         </section>
 
         {canManageInventory && (
-          <section className="bg-white border border-slate-200 rounded-2xl p-6">
+          <section className="yf-card p-4 sm:p-6">
           <h2 className="text-xl font-black text-slate-900">
             Add Inventory Item
           </h2>
@@ -1039,7 +1039,7 @@ export default function AdminInventoryPage() {
                   setItemCode(e.target.value)
                 }
                 placeholder="Example: ACR-3MM"
-                className="w-full border border-slate-300 rounded-xl px-4 py-3"
+                className="yf-input"
               />
             </div>
 
@@ -1054,7 +1054,7 @@ export default function AdminInventoryPage() {
                   setItemName(e.target.value)
                 }
                 placeholder="Example: Acrylic Sheet 3mm"
-                className="w-full border border-slate-300 rounded-xl px-4 py-3"
+                className="yf-input"
               />
             </div>
 
@@ -1068,7 +1068,7 @@ export default function AdminInventoryPage() {
                 onChange={(e) =>
                   setCategory(e.target.value)
                 }
-                className="w-full border border-slate-300 rounded-xl px-4 py-3 bg-white"
+                className="yf-input"
               >
                 <option value="acrylic">
                   Acrylic
@@ -1113,7 +1113,7 @@ export default function AdminInventoryPage() {
                 onChange={(e) =>
                   setUnit(e.target.value)
                 }
-                className="w-full border border-slate-300 rounded-xl px-4 py-3 bg-white"
+                className="yf-input"
               >
                 <option value="pcs">
                   Pcs
@@ -1157,7 +1157,7 @@ export default function AdminInventoryPage() {
                     e.target.value
                   )
                 }
-                className="w-full border border-slate-300 rounded-xl px-4 py-3"
+                className="yf-input"
               />
             </div>
 
@@ -1176,7 +1176,7 @@ export default function AdminInventoryPage() {
                     e.target.value
                   )
                 }
-                className="w-full border border-slate-300 rounded-xl px-4 py-3"
+                className="yf-input"
               />
             </div>
 
@@ -1196,7 +1196,7 @@ export default function AdminInventoryPage() {
                   )
                 }
                 placeholder="₹"
-                className="w-full border border-slate-300 rounded-xl px-4 py-3"
+                className="yf-input"
               />
             </div>
 
@@ -1212,7 +1212,7 @@ export default function AdminInventoryPage() {
                     e.target.value
                   )
                 }
-                className="w-full border border-slate-300 rounded-xl px-4 py-3"
+                className="yf-input"
               />
             </div>
 
@@ -1227,7 +1227,7 @@ export default function AdminInventoryPage() {
                   setLocation(e.target.value)
                 }
                 placeholder="Rack A-1"
-                className="w-full border border-slate-300 rounded-xl px-4 py-3"
+                className="yf-input"
               />
             </div>
 
@@ -1251,7 +1251,7 @@ export default function AdminInventoryPage() {
                 type="button"
                 onClick={handleCreateItem}
                 disabled={saving}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold disabled:opacity-50"
+                className="yf-btn yf-btn-primary px-6 disabled:opacity-50"
               >
                 {saving
                   ? "Saving..."
@@ -1263,7 +1263,7 @@ export default function AdminInventoryPage() {
         )}
 
         {canManageInventory && (
-          <section className="bg-white border border-slate-200 rounded-2xl mt-5 p-6">
+          <section className="yf-card mt-5 p-4 sm:p-6">
           <div>
             <p className="text-xs font-black tracking-[0.15em] text-blue-700">
               AUTO STOCK CONSUMPTION
@@ -1280,7 +1280,7 @@ export default function AdminInventoryPage() {
             <select
               value={bomProductId}
               onChange={(e) => setBomProductId(e.target.value)}
-              className="w-full border border-slate-300 rounded-xl px-4 py-3 bg-white"
+              className="yf-input"
             >
               <option value="">Select Product</option>
               {products.map((product) => (
@@ -1293,7 +1293,7 @@ export default function AdminInventoryPage() {
             <select
               value={bomItemId}
               onChange={(e) => setBomItemId(e.target.value)}
-              className="w-full border border-slate-300 rounded-xl px-4 py-3 bg-white"
+              className="yf-input"
             >
               <option value="">Select Material</option>
               {items
@@ -1312,13 +1312,13 @@ export default function AdminInventoryPage() {
               value={bomQtyPerUnit}
               onChange={(e) => setBomQtyPerUnit(e.target.value)}
               placeholder="Qty / Product"
-              className="w-full border border-slate-300 rounded-xl px-4 py-3"
+              className="yf-input"
             />
 
             <select
               value={bomStageId}
               onChange={(e) => setBomStageId(e.target.value)}
-              className="w-full border border-slate-300 rounded-xl px-4 py-3 bg-white"
+              className="yf-input"
             >
               <option value="">Consume at Stage</option>
               {workflowStages.map((stage) => (
@@ -1332,14 +1332,14 @@ export default function AdminInventoryPage() {
               type="button"
               onClick={handleCreateBom}
               disabled={bomSaving}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-xl font-bold disabled:opacity-50"
+              className="yf-btn yf-btn-primary disabled:opacity-50"
             >
               {bomSaving ? "Saving..." : "+ Add Mapping"}
             </button>
           </div>
 
-          <div className="overflow-x-auto mt-5">
-            <table className="w-full min-w-[900px]">
+          <div className="yf-table-wrap mt-5">
+            <table className="yf-table min-w-[900px]">
               <thead className="bg-slate-100">
                 <tr>
                   <th className="text-left px-4 py-3 text-sm">Product</th>
@@ -1379,7 +1379,7 @@ export default function AdminInventoryPage() {
                         <button
                           type="button"
                           onClick={() => handleDeleteBom(row)}
-                          className="bg-red-50 hover:bg-red-100 text-red-700 px-3 py-2 rounded-lg text-xs font-bold"
+                          className="yf-btn yf-btn-sm bg-red-50 text-red-700 hover:bg-red-100"
                         >
                           Remove
                         </button>
@@ -1404,7 +1404,7 @@ export default function AdminInventoryPage() {
         </section>
         )}
 
-        <section className="bg-white border border-slate-200 rounded-2xl mt-5 overflow-hidden">
+        <section className="yf-card mt-5 overflow-hidden">
           <div className="p-6 border-b border-slate-100">
             <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
               <div>
@@ -1424,7 +1424,7 @@ export default function AdminInventoryPage() {
                     setSearch(e.target.value)
                   }
                   placeholder="Search item/code/supplier"
-                  className="border border-slate-300 rounded-xl px-4 py-2"
+                  className="yf-input"
                 />
 
                 <select
@@ -1434,7 +1434,7 @@ export default function AdminInventoryPage() {
                       e.target.value
                     )
                   }
-                  className="border border-slate-300 rounded-xl px-4 py-2 bg-white"
+                  className="yf-input"
                 >
                   <option value="all">
                     All Categories
@@ -1459,7 +1459,7 @@ export default function AdminInventoryPage() {
                       !showLowStockOnly
                     )
                   }
-                  className={`px-4 py-2 rounded-xl font-bold ${
+                  className={`yf-btn ${
                     showLowStockOnly
                       ? "bg-amber-500 text-white"
                       : "bg-amber-50 text-amber-700"
@@ -1471,8 +1471,8 @@ export default function AdminInventoryPage() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1500px]">
+          <div className="yf-table-wrap">
+            <table className="yf-table min-w-[1500px]">
               <thead className="bg-slate-100">
                 <tr>
                   <th className="text-left px-5 py-4 text-sm">
@@ -1614,7 +1614,7 @@ export default function AdminInventoryPage() {
                                   })
                                 )
                               }
-                              className="border border-slate-300 rounded-lg px-3 py-2 bg-white text-sm font-semibold"
+                              className="yf-input text-sm font-semibold"
                             >
                               <option value="in">
                                 Stock IN
@@ -1645,7 +1645,7 @@ export default function AdminInventoryPage() {
                                 )
                               }
                               placeholder="Qty"
-                              className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                              className="yf-input text-sm"
                             />
                           </div>
 
@@ -1665,7 +1665,7 @@ export default function AdminInventoryPage() {
                               )
                             }
                             placeholder="Reference / PO / Order"
-                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                            className="yf-input text-sm"
                           />
 
                           <input
@@ -1684,7 +1684,7 @@ export default function AdminInventoryPage() {
                               )
                             }
                             placeholder="Note"
-                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                            className="yf-input text-sm"
                           />
 
                           <button
@@ -1698,7 +1698,7 @@ export default function AdminInventoryPage() {
                                 item
                               )
                             }
-                            className="w-full bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm font-bold disabled:opacity-50"
+                            className="yf-btn yf-btn-success w-full disabled:opacity-50"
                           >
                             {stockSavingId ===
                             item.id
@@ -1716,7 +1716,7 @@ export default function AdminInventoryPage() {
                       <td className="px-5 py-4">
                         <div className="space-y-2">
                           <span
-                            className={`inline-block px-3 py-1.5 rounded-full text-xs font-bold ${
+                            className={`yf-badge ${
                               item.is_active
                                 ? "bg-green-100 text-green-700"
                                 : "bg-slate-100 text-slate-500"
@@ -1735,7 +1735,7 @@ export default function AdminInventoryPage() {
                                   item
                                 )
                               }
-                              className="block bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg text-xs font-bold"
+                              className="yf-btn yf-btn-sm yf-btn-secondary block"
                             >
                               {item.is_active
                                 ? "Deactivate"
@@ -1763,7 +1763,7 @@ export default function AdminInventoryPage() {
           </div>
         </section>
 
-        <section className="bg-white border border-slate-200 rounded-2xl mt-5 overflow-hidden">
+        <section className="yf-card mt-5 overflow-hidden">
           <div className="p-6 border-b border-slate-100">
             <h2 className="text-xl font-black text-slate-900">
               Auto Order Consumptions
@@ -1773,8 +1773,8 @@ export default function AdminInventoryPage() {
             </p>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1050px]">
+          <div className="yf-table-wrap">
+            <table className="yf-table min-w-[1050px]">
               <thead className="bg-slate-100">
                 <tr>
                   <th className="text-left px-5 py-4 text-sm">Date</th>
@@ -1820,7 +1820,7 @@ export default function AdminInventoryPage() {
                       </td>
                       <td className="px-5 py-4">
                         <span
-                          className={`px-3 py-1.5 rounded-full text-xs font-black ${
+                          className={`yf-badge ${
                             row.status === "active"
                               ? "bg-green-100 text-green-700"
                               : "bg-slate-100 text-slate-600"
@@ -1840,7 +1840,7 @@ export default function AdminInventoryPage() {
                             type="button"
                             disabled={reverseId === row.id}
                             onClick={() => handleReverseConsumption(row)}
-                            className="bg-amber-50 hover:bg-amber-100 text-amber-800 px-3 py-2 rounded-lg text-xs font-bold disabled:opacity-50"
+                            className="yf-btn yf-btn-sm bg-amber-50 text-amber-800 hover:bg-amber-100 disabled:opacity-50"
                           >
                             {reverseId === row.id
                               ? "Reversing..."
@@ -1871,15 +1871,15 @@ export default function AdminInventoryPage() {
           </div>
         </section>
 
-        <section className="bg-white border border-slate-200 rounded-2xl mt-5 overflow-hidden">
+        <section className="yf-card mt-5 overflow-hidden">
           <div className="p-6 border-b border-slate-100">
             <h2 className="text-xl font-black text-slate-900">
               Recent Stock Transactions
             </h2>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px]">
+          <div className="yf-table-wrap">
+            <table className="yf-table min-w-[900px]">
               <thead className="bg-slate-100">
                 <tr>
                   <th className="text-left px-5 py-4 text-sm">
