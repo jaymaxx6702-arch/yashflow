@@ -104,6 +104,13 @@ export default function AdminReportsButton() {
         title="Low Stock Reorder Center"
         onClick={() => router.push("/admin/reorder")}
       />
+
+      <QuickAppButton
+        icon="🚨"
+        label="Escalations"
+        title="Overdue Work & Escalation Center"
+        onClick={() => router.push("/admin/escalations")}
+      />
     </>,
     target
   );
