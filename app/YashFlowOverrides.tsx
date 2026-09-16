@@ -27,6 +27,70 @@ export default function YashFlowOverrides() {
   const pathname = usePathname();
   const router = useRouter();
   const [toast, setToast] = useState("");
+  const [managementAccess, setManagementAccess] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadManagementAccess() {
+      if (!pathname?.startsWith("/dashboard")) {
+        if (!cancelled) setManagementAccess(false);
+        return;
+      }
+
+      const supabase = createClient();
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        if (!cancelled) setManagementAccess(false);
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from("employees")
+        .select("role, approval_status, is_active")
+        .eq("auth_user_id", user.id)
+        .maybeSingle();
+
+      if (
+        !profile ||
+        profile.approval_status !== "approved" ||
+        !profile.is_active
+      ) {
+        if (!cancelled) setManagementAccess(false);
+        return;
+      }
+
+      if (profile.role === "admin") {
+        if (!cancelled) setManagementAccess(false);
+        return;
+      }
+
+      const [ordersPermission, attendancePermission] = await Promise.all([
+        supabase.rpc("has_app_permission", {
+          p_permission_key: "orders.manage",
+        }),
+        supabase.rpc("has_app_permission", {
+          p_permission_key: "attendance.manage",
+        }),
+      ]);
+
+      if (!cancelled) {
+        setManagementAccess(
+          Boolean(ordersPermission.data) || Boolean(attendancePermission.data)
+        );
+      }
+    }
+
+    void loadManagementAccess();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname]);
 
   useEffect(() => {
     if (pathname !== "/dashboard/orders") return;
@@ -69,22 +133,20 @@ export default function YashFlowOverrides() {
         }
       });
 
-      document
-        .querySelectorAll("p, span, div")
-        .forEach((node) => {
-          const element = node as HTMLElement;
-          const text = element.textContent?.trim() || "";
+      document.querySelectorAll("p, span, div").forEach((node) => {
+        const element = node as HTMLElement;
+        const text = element.textContent?.trim() || "";
 
-          if (
-            text === "Admin Approval Pending" ||
-            text === "Approval Required" ||
-            text.includes("item Admin Approval માટે pending છે")
-          ) {
-            element.style.display = "none";
-          } else if (text === "Ready for Approval") {
-            element.textContent = "Submitted";
-          }
-        });
+        if (
+          text === "Admin Approval Pending" ||
+          text === "Approval Required" ||
+          text.includes("item Admin Approval માટે pending છે")
+        ) {
+          element.style.display = "none";
+        } else if (text === "Ready for Approval") {
+          element.textContent = "Submitted";
+        }
+      });
     }
 
     async function findOrderId(orderNumber: string) {
@@ -305,11 +367,28 @@ export default function YashFlowOverrides() {
     return () => observer.disconnect();
   }, [pathname]);
 
-  if (!toast) return null;
+  const showManagementButton =
+    managementAccess &&
+    Boolean(pathname?.startsWith("/dashboard")) &&
+    !pathname?.startsWith("/dashboard/manage");
 
   return (
-    <div className="fixed left-1/2 top-4 z-[100] -translate-x-1/2 rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-black text-blue-900 shadow-xl">
-      {toast}
-    </div>
+    <>
+      {showManagementButton && (
+        <button
+          type="button"
+          onClick={() => router.push("/dashboard/manage")}
+          className="fixed bottom-4 right-4 z-[80] rounded-2xl bg-slate-900 px-4 py-3 text-sm font-black text-white shadow-xl hover:bg-slate-800"
+        >
+          ⚙ Admin Access
+        </button>
+      )}
+
+      {toast && (
+        <div className="fixed left-1/2 top-4 z-[100] -translate-x-1/2 rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-black text-blue-900 shadow-xl">
+          {toast}
+        </div>
+      )}
+    </>
   );
 }
