@@ -90,6 +90,13 @@ export default function AdminReportsButton() {
         title="Packing Workflow"
         onClick={() => router.push("/dashboard/packing")}
       />
+
+      <QuickAppButton
+        icon="📁"
+        label="Files / Documents"
+        title="Files / Documents Center"
+        onClick={() => router.push("/admin/files")}
+      />
     </>,
     target
   );
