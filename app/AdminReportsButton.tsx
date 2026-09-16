@@ -106,6 +106,13 @@ export default function AdminReportsButton() {
       />
 
       <QuickAppButton
+        icon="🧩"
+        label="Order Details"
+        title="Production Order Details"
+        onClick={() => router.push("/dashboard/manage/order-details")}
+      />
+
+      <QuickAppButton
         icon="📁"
         label="Files / Documents"
         title="Files / Documents Center"
