@@ -348,7 +348,7 @@ export default function AdminOrdersPage() {
   const [searchText, setSearchText] = useState("");
   const [filterStage, setFilterStage] = useState("all");
   const [filterPriority, setFilterPriority] = useState("all");
-  const [orderTab, setOrderTab] = useState<OrderTab>("new");
+  const [orderTab, setOrderTab] = useState<OrderTab>("all");
 
   const [customerName, setCustomerName] = useState("");
   const [customerMobile, setCustomerMobile] = useState("");
