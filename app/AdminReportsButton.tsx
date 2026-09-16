@@ -97,6 +97,13 @@ export default function AdminReportsButton() {
         title="Files / Documents Center"
         onClick={() => router.push("/admin/files")}
       />
+
+      <QuickAppButton
+        icon="🧾"
+        label="Reorder Center"
+        title="Low Stock Reorder Center"
+        onClick={() => router.push("/admin/reorder")}
+      />
     </>,
     target
   );
