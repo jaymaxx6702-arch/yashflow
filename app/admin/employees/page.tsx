@@ -69,6 +69,7 @@ export default function EmployeeApprovalPage() {
       .from("departments")
       .select("id, name, is_active, sort_order")
       .eq("is_active", true)
+    
       .order("sort_order", { ascending: true })
       .order("name", { ascending: true });
 
@@ -110,6 +111,7 @@ export default function EmployeeApprovalPage() {
         is_active
       `)
       .eq("is_active", true)
+      
       .order("category", { ascending: true })
       .order("sort_order", { ascending: true })
       .order("label", { ascending: true });
@@ -145,6 +147,7 @@ export default function EmployeeApprovalPage() {
 
     const { data, error } = await supabase
       .from("employees")
+      
       .select(
         `
         id,
@@ -157,6 +160,7 @@ export default function EmployeeApprovalPage() {
       `
       )
       .neq("role", "admin")
+      .eq("is_hidden", false)
       .order("created_at", { ascending: false });
 
     if (error) {

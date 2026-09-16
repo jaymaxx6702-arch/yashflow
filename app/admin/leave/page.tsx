@@ -91,6 +91,7 @@ export default function AdminLeavePage() {
         .select("id, full_name, mobile, department")
         .eq("approval_status", "approved")
         .eq("is_active", true)
+        .eq("is_hidden", false)
         .order("full_name"),
 
       supabase

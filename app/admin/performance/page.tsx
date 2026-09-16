@@ -200,6 +200,7 @@ export default function PerformanceReportPage() {
         .select("id, full_name, department, role")
         .eq("approval_status", "approved")
         .eq("is_active", true)
+        .eq("is_hidden", false)
         .order("full_name"),
 
       supabase

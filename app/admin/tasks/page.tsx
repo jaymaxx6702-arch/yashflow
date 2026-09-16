@@ -87,6 +87,7 @@ export default function AdminTasksPage() {
       `)
       .eq("approval_status", "approved")
       .eq("is_active", true)
+      .eq("is_hidden", false)
       .order("full_name", {
         ascending: true,
       });
@@ -151,6 +152,7 @@ export default function AdminTasksPage() {
         removed_at
       `)
       .eq("is_active", true)
+  
       .order("created_at", {
         ascending: true,
       });

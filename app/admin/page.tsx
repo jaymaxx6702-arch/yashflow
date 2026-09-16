@@ -678,11 +678,13 @@ export default function AdminPage() {
         .eq("approval_status", "approved")
         .eq("is_active", true)
         .eq("is_hidden", false),
+        
 
       supabase
         .from("employees")
         .select("*")
-        .eq("approval_status", "pending"),
+        .eq("approval_status", "pending")
+        .eq("is_hidden", false),
 
       supabase
         .from("attendance")
@@ -751,13 +753,33 @@ export default function AdminPage() {
       return;
     }
 
-    const activeEmployees = (activeEmployeesResult.data || []) as AnyRow[];
-    const pendingEmployees = (pendingEmployeesResult.data || []) as AnyRow[];
-    const attendanceRows = (attendanceResult.data || []) as AnyRow[];
-    const leaveTodayRows = (leaveTodayResult.data || []) as AnyRow[];
-    const pendingLeaveRows = (pendingLeaveResult.data || []) as AnyRow[];
-    const pendingAttendanceRows = (pendingAttendanceResult.data || []) as AnyRow[];
-    const manualPunchRows = (manualPunchPendingResult.data || []) as AnyRow[];
+const activeEmployees = (activeEmployeesResult.data || []) as AnyRow[];
+const pendingEmployees = (pendingEmployeesResult.data || []) as AnyRow[];
+
+const visibleEmployeeIds = new Set([
+  ...activeEmployees.map((employee) => employee.id),
+  ...pendingEmployees.map((employee) => employee.id),
+]);
+
+const attendanceRows = ((attendanceResult.data || []) as AnyRow[]).filter(
+  (row) => visibleEmployeeIds.has(row.employee_id)
+);
+
+const leaveTodayRows = ((leaveTodayResult.data || []) as AnyRow[]).filter(
+  (row) => visibleEmployeeIds.has(row.employee_id)
+);
+
+const pendingLeaveRows = ((pendingLeaveResult.data || []) as AnyRow[]).filter(
+  (row) => visibleEmployeeIds.has(row.employee_id)
+);
+
+const pendingAttendanceRows = (
+  (pendingAttendanceResult.data || []) as AnyRow[]
+).filter((row) => visibleEmployeeIds.has(row.employee_id));
+
+const manualPunchRows = (
+  (manualPunchPendingResult.data || []) as AnyRow[]
+).filter((row) => visibleEmployeeIds.has(row.employee_id));
     const orderRows = (ordersResult.data || []) as AnyRow[];
     const taskRows = (tasksResult.data || []) as AnyRow[];
     const stageRows = (stageWorksResult.data || []) as AnyRow[];

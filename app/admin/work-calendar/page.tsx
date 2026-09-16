@@ -607,6 +607,7 @@ export default function AdminWorkCalendarPage() {
         .select("id, full_name, mobile, department, role")
         .eq("approval_status", "approved")
         .eq("is_active", true)
+        .eq("is_hidden", false)
         .order("full_name", { ascending: true }),
 
       supabase
@@ -646,6 +647,7 @@ export default function AdminWorkCalendarPage() {
         .from("company_holidays")
         .select("id, holiday_date, holiday_name, is_active")
         .eq("is_active", true)
+        
         .gte("holiday_date", monthStart)
         .lte("holiday_date", monthEnd),
 
@@ -653,6 +655,7 @@ export default function AdminWorkCalendarPage() {
         .from("office_settings")
         .select("weekly_off_day")
         .eq("is_active", true)
+       
         .maybeSingle(),
 
       supabase

@@ -260,6 +260,7 @@ export default function WorkflowSettingsPage() {
         .from("departments")
         .select("id, name")
         .eq("is_active", true)
+        
         .order("sort_order", { ascending: true }),
 
       supabase
@@ -267,6 +268,7 @@ export default function WorkflowSettingsPage() {
         .select("id, full_name, department, role")
         .eq("approval_status", "approved")
         .eq("is_active", true)
+        .eq("is_hidden", false)
         .order("full_name", { ascending: true }),
 
       supabase
@@ -277,6 +279,7 @@ export default function WorkflowSettingsPage() {
         .from("products")
         .select("id, name, is_active")
         .eq("is_active", true)
+        
         .order("name", { ascending: true }),
 
       supabase

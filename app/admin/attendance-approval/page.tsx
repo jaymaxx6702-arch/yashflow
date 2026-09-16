@@ -445,25 +445,22 @@ export default function AttendanceApprovalPage() {
         throw new Error(firstError.message);
       }
 
-      const nextRecords =
-        (attendanceResult.data || []) as unknown as PendingAttendance[];
+const nextRecords =
+  (attendanceResult.data || []) as unknown as PendingAttendance[];
 
-      const nextManual =
-        (manualResult.data || []) as unknown as ManualPunchRequest[];
+const nextManual =
+  (manualResult.data || []) as unknown as ManualPunchRequest[];
 
-      const nextCorrections =
-        (correctionResult.data || []) as CorrectionRequest[];
+const nextCorrections =
+  (correctionResult.data || []) as CorrectionRequest[];
 
-      setRecords(nextRecords);
-      setManualRequests(nextManual);
-      setCorrectionRequests(nextCorrections);
-
-      const employeeIds = Array.from(
-        new Set([
-          ...nextManual.map((item) => item.employee_id),
-          ...nextCorrections.map((item) => item.employee_id),
-        ])
-      );
+const employeeIds = Array.from(
+  new Set([
+    ...nextRecords.map((item) => item.employee_id),
+    ...nextManual.map((item) => item.employee_id),
+    ...nextCorrections.map((item) => item.employee_id),
+  ])
+);
 
       if (employeeIds.length === 0) {
         setEmployeeMap({});
@@ -474,7 +471,8 @@ export default function AttendanceApprovalPage() {
       const { data: employeesData, error: employeesError } = await supabase
         .from("employees")
         .select("id, full_name, mobile, department")
-        .in("id", employeeIds);
+        .in("id", employeeIds)
+        .eq("is_hidden", false);
 
       if (employeesError) {
         throw new Error(employeesError.message);
@@ -487,6 +485,25 @@ export default function AttendanceApprovalPage() {
       }
 
       setEmployeeMap(nextEmployeeMap);
+const visibleEmployeeIds = new Set(
+  (employeesData || []).map((item) => item.id)
+);
+
+const visibleRecords = nextRecords.filter((item) =>
+  visibleEmployeeIds.has(item.employee_id)
+);
+
+const visibleManual = nextManual.filter((item) =>
+  visibleEmployeeIds.has(item.employee_id)
+);
+
+const visibleCorrections = nextCorrections.filter((item) =>
+  visibleEmployeeIds.has(item.employee_id)
+);
+
+setRecords(visibleRecords);
+setManualRequests(visibleManual);
+setCorrectionRequests(visibleCorrections);
 
       const dateValues = [
         ...nextManual.map((item) => item.attendance_date),

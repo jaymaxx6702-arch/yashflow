@@ -991,6 +991,7 @@ export default function AdminOrdersPage() {
       .from("products")
       .select("id, name")
       .eq("is_active", true)
+    
       .order("name");
 
     if (error) {
@@ -1017,6 +1018,7 @@ export default function AdminOrdersPage() {
       .select("id, product_id, name, sort_order, is_required, is_active")
       .eq("product_id", productId)
       .eq("is_active", true)
+      
       .order("sort_order");
 
     if (optionsError) {
@@ -1044,7 +1046,7 @@ export default function AdminOrdersPage() {
         opts.map((option) => option.id)
       )
       .eq("is_active", true)
-      .order("sort_order");
+            .order("sort_order");
 
     if (valuesError) {
       setMessage(`Product Value Error: ${valuesError.message}`);
@@ -1138,6 +1140,7 @@ export default function AdminOrdersPage() {
         .select("id, full_name, department, role")
         .eq("approval_status", "approved")
         .eq("is_active", true)
+        .eq("is_hidden", false)
         .order("full_name"),
 
       supabase
@@ -1153,6 +1156,7 @@ export default function AdminOrdersPage() {
           "id, name, product_id, workflow_mode, is_default, is_active"
         )
         .eq("is_active", true),
+    
 
       supabase
         .from("workflow_template_stages")
