@@ -4,6 +4,35 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 
+function QuickAppButton({
+  icon,
+  label,
+  title,
+  onClick,
+}: {
+  icon: string;
+  label: string;
+  title: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="relative flex flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition min-h-[92px]"
+      title={title}
+    >
+      <div className="w-11 h-11 rounded-2xl bg-slate-100 flex items-center justify-center text-xl">
+        {icon}
+      </div>
+
+      <span className="text-[11px] sm:text-xs font-black text-slate-700 text-center leading-tight">
+        {label}
+      </span>
+    </button>
+  );
+}
+
 export default function AdminReportsButton() {
   const pathname = usePathname();
   const router = useRouter();
@@ -40,20 +69,21 @@ export default function AdminReportsButton() {
   if (pathname !== "/admin" || !target) return null;
 
   return createPortal(
-    <button
-      type="button"
-      onClick={() => router.push("/admin/reports")}
-      className="relative flex flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition min-h-[92px]"
-      title="Reports / Export"
-    >
-      <div className="w-11 h-11 rounded-2xl bg-slate-100 flex items-center justify-center text-xl">
-        📊
-      </div>
+    <>
+      <QuickAppButton
+        icon="📊"
+        label="Reports / Export"
+        title="Reports / Export"
+        onClick={() => router.push("/admin/reports")}
+      />
 
-      <span className="text-[11px] sm:text-xs font-black text-slate-700 text-center leading-tight">
-        Reports / Export
-      </span>
-    </button>,
+      <QuickAppButton
+        icon="💰"
+        label="Accounts / Billing"
+        title="Payments & Billing"
+        onClick={() => router.push("/dashboard/accounts")}
+      />
+    </>,
     target
   );
 }
