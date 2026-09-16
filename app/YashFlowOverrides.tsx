@@ -30,6 +30,95 @@ export default function YashFlowOverrides() {
   const [managementAccess, setManagementAccess] = useState(false);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const soundKeys = [
+      "yashflow-notification-sound-enabled",
+      "yashflow-admin-notification-sound-enabled",
+    ];
+
+    let userActivated = false;
+    let activatingSound = false;
+
+    function forceSoundPreferenceOn() {
+      for (const key of soundKeys) {
+        window.localStorage.setItem(key, "true");
+      }
+    }
+
+    function applySoundUiOverride() {
+      document.querySelectorAll("button").forEach((button) => {
+        const text = button.textContent?.trim() || "";
+        const element = button as HTMLButtonElement;
+
+        if (text.includes("Sound ON") || text.includes("Sound OFF")) {
+          element.dataset.yfSoundToggle = "true";
+          element.style.display = "none";
+        }
+      });
+
+      document.querySelectorAll("p").forEach((node) => {
+        const text = node.textContent?.trim() || "";
+
+        if (text === "One fixed sound + optional vibration") {
+          node.textContent = "Notification sound always ON + optional vibration";
+        }
+      });
+    }
+
+    function ensureSoundOnAfterUserActivation() {
+      forceSoundPreferenceOn();
+
+      if (!userActivated || activatingSound) return;
+
+      const soundOffButton = Array.from(
+        document.querySelectorAll("button")
+      ).find((button) =>
+        (button.textContent?.trim() || "").includes("Sound OFF")
+      ) as HTMLButtonElement | undefined;
+
+      if (!soundOffButton) return;
+
+      activatingSound = true;
+      soundOffButton.click();
+
+      window.setTimeout(() => {
+        activatingSound = false;
+        forceSoundPreferenceOn();
+        applySoundUiOverride();
+      }, 250);
+    }
+
+    function handleUserActivation() {
+      userActivated = true;
+      ensureSoundOnAfterUserActivation();
+    }
+
+    forceSoundPreferenceOn();
+    applySoundUiOverride();
+
+    const observer = new MutationObserver(() => {
+      applySoundUiOverride();
+      ensureSoundOnAfterUserActivation();
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+
+    document.addEventListener("pointerdown", handleUserActivation, true);
+    document.addEventListener("keydown", handleUserActivation, true);
+
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("pointerdown", handleUserActivation, true);
+      document.removeEventListener("keydown", handleUserActivation, true);
+    };
+  }, [pathname]);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function loadManagementAccess() {
