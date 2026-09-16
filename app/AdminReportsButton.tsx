@@ -92,6 +92,13 @@ export default function AdminReportsButton() {
       />
 
       <QuickAppButton
+        icon="🚚"
+        label="Dispatch / Transport"
+        title="Dispatch & Transportation Management"
+        onClick={() => router.push("/dashboard/dispatch")}
+      />
+
+      <QuickAppButton
         icon="📁"
         label="Files / Documents"
         title="Files / Documents Center"
