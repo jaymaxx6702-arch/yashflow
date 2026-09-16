@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import ServiceWorkerRegister from "./sw-register";
 import YashFlowOverrides from "./YashFlowOverrides";
+import LeaveHandoverGuard from "./LeaveHandoverGuard";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -54,6 +55,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col">
         <ServiceWorkerRegister />
         <YashFlowOverrides />
+        <LeaveHandoverGuard />
         {children}
       </body>
     </html>
