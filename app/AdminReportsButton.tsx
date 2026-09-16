@@ -99,6 +99,13 @@ export default function AdminReportsButton() {
       />
 
       <QuickAppButton
+        icon="🪪"
+        label="Bulk ID Cards"
+        title="Bulk ID Card Management"
+        onClick={() => router.push("/admin/id-cards")}
+      />
+
+      <QuickAppButton
         icon="📁"
         label="Files / Documents"
         title="Files / Documents Center"
