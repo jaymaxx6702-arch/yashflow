@@ -85,6 +85,13 @@ export default function AdminReportsButton() {
       />
 
       <QuickAppButton
+        icon="👥"
+        label="Task / Team"
+        title="Task & Team Management"
+        onClick={() => router.push("/admin/task-team")}
+      />
+
+      <QuickAppButton
         icon="📦"
         label="Packing"
         title="Packing Workflow"
