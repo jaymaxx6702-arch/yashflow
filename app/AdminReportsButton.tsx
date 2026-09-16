@@ -139,6 +139,13 @@ export default function AdminReportsButton() {
         title="Overdue Work & Escalation Center"
         onClick={() => router.push("/admin/escalations")}
       />
+
+      <QuickAppButton
+        icon="🛡️"
+        label="System Audit"
+        title="Permissions Audit & Backup"
+        onClick={() => router.push("/admin/system-audit")}
+      />
     </>,
     target
   );
