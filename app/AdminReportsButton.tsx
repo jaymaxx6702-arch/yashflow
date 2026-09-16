@@ -83,6 +83,13 @@ export default function AdminReportsButton() {
         title="Payments & Billing"
         onClick={() => router.push("/dashboard/accounts")}
       />
+
+      <QuickAppButton
+        icon="📦"
+        label="Packing"
+        title="Packing Workflow"
+        onClick={() => router.push("/dashboard/packing")}
+      />
     </>,
     target
   );
