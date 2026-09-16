@@ -80,8 +80,8 @@ export default function AdminReportsButton() {
       <QuickAppButton
         icon="💰"
         label="Accounts / Billing"
-        title="Payments & Billing"
-        onClick={() => router.push("/dashboard/accounts")}
+        title="Accounts / Billing Summary"
+        onClick={() => router.push("/admin/accounts")}
       />
 
       <QuickAppButton
