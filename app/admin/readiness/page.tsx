@@ -1,0 +1,258 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/utils/supabase/client";
+
+type Check = {
+  key: string;
+  label: string;
+  ok: boolean;
+  detail: string;
+};
+
+type ModuleLink = {
+  label: string;
+  route: string;
+  note: string;
+};
+
+const modules: ModuleLink[] = [
+  { label: "Orders", route: "/admin/orders", note: "Order creation, workflow and stage control" },
+  { label: "Task / Team", route: "/admin/task-team", note: "Task assignment, reassign and support employees" },
+  { label: "Attendance", route: "/admin/attendance", note: "Daily attendance and corrections" },
+  { label: "Leave", route: "/admin/leave", note: "Leave approval and work handover" },
+  { label: "Inventory", route: "/admin/inventory", note: "Stock, BOM and consumption" },
+  { label: "Purchase", route: "/dashboard/purchase", note: "Purchase orders and receiving" },
+  { label: "Reorder Center", route: "/admin/reorder", note: "Low stock purchase planning" },
+  { label: "Packing", route: "/dashboard/packing", note: "Completed-order packing queue" },
+  { label: "Dispatch", route: "/dashboard/dispatch", note: "Courier, transport and delivery" },
+  { label: "Bulk ID Cards", route: "/admin/id-cards", note: "Bulk card data, photos and print status" },
+  { label: "Order Details", route: "/dashboard/manage/order-details", note: "Production/print operational fields" },
+  { label: "Accounts", route: "/admin/accounts", note: "Payments, billing summary and export" },
+  { label: "Reports", route: "/admin/reports", note: "Operational reports and CSV export" },
+  { label: "Escalations", route: "/admin/escalations", note: "Overdue, hold/rework and low-stock attention" },
+  { label: "Files", route: "/admin/files", note: "Workflow proof documents" },
+  { label: "System Audit", route: "/admin/system-audit", note: "Permissions, RLS health and JSON backup" },
+];
+
+export default function ProductionReadinessPage() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+  const [checks, setChecks] = useState<Check[]>([]);
+  const [dbChecks, setDbChecks] = useState<Check[]>([]);
+
+  const passed = useMemo(
+    () => [...checks, ...dbChecks].filter((check) => check.ok).length,
+    [checks, dbChecks]
+  );
+
+  const total = checks.length + dbChecks.length;
+
+  useEffect(() => {
+    async function load() {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        router.replace("/");
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("employees")
+        .select("role, approval_status, is_active")
+        .eq("auth_user_id", user.id)
+        .single();
+
+      if (
+        profileError ||
+        !profile ||
+        profile.role !== "admin" ||
+        profile.approval_status !== "approved" ||
+        !profile.is_active
+      ) {
+        router.replace("/dashboard");
+        return;
+      }
+
+      const browserChecks: Check[] = [
+        {
+          key: "online",
+          label: "Internet Connection",
+          ok: navigator.onLine,
+          detail: navigator.onLine ? "Online" : "Offline",
+        },
+        {
+          key: "service-worker",
+          label: "PWA Service Worker Support",
+          ok: "serviceWorker" in navigator,
+          detail: "serviceWorker" in navigator ? "Supported" : "Not supported",
+        },
+        {
+          key: "storage",
+          label: "Browser Storage",
+          ok: Boolean(navigator.storage),
+          detail: navigator.storage ? "Available" : "Unavailable",
+        },
+        {
+          key: "notifications",
+          label: "Browser Notifications",
+          ok: "Notification" in window,
+          detail: "Notification" in window ? Notification.permission : "Not supported",
+        },
+        {
+          key: "vibration",
+          label: "Vibration API",
+          ok: typeof navigator.vibrate === "function",
+          detail: typeof navigator.vibrate === "function" ? "Supported" : "Device/browser not supported",
+        },
+        {
+          key: "standalone",
+          label: "Installed App / Standalone",
+          ok:
+            window.matchMedia("(display-mode: standalone)").matches ||
+            Boolean((navigator as Navigator & { standalone?: boolean }).standalone),
+          detail:
+            window.matchMedia("(display-mode: standalone)").matches ||
+            Boolean((navigator as Navigator & { standalone?: boolean }).standalone)
+              ? "Running as installed app"
+              : "Running in browser",
+        },
+      ];
+      setChecks(browserChecks);
+
+      const tables = [
+        ["orders", "Orders Database"],
+        ["tasks", "Tasks Database"],
+        ["attendance", "Attendance Database"],
+        ["inventory_items", "Inventory Database"],
+        ["order_dispatch_records", "Dispatch Database"],
+        ["order_payments", "Accounts Database"],
+        ["id_card_batches", "Bulk ID Card Database"],
+        ["order_operation_details", "Production Details Database"],
+      ] as const;
+
+      const results = await Promise.all(
+        tables.map(async ([table, label]) => {
+          const result = await supabase
+            .from(table)
+            .select("*", { count: "exact", head: true });
+
+          return {
+            key: table,
+            label,
+            ok: !result.error,
+            detail: result.error
+              ? result.error.message
+              : `Readable • ${result.count ?? 0} row(s)`,
+          } satisfies Check;
+        })
+      );
+
+      setDbChecks(results);
+      setLoading(false);
+    }
+
+    void load();
+  }, [router]);
+
+  function runAgain() {
+    window.location.reload();
+  }
+
+  if (loading) {
+    return (
+      <main className="yf-page flex items-center justify-center">
+        <div className="yf-card p-6 font-bold">Production Readiness check ચાલી રહ્યું છે...</div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="yf-page">
+      <header className="yf-header">
+        <div className="yf-container py-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-xs font-black tracking-[0.15em] text-blue-100">YASHFLOW FINAL CHECK</p>
+            <h1 className="text-2xl sm:text-3xl font-black text-white mt-1">Production Readiness Center</h1>
+            <p className="text-sm text-blue-100 mt-1">Core modules, browser/PWA capability અને database readability એક જગ્યાએ.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={runAgain} className="yf-btn bg-white/10 text-white border border-white/20">↻ Recheck</button>
+            <button type="button" onClick={() => router.push("/admin")} className="yf-btn bg-white text-blue-700">← Admin</button>
+          </div>
+        </div>
+      </header>
+
+      <div className="yf-container">
+        {message && <div className="yf-alert yf-alert-info mb-5">{message}</div>}
+
+        <section className="yf-card p-5 mb-5">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <p className="text-xs font-black text-slate-500">AUTOMATED CHECK SCORE</p>
+              <p className={`text-4xl font-black mt-1 ${passed === total ? "text-green-700" : "text-amber-700"}`}>
+                {passed}/{total}
+              </p>
+            </div>
+            <div className={`yf-badge text-sm ${passed === total ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-800"}`}>
+              {passed === total ? "Automated checks passed ✅" : "Some checks need attention"}
+            </div>
+          </div>
+        </section>
+
+        <section className="grid lg:grid-cols-2 gap-5 mb-5">
+          <div className="yf-card p-5">
+            <h2 className="yf-section-title">Browser / PWA Checks</h2>
+            <div className="space-y-3 mt-4">
+              {checks.map((check) => (
+                <div key={check.key} className={`rounded-2xl border p-4 ${check.ok ? "border-green-200 bg-green-50" : "border-amber-200 bg-amber-50"}`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-black text-slate-800">{check.label}</p>
+                    <span>{check.ok ? "✅" : "⚠️"}</span>
+                  </div>
+                  <p className="text-xs font-semibold text-slate-600 mt-1">{check.detail}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="yf-card p-5">
+            <h2 className="yf-section-title">Database Checks</h2>
+            <div className="space-y-3 mt-4">
+              {dbChecks.map((check) => (
+                <div key={check.key} className={`rounded-2xl border p-4 ${check.ok ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-black text-slate-800">{check.label}</p>
+                    <span>{check.ok ? "✅" : "❌"}</span>
+                  </div>
+                  <p className={`text-xs font-semibold mt-1 ${check.ok ? "text-slate-600" : "text-red-700"}`}>{check.detail}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="yf-card p-5">
+          <h2 className="yf-section-title">Core Module Launch Test</h2>
+          <p className="yf-section-subtitle mt-1">દરેક button ખોલીને mobile/desktopમાં final visual test કરી શકાય.</p>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 mt-4">
+            {modules.map((module) => (
+              <button
+                key={module.route}
+                type="button"
+                onClick={() => router.push(module.route)}
+                className="rounded-2xl border border-slate-200 bg-white p-4 text-left hover:shadow-md transition"
+              >
+                <p className="font-black text-blue-700">{module.label}</p>
+                <p className="text-xs font-semibold text-slate-500 mt-1">{module.note}</p>
+              </button>
+            ))}
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}
