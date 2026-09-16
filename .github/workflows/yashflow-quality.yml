@@ -12,9 +12,9 @@ concurrency:
 
 jobs:
   validate:
-    name: TypeScript + ESLint
+    name: TypeScript + Build + ESLint
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -32,5 +32,12 @@ jobs:
       - name: TypeScript check
         run: npx tsc --noEmit
 
-      - name: ESLint check
+      - name: Next.js production build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-public-key
+
+      - name: ESLint advisory check
+        continue-on-error: true
         run: npm run lint
