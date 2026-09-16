@@ -4,6 +4,7 @@ import "./globals.css";
 import ServiceWorkerRegister from "./sw-register";
 import YashFlowOverrides from "./YashFlowOverrides";
 import LeaveHandoverGuard from "./LeaveHandoverGuard";
+import AdminReportsButton from "./AdminReportsButton";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -56,6 +57,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <ServiceWorkerRegister />
         <YashFlowOverrides />
         <LeaveHandoverGuard />
+        <AdminReportsButton />
         {children}
       </body>
     </html>
