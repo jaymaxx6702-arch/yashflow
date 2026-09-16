@@ -146,6 +146,13 @@ export default function AdminReportsButton() {
         title="Permissions Audit & Backup"
         onClick={() => router.push("/admin/system-audit")}
       />
+
+      <QuickAppButton
+        icon="✅"
+        label="Readiness"
+        title="Production Readiness Center"
+        onClick={() => router.push("/admin/readiness")}
+      />
     </>,
     target
   );
