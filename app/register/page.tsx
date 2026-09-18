@@ -140,13 +140,25 @@ export default function RegisterPage() {
             ← લૉગિન પર પાછા જાઓ
           </Link>
 
-          <h1 className="text-3xl font-black mt-5">
-            નવું એકાઉન્ટ
-          </h1>
+          <div className="flex items-center gap-4 mt-5">
+            <div className="w-16 h-16 shrink-0 rounded-2xl bg-white shadow-lg overflow-hidden p-1">
+              <img
+                src="/yashflow-logo.png"
+                alt="Yash Laser"
+                className="w-full h-full object-contain"
+              />
+            </div>
 
-          <p className="text-blue-100 mt-2">
-            YashFlow કર્મચારી નોંધણી
-          </p>
+            <div>
+              <h1 className="text-3xl font-black">
+                નવું એકાઉન્ટ
+              </h1>
+
+              <p className="text-blue-100 mt-1">
+                YashFlow કર્મચારી નોંધણી
+              </p>
+            </div>
+          </div>
         </div>
 
         <div className="px-7 py-8 space-y-5">
