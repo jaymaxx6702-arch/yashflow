@@ -29,17 +29,18 @@ const requiredTables = [
   "orders",
   "order_stage_work",
   "order_stage_workers",
+  "order_operation_details",
   "tasks",
+  "task_support_workers",
   "attendance",
   "leave_requests",
   "inventory_items",
+  "inventory_transactions",
+  "product_inventory_bom",
+  "order_inventory_consumptions",
   "order_payments",
   "order_billing",
   "order_dispatch_records",
-] as const;
-
-const skippedScopeTables = [
-  "order_operation_details",
   "id_card_batches",
   "id_card_entries",
 ] as const;
@@ -308,29 +309,6 @@ export default function RecoveryCenterPage() {
               </div>
             </section>
 
-            <section className="yf-card p-5 mb-5">
-              <h2 className="yf-section-title">
-                Skipped Scope — Informational Only
-              </h2>
-              <p className="yf-section-subtitle mt-1">
-                આ tables હાલ completion scopeમાં નથી; backupમાં હોય તો માત્ર
-                informational છે.
-              </p>
-              <div className="flex flex-wrap gap-2 mt-3">
-                {skippedScopeTables.map((table) => {
-                  const count = rowCount(table);
-                  return (
-                    <span
-                      key={table}
-                      className="yf-badge bg-slate-100 text-slate-700"
-                    >
-                      {table}:{" "}
-                      {count === null ? "not present" : count + " row(s)"}
-                    </span>
-                  );
-                })}
-              </div>
-            </section>
           </>
         )}
 
@@ -347,8 +325,8 @@ export default function RecoveryCenterPage() {
             </div>
             <div className="rounded-xl bg-slate-50 p-4">
               <b>3.</b> Master data → employee mappings/permissions →
-              orders/workflow → tasks/attendance/leave → inventory →
-              accounts/dispatch ક્રમમાં controlled restore કરો.
+              orders/workflow/order details → tasks/attendance/leave → inventory →
+              accounts/dispatch → bulk ID cards ક્રમમાં controlled restore કરો.
             </div>
             <div className="rounded-xl bg-slate-50 p-4">
               <b>4.</b> Auth users અને Storage files separately verify કરો.
