@@ -101,7 +101,7 @@ type EmployeeOrderTab = "assigned" | "in_progress" | "attention" | "all";
 
 function statusLabel(status: WorkflowStatus) {
   if (status === "in_progress") return "In Progress";
-  if (status === "ready_for_approval") return "Ready for Approval";
+  if (status === "ready_for_approval") return "Submitted";
   if (status === "hold") return "Hold";
   if (status === "rework") return "Rework";
   if (status === "assigned") return "Assigned";
@@ -136,6 +136,9 @@ function priorityClass(priority: Order["priority"]) {
 
 export default function EmployeeOrdersPage() {
   const router = useRouter();
+
+  const hideStageProofUi = true;
+  const hideApprovalUi = true;
 
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -887,7 +890,21 @@ export default function EmployeeOrdersPage() {
       (proof) => proof.file_type === "photo"
     );
 
-    if (!hasPhotoProof) {
+    if (!hasPhotoProof && hideStageProofUi) {
+      const supabase = createClient();
+      const { error: waiveError } = await supabase.rpc(
+        "employee_waive_stage_proof",
+        {
+          p_work_id: work.id,
+          p_reason: "Stage proof UI disabled by admin",
+        }
+      );
+
+      if (waiveError) {
+        setMessage(`Complete Stage Error: ${waiveError.message}`);
+        return;
+      }
+    } else if (!hasPhotoProof) {
       setMessage(
         "Stage complete કરવા ઓછામાં ઓછો 1 Photo Proof ફરજિયાત છે."
       );
@@ -897,9 +914,7 @@ export default function EmployeeOrdersPage() {
     const needsApproval = stageNeedsApproval(order, work);
 
     const confirmed = window.confirm(
-      needsApproval
-        ? "આ Stageનું કામ પૂર્ણ છે અને Admin Approval માટે મોકલવું છે?"
-        : "આ Stageનું કામ પૂર્ણ છે? Complete કરતાં next stage automatic શરૂ થશે."
+      "આ Stageનું કામ પૂર્ણ છે? Complete કરવું છે?"
     );
 
     if (!confirmed) return;
@@ -922,7 +937,7 @@ export default function EmployeeOrdersPage() {
     const result = (data || {}) as CompleteStageResult;
 
     if (result.action === "ready_for_approval") {
-      setMessage("Admin Approval માટે મોકલાયું ✅");
+      setMessage("Stage Submitted ✅");
     } else if (result.action === "order_completed") {
       setMessage(`${order.order_number} Completed ✅`);
     } else if (result.action === "next_stage_created") {
@@ -1097,7 +1112,7 @@ export default function EmployeeOrdersPage() {
             className="yf-input mt-3"
           />
 
-          {readyCount > 0 && (
+          {!hideApprovalUi && readyCount > 0 && (
             <p className="mt-2 text-[10px] font-black text-purple-700">
               {readyCount} item Admin Approval માટે pending છે.
             </p>
@@ -1149,7 +1164,7 @@ export default function EmployeeOrdersPage() {
                         {statusLabel(work.status)}
                       </span>
 
-                      {work.status === "in_progress" && (
+                      {!hideApprovalUi && work.status === "in_progress" && (
                         <span
                           className={`yf-badge ${
                             needsApproval
@@ -1221,6 +1236,7 @@ export default function EmployeeOrdersPage() {
                       </p>
                     )}
 
+                    {!hideStageProofUi && (
                     <details className="mt-3 rounded-2xl border border-slate-200 bg-slate-50">
                       <summary className="cursor-pointer list-none px-3 py-3 flex items-center justify-between gap-3">
                         <span className="text-xs font-black text-slate-700">
@@ -1363,6 +1379,7 @@ export default function EmployeeOrdersPage() {
                       )}
                       </div>
                     </details>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 lg:flex lg:flex-col gap-2 lg:min-w-[190px]">
@@ -1383,29 +1400,19 @@ export default function EmployeeOrdersPage() {
                     {canAct && work.status === "in_progress" && (
                       <button
                         type="button"
-                        disabled={
-                          actionId === `complete-${work.id}` ||
-                          !hasPhotoProof
-                        }
+                        disabled={actionId === `complete-${work.id}`}
                         onClick={() => completeStageV3(work, order)}
                         className="yf-btn yf-btn-success disabled:opacity-50"
-                        title={
-                          hasPhotoProof
-                            ? undefined
-                            : "Photo Proof Required"
-                        }
+                        title={undefined}
                       >
                         {actionId === `complete-${work.id}`
                           ? "Processing..."
-                          : !hasPhotoProof
-                          ? "📷 Photo Proof Required"
-                          : needsApproval
-                          ? "✓ Ready for Approval"
                           : "✓ Complete Stage"}
                       </button>
                     )}
 
-                    {canAct &&
+                    {!hideStageProofUi &&
+                      canAct &&
                       work.status === "in_progress" &&
                       !needsApproval &&
                       !hasPhotoProof && (
@@ -1429,7 +1436,7 @@ export default function EmployeeOrdersPage() {
                       </div>
                     )}
 
-                    {work.status === "ready_for_approval" && (
+                    {!hideApprovalUi && work.status === "ready_for_approval" && (
                       <div className="rounded-xl bg-purple-50 border border-purple-100 px-4 py-3 text-sm font-bold text-purple-700">
                         Admin Approval Pending
                       </div>
