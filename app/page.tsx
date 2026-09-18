@@ -195,10 +195,12 @@ export default function Home() {
     <main className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white rounded-3xl shadow-xl overflow-hidden">
         <div className="bg-gradient-to-br from-blue-700 to-blue-500 px-7 pt-10 pb-12 text-white text-center">
-          <div className="mx-auto mb-4 w-20 h-20 rounded-2xl bg-white flex items-center justify-center shadow-lg">
-            <span className="text-blue-700 text-4xl font-black">
-              YF
-            </span>
+          <div className="mx-auto mb-4 w-24 h-24 rounded-2xl bg-white flex items-center justify-center shadow-lg overflow-hidden p-1.5">
+            <img
+              src="/yashflow-logo.png"
+              alt="Yash Laser"
+              className="w-full h-full object-contain"
+            />
           </div>
 
           <h1 className="text-4xl font-black tracking-tight">
