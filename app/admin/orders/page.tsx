@@ -16,7 +16,7 @@ type Priority = "low" | "normal" | "high" | "urgent";
 
 type WorkflowMode = "auto" | "admin_controlled" | "manual";
 
-type OrderTab = "new" | "production" | "attention" | "all";
+type OrderTab = "new" | "production" | "attention" | "ready" | "all";
 
 type WorkflowStatus =
   | "waiting"
@@ -355,6 +355,9 @@ export default function AdminOrdersPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showEdit, setShowEdit] = useState(false);
+  const [showStageProof, setShowStageProof] = useState(false);
+  const [showPayment, setShowPayment] = useState(false);
+  const [showBilling, setShowBilling] = useState(false);
 
   const [workerSelection, setWorkerSelection] = useState("");
   const [stageSelection, setStageSelection] = useState("");
@@ -1440,6 +1443,9 @@ export default function AdminOrdersPage() {
     setWorkerSelection(work?.primary_employee_id || "");
     setStageSelection(getOrderStage(order)?.id || "");
     setShowEdit(false);
+    setShowStageProof(false);
+    setShowPayment(false);
+    setShowBilling(false);
     setSelectedOrderProofs([]);
     resetFinancialForms();
 
@@ -2398,6 +2404,10 @@ export default function AdminOrdersPage() {
     );
   }
 
+  function isReadyToComplete(order: Order) {
+    return effectiveWorkflowStatus(order) === "ready_for_approval";
+  }
+
   function isProductionOrder(order: Order) {
     const isOpen =
       order.current_stage !== "completed" &&
@@ -2441,6 +2451,8 @@ export default function AdminOrdersPage() {
         tabMatch = isProductionOrder(order);
       } else if (orderTab === "attention") {
         tabMatch = needsAttention(order);
+      } else if (orderTab === "ready") {
+        tabMatch = isReadyToComplete(order);
       }
 
       return searchMatch && stageMatch && priorityMatch && tabMatch;
@@ -2459,6 +2471,7 @@ export default function AdminOrdersPage() {
   const newOrdersCount = orders.filter(isNewOrder).length;
   const productionCount = orders.filter(isProductionOrder).length;
   const needsAttentionCount = orders.filter(needsAttention).length;
+  const readyToCompleteCount = orders.filter(isReadyToComplete).length;
 
   const allOrdersCount = orders.filter(
     (order) =>
@@ -2539,11 +2552,12 @@ export default function AdminOrdersPage() {
             </button>
           </div>
 
-          <div className="grid grid-cols-4 gap-1.5">
+          <div className="grid grid-cols-5 gap-1.5">
             {[
               ["new", "New Orders", newOrdersCount],
               ["production", "Production", productionCount],
               ["attention", "Needs Attention", needsAttentionCount],
+              ["ready", "Ready Complete", readyToCompleteCount],
               ["all", "All Orders", allOrdersCount],
             ].map(([tab, label, count]) => (
               <button
@@ -2816,6 +2830,8 @@ export default function AdminOrdersPage() {
                   ? "PRODUCTION"
                   : orderTab === "attention"
                   ? "NEEDS ATTENTION"
+                  : orderTab === "ready"
+                  ? "READY TO COMPLETE"
                   : "ALL ORDERS"}
               </p>
 
@@ -2888,13 +2904,28 @@ export default function AdminOrdersPage() {
                       </p>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => openOrder(order)}
-                      className="shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[10px] font-black text-slate-700"
-                    >
-                      View
-                    </button>
+                    <div className="shrink-0 flex items-center gap-2">
+                      {isReadyToComplete(order) && (
+                        <button
+                          type="button"
+                          onClick={() => void completeOrder(order)}
+                          disabled={actionId === `complete-${order.id}`}
+                          className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-[10px] font-black text-green-700 hover:bg-green-100 disabled:opacity-50"
+                        >
+                          {actionId === `complete-${order.id}`
+                            ? "Completing..."
+                            : "✓ Complete"}
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => openOrder(order)}
+                        className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[10px] font-black text-slate-700"
+                      >
+                        View
+                      </button>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-3 gap-1.5 mt-3">
@@ -3084,7 +3115,11 @@ export default function AdminOrdersPage() {
               </div>
 
               <div className="yf-card p-4">
-                <div className="flex items-start justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowStageProof((current) => !current)}
+                  className="w-full flex items-center justify-between gap-3 text-left"
+                >
                   <div>
                     <p className="text-xs font-black text-slate-400">
                       STAGE PROOF
@@ -3093,16 +3128,23 @@ export default function AdminOrdersPage() {
                       Photo / Video evidence
                     </p>
                   </div>
+                  <span className="text-lg font-black text-slate-500">
+                    {showStageProof ? "▲" : "▼"}
+                  </span>
+                </button>
 
-                  <button
-                    type="button"
-                    onClick={() => void loadOrderProofs(selectedOrder.id)}
-                    disabled={proofLoading}
-                    className="yf-btn yf-btn-secondary disabled:opacity-50"
-                  >
-                    {proofLoading ? "Loading..." : "↻ Refresh Proof"}
-                  </button>
-                </div>
+                {showStageProof && (
+                  <div className="mt-4">
+                    <div className="flex justify-end mb-3">
+                      <button
+                        type="button"
+                        onClick={() => void loadOrderProofs(selectedOrder.id)}
+                        disabled={proofLoading}
+                        className="yf-btn yf-btn-secondary disabled:opacity-50"
+                      >
+                        {proofLoading ? "Loading..." : "↻ Refresh Proof"}
+                      </button>
+                    </div>
 
                 {proofLoading && selectedOrderProofs.length === 0 ? (
                   <div className="mt-4 rounded-xl bg-slate-50 p-4 text-sm font-bold text-slate-500">
@@ -3326,6 +3368,8 @@ export default function AdminOrdersPage() {
                       : "⚠ Current Stage Photo Proof Not Found"}
                   </div>
                 )}
+                  </div>
+                )}
               </div>
 
               {selectedOrder.current_stage !== "completed" &&
@@ -3466,7 +3510,11 @@ export default function AdminOrdersPage() {
                     (canViewPayments ||
                       canManagePayments) && (
                       <div className="yf-card p-4 border border-emerald-200">
-                        <div className="flex items-start justify-between gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setShowPayment((current) => !current)}
+                          className="w-full flex items-start justify-between gap-3 text-left"
+                        >
                           <div>
                             <p className="text-xs font-black tracking-[0.12em] text-emerald-700">
                               PAYMENT — SENSITIVE
@@ -3477,11 +3525,12 @@ export default function AdminOrdersPage() {
                           </div>
 
                           <span className="yf-badge bg-emerald-100 text-emerald-700">
-                            🔒 Protected
+                            {showPayment ? "▲" : "▼"} 🔒 Protected
                           </span>
-                        </div>
+                        </button>
 
-                        {canManagePayments ? (
+                        {showPayment && (
+                        canManagePayments ? (
                           <div className="grid sm:grid-cols-2 gap-3 mt-4">
                             <div>
                               <label className="block text-xs font-black text-slate-500 mb-1">
@@ -3658,6 +3707,7 @@ export default function AdminOrdersPage() {
                               </div>
                             )}
                           </div>
+                        )
                         )}
                       </div>
                     )}
@@ -3665,7 +3715,11 @@ export default function AdminOrdersPage() {
                   {!financeLoading &&
                     canManageBilling && (
                       <div className="yf-card p-4 border border-indigo-200">
-                        <div className="flex items-start justify-between gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setShowBilling((current) => !current)}
+                          className="w-full flex items-start justify-between gap-3 text-left"
+                        >
                           <div>
                             <p className="text-xs font-black tracking-[0.12em] text-indigo-700">
                               BILLING — SENSITIVE
@@ -3676,10 +3730,11 @@ export default function AdminOrdersPage() {
                           </div>
 
                           <span className="yf-badge bg-indigo-100 text-indigo-700">
-                            🔒 Protected
+                            {showBilling ? "▲" : "▼"} 🔒 Protected
                           </span>
-                        </div>
+                        </button>
 
+                        {showBilling && (
                         <div className="grid sm:grid-cols-2 gap-3 mt-4">
                           <label className="flex items-center gap-3 rounded-xl border border-slate-200 p-3 sm:col-span-2 cursor-pointer">
                             <input
@@ -3786,6 +3841,7 @@ export default function AdminOrdersPage() {
                               : "Save Billing Details"}
                           </button>
                         </div>
+                        )}
                       </div>
                     )}
                 </div>
