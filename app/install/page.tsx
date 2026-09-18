@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 
 export default function InstallYashFlowPage() {
   const [message, setMessage] = useState("");
@@ -175,12 +176,12 @@ export default function InstallYashFlowPage() {
             </div>
 
             <div className="mt-6 text-center">
-              <a
+              <Link
                 href="/"
                 className="text-sm font-black text-blue-700 hover:underline"
               >
                 Open YashFlow Web App →
-              </a>
+              </Link>
             </div>
           </div>
         </section>
