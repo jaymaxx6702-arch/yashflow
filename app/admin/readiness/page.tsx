@@ -32,6 +32,8 @@ const modules: ModuleLink[] = [
   { label: "Reports", route: "/admin/reports", note: "Operational reports and CSV export" },
   { label: "Escalations", route: "/admin/escalations", note: "Overdue, hold/rework and low-stock attention" },
   { label: "Files", route: "/admin/files", note: "Workflow proof documents" },
+  { label: "Bulk ID Cards", route: "/admin/id-cards", note: "Bulk ID card batches, photos, logo and print status" },
+  { label: "Order Production Details", route: "/dashboard/manage/order-details", note: "Material, size, print, bill and job-folder details" },
   { label: "System Audit", route: "/admin/system-audit", note: "Permissions, RLS health and JSON backup" },
   { label: "Recovery", route: "/admin/recovery", note: "Backup validation and safe recovery checklist" },
 ];
@@ -39,7 +41,6 @@ const modules: ModuleLink[] = [
 export default function ProductionReadinessPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("");
   const [checks, setChecks] = useState<Check[]>([]);
   const [dbChecks, setDbChecks] = useState<Check[]>([]);
 
@@ -180,6 +181,9 @@ export default function ProductionReadinessPage() {
         ["order_dispatch_records", "Dispatch Database"],
         ["order_payments", "Accounts Database"],
         ["order_billing", "Billing Database"],
+        ["id_card_batches", "Bulk ID Card Batches"],
+        ["id_card_entries", "Bulk ID Card Entries"],
+        ["order_operation_details", "Order Production Details"],
         ["employee_departments", "Employee Department Mapping"],
         ["attendance_geofence_settings", "GPS Requirement Settings"],
         ["app_permissions", "Permission Master"],
@@ -216,6 +220,8 @@ export default function ProductionReadinessPage() {
         "payments.view_sensitive",
         "payments.manage",
         "billing.manage",
+        "idcards.view",
+        "idcards.manage",
       ];
 
       const permissionResult = await supabase
@@ -296,12 +302,10 @@ export default function ProductionReadinessPage() {
       </header>
 
       <div className="yf-container">
-        {message && <div className="yf-alert yf-alert-info mb-5">{message}</div>}
-
         <div className="mb-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          <p className="text-xs font-black text-slate-500">CURRENT V1 SCOPE</p>
+          <p className="text-xs font-black text-slate-500">CURRENT PRODUCTION SCOPE</p>
           <p className="text-sm font-bold text-slate-700 mt-1">
-            Bulk ID Card end-to-end testing અને Order Production Details integration હાલ user scope મુજબ intentionally skipped છે; readiness scoreમાં ગણાતા નથી.
+            Bulk ID Card અને Order Production Details હવે readiness checksમાં સામેલ છે.
           </p>
         </div>
 
