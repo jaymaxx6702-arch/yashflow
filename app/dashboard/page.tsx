@@ -927,8 +927,12 @@ export default function EmployeeDashboard() {
         <div className="yf-container py-3">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 shrink-0 rounded-2xl bg-white/15 border border-white/20 flex items-center justify-center text-lg shadow-sm">
-                ⚡
+              <div className="w-11 h-11 shrink-0 rounded-2xl bg-white border border-white/30 flex items-center justify-center shadow-sm overflow-hidden p-1">
+                <img
+                  src="/yashflow-logo.png"
+                  alt="Yash Laser"
+                  className="w-full h-full object-contain"
+                />
               </div>
 
               <div className="min-w-0">

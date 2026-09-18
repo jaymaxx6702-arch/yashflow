@@ -1152,8 +1152,12 @@ const manualPunchRows = (
         <div className="yf-container py-4">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-white/15 border border-white/20 flex items-center justify-center text-xl shadow-sm">
-                ⚡
+              <div className="w-12 h-12 rounded-2xl bg-white border border-white/30 flex items-center justify-center shadow-sm overflow-hidden p-1">
+                <img
+                  src="/yashflow-logo.png"
+                  alt="Yash Laser"
+                  className="w-full h-full object-contain"
+                />
               </div>
 
               <div>
