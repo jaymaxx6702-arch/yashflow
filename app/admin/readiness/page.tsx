@@ -98,6 +98,15 @@ export default function ProductionReadinessPage() {
           required: true,
         },
         {
+          key: "geolocation",
+          label: "GPS / Geolocation API",
+          ok: "geolocation" in navigator,
+          detail: "geolocation" in navigator
+            ? "Supported — employee GPS login can run"
+            : "Not supported on this browser/device",
+          required: true,
+        },
+        {
           key: "service-worker-controller",
           label: "PWA Service Worker Active",
           ok: !("serviceWorker" in navigator) || Boolean(navigator.serviceWorker.controller),
@@ -172,6 +181,7 @@ export default function ProductionReadinessPage() {
         ["order_payments", "Accounts Database"],
         ["order_billing", "Billing Database"],
         ["employee_departments", "Employee Department Mapping"],
+        ["attendance_geofence_settings", "GPS Requirement Settings"],
         ["app_permissions", "Permission Master"],
       ] as const;
 
@@ -230,7 +240,27 @@ export default function ProductionReadinessPage() {
         required: true,
       }));
 
-      setDbChecks([...results, ...permissionChecks]);
+      const gpsSettingResult = await supabase
+        .from("attendance_geofence_settings")
+        .select("is_active, require_check_in, require_check_out, latitude, longitude")
+        .eq("id", 1)
+        .maybeSingle();
+
+      const gpsSettingCheck: Check = {
+        key: "gps-setting-row",
+        label: "GPS Master Control",
+        ok: !gpsSettingResult.error && Boolean(gpsSettingResult.data),
+        detail: gpsSettingResult.error
+          ? gpsSettingResult.error.message
+          : !gpsSettingResult.data
+          ? "GPS setting row id=1 missing"
+          : gpsSettingResult.data.is_active
+          ? "GPS ON • Employee Login + Attendance GPS required"
+          : "GPS OFF • Login + Attendance allowed without device GPS",
+        required: true,
+      };
+
+      setDbChecks([...results, ...permissionChecks, gpsSettingCheck]);
       setLoading(false);
     }
 

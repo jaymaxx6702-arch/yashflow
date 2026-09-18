@@ -297,7 +297,9 @@ export default function AdminGpsSettingsPage() {
     setLocating(false);
   }
 
-  async function saveSettings() {
+  async function saveSettings(activeOverride?: boolean) {
+    const nextActive =
+      typeof activeOverride === "boolean" ? activeOverride : isActive;
     if (
       currentLocation &&
       currentLocation.accuracy > 250 &&
@@ -312,18 +314,24 @@ export default function AdminGpsSettingsPage() {
       return;
     }
 
-    const lat = Number(latitude);
-    const lon = Number(longitude);
+    const lat = latitude.trim() ? Number(latitude) : 0;
+    const lon = longitude.trim() ? Number(longitude) : 0;
     const radius = Number(radiusM);
     const maxAccuracy = Number(maxAccuracyM);
 
-    if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
-      setMessage("Valid Latitude જરૂરી છે.");
+    if (
+      nextActive &&
+      (!latitude.trim() || !Number.isFinite(lat) || lat < -90 || lat > 90)
+    ) {
+      setMessage("GPS ON કરવા પહેલાં Valid Office Latitude જરૂરી છે.");
       return;
     }
 
-    if (!Number.isFinite(lon) || lon < -180 || lon > 180) {
-      setMessage("Valid Longitude જરૂરી છે.");
+    if (
+      nextActive &&
+      (!longitude.trim() || !Number.isFinite(lon) || lon < -180 || lon > 180)
+    ) {
+      setMessage("GPS ON કરવા પહેલાં Valid Office Longitude જરૂરી છે.");
       return;
     }
 
@@ -360,7 +368,7 @@ export default function AdminGpsSettingsPage() {
         p_max_accuracy_m: maxAccuracy,
         p_require_check_in: requireCheckIn,
         p_require_check_out: requireCheckOut,
-        p_is_active: isActive,
+        p_is_active: nextActive,
       }
     );
 
@@ -370,7 +378,12 @@ export default function AdminGpsSettingsPage() {
       return;
     }
 
-    setMessage("GPS Attendance Settings Saved ✅");
+    setIsActive(nextActive);
+    setMessage(
+      nextActive
+        ? "GPS Requirement ON ✅ Employee Login + Attendance માટે GPS ફરજિયાત રહેશે."
+        : "GPS Requirement OFF ✅ Employee Login + Attendance GPS વગર ચાલુ રહેશે."
+    );
     await loadSettings();
     setSaving(false);
   }
@@ -419,6 +432,39 @@ export default function AdminGpsSettingsPage() {
             {message}
           </div>
         )}
+
+        <section className="yf-card p-4 sm:p-5 mb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-black tracking-[0.14em] text-blue-700">
+                MASTER GPS CONTROL
+              </p>
+              <h2 className="text-lg font-black text-slate-900 mt-1">
+                Employee GPS Requirement
+              </h2>
+              <p className="text-xs font-semibold text-slate-500 mt-1">
+                ON હોય ત્યારે Employee Login સમયે GPS/Location જરૂરી છે. OFF હોય ત્યારે બધા Employee GPS વગર Login અને Attendance કરી શકે.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => void saveSettings(!isActive)}
+              disabled={saving}
+              className={`yf-btn min-w-[180px] justify-center disabled:opacity-50 ${
+                isActive
+                  ? "bg-green-600 text-white hover:bg-green-700"
+                  : "bg-slate-700 text-white hover:bg-slate-800"
+              }`}
+            >
+              {saving
+                ? "Saving..."
+                : isActive
+                ? "🟢 GPS ON — Turn OFF"
+                : "⚪ GPS OFF — Turn ON"}
+            </button>
+          </div>
+        </section>
 
         <section className="yf-card p-4 sm:p-5">
           <div className="flex items-start justify-between gap-3">
@@ -619,10 +665,10 @@ export default function AdminGpsSettingsPage() {
             <label className="flex items-center justify-between gap-3 rounded-xl border border-green-200 bg-green-50 p-3 cursor-pointer">
               <div>
                 <p className="text-sm font-black text-green-900">
-                  GPS Attendance Active
+                  GPS Login + Attendance Active
                 </p>
                 <p className="text-[10px] font-semibold text-green-700">
-                  Employee punch માટે GPS validation ચાલુ કરો
+                  Master GPS requirement ચાલુ/બંધ કરો
                 </p>
               </div>
 

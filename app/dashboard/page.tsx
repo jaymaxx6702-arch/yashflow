@@ -54,6 +54,14 @@ type OfficeSettings = {
   timezone: string;
 };
 
+type AttendanceGpsSettings = {
+  latitude: number | null;
+  longitude: number | null;
+  require_check_in: boolean;
+  require_check_out: boolean;
+  is_active: boolean;
+};
+
 type SummaryDrawerKey =
   | "attendance"
   | "department_orders"
@@ -145,6 +153,9 @@ export default function EmployeeDashboard() {
   >([]);
   const [officeSettings, setOfficeSettings] =
     useState<OfficeSettings | null>(null);
+  const [gpsSettings, setGpsSettings] =
+    useState<AttendanceGpsSettings | null>(null);
+  const [gpsSettingsLoaded, setGpsSettingsLoaded] = useState(false);
 
   const [departmentOrderCount, setDepartmentOrderCount] = useState(0);
   const [pendingLeaveCount, setPendingLeaveCount] = useState(0);
@@ -690,22 +701,34 @@ export default function EmployeeDashboard() {
         return;
       }
 
-      const { data: settingsData, error: settingsError } = await supabase
-        .from("office_settings")
-        .select(
-          `
-          office_start_time,
-          grace_minutes,
-          office_end_time,
-          recess_start_time,
-          recess_end_time,
-          half_day_checkin_time,
-          standard_work_minutes,
-          timezone
-          `
-        )
-        .eq("is_active", true)
-        .single();
+      const [
+        { data: settingsData, error: settingsError },
+        { data: gpsData, error: gpsError },
+      ] = await Promise.all([
+        supabase
+          .from("office_settings")
+          .select(
+            `
+            office_start_time,
+            grace_minutes,
+            office_end_time,
+            recess_start_time,
+            recess_end_time,
+            half_day_checkin_time,
+            standard_work_minutes,
+            timezone
+            `
+          )
+          .eq("is_active", true)
+          .single(),
+        supabase
+          .from("attendance_geofence_settings")
+          .select(
+            "latitude, longitude, require_check_in, require_check_out, is_active"
+          )
+          .eq("id", 1)
+          .maybeSingle(),
+      ]);
 
       if (settingsError || !settingsData) {
         setMessage("Office timing settings મળી નથી.");
@@ -715,6 +738,15 @@ export default function EmployeeDashboard() {
 
       setEmployee(empData);
       setOfficeSettings(settingsData);
+
+      if (gpsError) {
+        console.warn("GPS Settings Load Error:", gpsError.message);
+        setGpsSettings(null);
+        setGpsSettingsLoaded(false);
+      } else {
+        setGpsSettings((gpsData || null) as AttendanceGpsSettings | null);
+        setGpsSettingsLoaded(true);
+      }
 
       await loadAttendance(empData.id, settingsData);
 
@@ -740,11 +772,25 @@ export default function EmployeeDashboard() {
   async function handleCheckIn() {
     if (!employee || !officeSettings) return;
 
+    const gpsRequired =
+      !gpsSettingsLoaded ||
+      Boolean(gpsSettings?.is_active && gpsSettings.require_check_in);
+
     setAttendanceLoading(true);
-    setMessage("📍 GPS Location મેળવી રહ્યા છીએ...");
+    setMessage(
+      gpsRequired
+        ? "📍 GPS Location મેળવી રહ્યા છીએ..."
+        : "GPS Requirement OFF • Check In કરી રહ્યા છીએ..."
+    );
 
     try {
-      const location = await getGpsLocation();
+      const location = gpsRequired
+        ? await getGpsLocation()
+        : {
+            latitude: gpsSettings?.latitude ?? 0,
+            longitude: gpsSettings?.longitude ?? 0,
+            accuracy: 0,
+          };
       const supabase = createClient();
 
       const { data, error } = await supabase.rpc(
@@ -787,7 +833,9 @@ export default function EmployeeDashboard() {
         );
       } else {
         setMessage(
-          `Check In સફળ ✅ GPS Verified${distanceText}`
+          gpsRequired
+            ? `Check In સફળ ✅ GPS Verified${distanceText}`
+            : "Check In સફળ ✅ GPS Requirement OFF"
         );
       }
     } catch (error) {
@@ -819,11 +867,25 @@ export default function EmployeeDashboard() {
 
     if (!confirmed) return;
 
+    const gpsRequired =
+      !gpsSettingsLoaded ||
+      Boolean(gpsSettings?.is_active && gpsSettings.require_check_out);
+
     setAttendanceLoading(true);
-    setMessage("📍 GPS Location મેળવી રહ્યા છીએ...");
+    setMessage(
+      gpsRequired
+        ? "📍 GPS Location મેળવી રહ્યા છીએ..."
+        : "GPS Requirement OFF • Check Out કરી રહ્યા છીએ..."
+    );
 
     try {
-      const location = await getGpsLocation();
+      const location = gpsRequired
+        ? await getGpsLocation()
+        : {
+            latitude: gpsSettings?.latitude ?? 0,
+            longitude: gpsSettings?.longitude ?? 0,
+            accuracy: 0,
+          };
       const supabase = createClient();
 
       const { data, error } = await supabase.rpc(
@@ -850,13 +912,17 @@ export default function EmployeeDashboard() {
       };
 
       setMessage(
-        `Check Out સફળ ✅ Working Time: ${formatWorkingMinutes(
-          result.working_minutes || 0
-        )}${
-          result.distance_m === undefined
-            ? ""
-            : ` • Officeથી ${result.distance_m}m`
-        }`
+        gpsRequired
+          ? `Check Out સફળ ✅ Working Time: ${formatWorkingMinutes(
+              result.working_minutes || 0
+            )}${
+              result.distance_m === undefined
+                ? ""
+                : ` • Officeથી ${result.distance_m}m`
+            }`
+          : `Check Out સફળ ✅ GPS Requirement OFF • Working Time: ${formatWorkingMinutes(
+              result.working_minutes || 0
+            )}`
       );
     } catch (error) {
       setMessage(
@@ -964,6 +1030,17 @@ export default function EmployeeDashboard() {
       </header>
 
       <div className="yf-container">
+        {gpsSettingsLoaded && gpsSettings && !gpsSettings.is_active && (
+          <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+            <p className="text-xs font-black text-amber-800">
+              📍 GPS Requirement OFF by Admin
+            </p>
+            <p className="text-xs font-semibold text-amber-700 mt-1">
+              Login અને Attendance માટે device GPS હાલમાં ફરજિયાત નથી.
+            </p>
+          </div>
+        )}
+
         <section className="yf-card overflow-hidden">
           <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4">
             <div className="flex items-center justify-between gap-3">

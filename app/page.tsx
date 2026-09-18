@@ -5,6 +5,107 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 
+function requestLoginNotificationPermission(): Promise<NotificationPermission | "unsupported"> {
+  if (typeof window === "undefined" || !("Notification" in window)) {
+    return Promise.resolve("unsupported");
+  }
+
+  if (Notification.permission === "granted") {
+    return Promise.resolve("granted");
+  }
+
+  if (Notification.permission === "denied") {
+    return Promise.resolve("denied");
+  }
+
+  try {
+    return Notification.requestPermission();
+  } catch {
+    return Promise.resolve("denied");
+  }
+}
+
+async function showLoginNotification(
+  employeeName: string,
+  gpsRequired: boolean
+) {
+  if (
+    typeof window === "undefined" ||
+    !("Notification" in window) ||
+    Notification.permission !== "granted"
+  ) {
+    return;
+  }
+
+  const title = "YashFlow • New Update";
+  const body = gpsRequired
+    ? `${employeeName}, Login successful ✅ GPS requirement ON છે.`
+    : `${employeeName}, Login successful ✅ GPS requirement OFF છે.`;
+
+  try {
+    if ("serviceWorker" in navigator) {
+      const registration = await navigator.serviceWorker.ready;
+
+      await registration.showNotification(title, {
+        body,
+        icon: "/icon-192.png",
+        badge: "/icon-192.png",
+        tag: `yashflow-login-${Date.now()}`,
+        data: {
+          url: "/dashboard",
+        },
+      });
+
+      return;
+    }
+
+    new Notification(title, {
+      body,
+      icon: "/icon-192.png",
+    });
+  } catch (error) {
+    console.warn("Login notification failed:", error);
+  }
+}
+
+function verifyEmployeeGpsForLogin(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(
+        new Error(
+          "આ device/browser GPS Location support કરતું નથી. Adminનો સંપર્ક કરો."
+        )
+      );
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      () => resolve(),
+      (error) => {
+        if (error.code === error.PERMISSION_DENIED) {
+          reject(
+            new Error(
+              "📍 GPS/Location permission બંધ છે. Phone Location ON કરો અને YashFlow માટે Precise Location Allow કરીને ફરી Login કરો."
+            )
+          );
+          return;
+        }
+
+        reject(
+          new Error(
+            "📍 GPS/Location મળ્યું નથી. Phone Location ON કરો અને પછી ફરી Login કરો."
+          )
+        );
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      }
+    );
+  });
+}
+
 export default function Home() {
   const router = useRouter();
 
@@ -95,6 +196,9 @@ export default function Home() {
       return;
     }
 
+    const notificationPermissionPromise =
+      requestLoginNotificationPermission();
+
     setLoading(true);
 
     const supabase = createClient();
@@ -163,6 +267,47 @@ export default function Home() {
       setLoading(false);
       return;
     }
+
+    let gpsRequired = false;
+
+    if (employee.role !== "admin") {
+      const { data: gpsSettings, error: gpsSettingsError } =
+        await supabase
+          .from("attendance_geofence_settings")
+          .select("is_active")
+          .eq("id", 1)
+          .maybeSingle();
+
+      if (gpsSettingsError) {
+        console.warn(
+          "GPS login setting could not be checked:",
+          gpsSettingsError.message
+        );
+      } else {
+        gpsRequired = Boolean(gpsSettings?.is_active);
+      }
+
+      if (gpsRequired) {
+        try {
+          await verifyEmployeeGpsForLogin();
+        } catch (error) {
+          await supabase.auth.signOut();
+          setMessage(
+            error instanceof Error
+              ? error.message
+              : "📍 GPS/Location ON કરીને ફરી Login કરો."
+          );
+          setLoading(false);
+          return;
+        }
+      }
+    }
+
+    void notificationPermissionPromise.then((permission) => {
+      if (permission === "granted") {
+        void showLoginNotification(employee.full_name, gpsRequired);
+      }
+    });
 
     /*
       IMPORTANT:

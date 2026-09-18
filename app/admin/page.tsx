@@ -1689,6 +1689,11 @@ const manualPunchRows = (
               icon="🕘"
             />
             <ToolButton
+              href="/admin/gps-settings"
+              label="GPS"
+              icon="📍"
+            />
+            <ToolButton
               href="/admin/work-calendar"
               label="Calendar"
               icon="🗓️"
