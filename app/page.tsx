@@ -337,10 +337,10 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white rounded-3xl shadow-xl overflow-hidden">
-        <div className="bg-gradient-to-br from-blue-700 to-blue-500 px-7 pt-10 pb-12 text-white text-center">
-          <div className="mx-auto mb-4 w-24 h-24 rounded-2xl bg-white flex items-center justify-center shadow-lg overflow-hidden p-1.5">
+    <main className="min-h-screen flex items-center justify-center p-4 bg-[radial-gradient(circle_at_top_left,rgba(212,175,55,0.10),transparent_30rem),linear-gradient(180deg,#f8f8f5_0%,#f3f4f6_100%)]">
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-[0_24px_70px_rgba(16,27,45,0.16)] overflow-hidden border border-[#e4e2dc]">
+        <div className="px-7 pt-10 pb-12 text-white text-center bg-[linear-gradient(90deg,#d4af37,#b8860b)_top/100%_3px_no-repeat,linear-gradient(135deg,#101b2d_0%,#1a2b4c_72%,#24385f_100%)]">
+          <div className="mx-auto mb-4 w-24 h-24 rounded-2xl yf-brand-logo-shell flex items-center justify-center overflow-hidden p-1.5">
             <img
               src="/yashflow-logo.png"
               alt="Yash Laser"
@@ -349,10 +349,10 @@ export default function Home() {
           </div>
 
           <h1 className="text-4xl font-black tracking-tight">
-            Yash<span className="text-blue-100">Flow</span>
+            Yash<span className="text-[#d4af37]">Flow</span>
           </h1>
 
-          <p className="mt-2 text-blue-100 text-sm">
+          <p className="mt-2 text-slate-200 text-sm">
             Yash Laser Work Management
           </p>
 
@@ -428,7 +428,7 @@ export default function Home() {
             type="button"
             onClick={handleLogin}
             disabled={loading}
-            className="w-full mt-7 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 active:scale-[0.99] transition text-white font-bold text-lg py-4 rounded-xl shadow-md"
+            className="w-full mt-7 yf-brand-button disabled:bg-slate-400 active:scale-[0.99] transition font-black text-lg py-4 rounded-xl"
           >
             {loading ? "લૉગિન થઈ રહ્યું છે..." : "લૉગિન કરો"}
           </button>
@@ -441,17 +441,17 @@ export default function Home() {
 
           <Link
             href="/register"
-            className="block w-full text-center border-2 border-blue-600 text-blue-600 font-bold py-4 rounded-xl hover:bg-blue-50 transition"
+            className="block w-full text-center border-2 border-[#1a2b4c] text-[#1a2b4c] font-bold py-4 rounded-xl hover:bg-slate-50 transition"
           >
             નવું એકાઉન્ટ બનાવો
           </Link>
 
-          <div className="mt-8 bg-blue-50 rounded-xl p-4">
-            <p className="text-sm text-blue-900 font-semibold">
+          <div className="mt-8 bg-[#fbf6e7] border border-[#e7d58e] rounded-xl p-4">
+            <p className="text-sm text-[#6f5600] font-semibold">
               નવા કર્મચારી માટે
             </p>
 
-            <p className="text-xs text-blue-700 mt-1 leading-5">
+            <p className="text-xs text-[#7b681e] mt-1 leading-5">
               પહેલા એકાઉન્ટ બનાવો. Adminની મંજૂરી મળ્યા પછી
               YashFlowમાં કામ શરૂ કરી શકશો.
             </p>

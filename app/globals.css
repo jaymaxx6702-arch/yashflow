@@ -6,19 +6,27 @@
    ========================================================= */
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --background: #f7f7f4;
+  --foreground: #17202a;
 
   --surface: #ffffff;
-  --surface-soft: #f8fafc;
-  --surface-muted: #f1f5f9;
+  --surface-soft: #fafaf8;
+  --surface-muted: #f1f2f0;
 
-  --border: #e2e8f0;
-  --border-strong: #cbd5e1;
+  --border: #e4e2dc;
+  --border-strong: #cbc8bf;
 
-  --primary: #2563eb;
-  --primary-hover: #1d4ed8;
-  --primary-soft: #eff6ff;
+  --brand-navy: #1a2b4c;
+  --brand-navy-deep: #101b2d;
+  --brand-charcoal: #1e252b;
+  --brand-gold: #d4af37;
+  --brand-gold-deep: #b8860b;
+  --brand-gold-soft: #fbf6e7;
+  --brand-silver: #e0e6ed;
+
+  --primary: #1a2b4c;
+  --primary-hover: #101b2d;
+  --primary-soft: #eef2f7;
 
   --success: #16a34a;
   --success-hover: #15803d;
@@ -54,7 +62,7 @@
     -12px 0 36px rgba(15, 23, 42, 0.14),
     0 -10px 36px rgba(15, 23, 42, 0.12);
 
-  --focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.16);
+  --focus-ring: 0 0 0 3px rgba(212, 175, 55, 0.22);
 }
 
 @theme inline {
@@ -88,8 +96,13 @@ body {
   background:
     radial-gradient(
       circle at top left,
-      rgba(37, 99, 235, 0.035),
-      transparent 28rem
+      rgba(212, 175, 55, 0.07),
+      transparent 30rem
+    ),
+    radial-gradient(
+      circle at top right,
+      rgba(26, 43, 76, 0.045),
+      transparent 26rem
     ),
     var(--background);
   color: var(--foreground);
@@ -108,8 +121,8 @@ body {
 }
 
 ::selection {
-  background: #bfdbfe;
-  color: #0f172a;
+  background: #f3e3a2;
+  color: #17202a;
 }
 
 * {
@@ -225,10 +238,12 @@ th {
 .yf-header {
   position: relative;
   z-index: 20;
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  background:
+    linear-gradient(90deg, rgba(212, 175, 55, 0.95), rgba(184, 134, 11, 0.85)) top / 100% 3px no-repeat,
+    linear-gradient(135deg, var(--brand-navy-deep) 0%, var(--brand-navy) 68%, #24385f 100%);
   color: #ffffff;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 4px 18px rgba(37, 99, 235, 0.13);
+  border-bottom: 1px solid rgba(212, 175, 55, 0.22);
+  box-shadow: 0 5px 20px rgba(16, 27, 45, 0.18);
 }
 
 .yf-header-compact .yf-container {
@@ -306,7 +321,7 @@ th {
 .yf-card-hover:hover {
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
-  border-color: #bfdbfe;
+  border-color: #d9c477;
 }
 
 .yf-metric-card {
@@ -366,7 +381,7 @@ th {
 }
 
 .yf-input:focus {
-  border-color: #60a5fa;
+  border-color: var(--brand-gold);
   box-shadow: var(--focus-ring);
 }
 
@@ -494,8 +509,8 @@ textarea.yf-input {
 }
 
 .yf-badge-blue {
-  color: #1d4ed8;
-  background: #dbeafe;
+  color: var(--brand-navy);
+  background: #e9eef5;
 }
 
 .yf-badge-green {
@@ -542,9 +557,9 @@ textarea.yf-input {
 }
 
 .yf-alert-info {
-  color: #1e40af;
+  color: var(--brand-navy);
   background: var(--primary-soft);
-  border-color: #bfdbfe;
+  border-color: #cbd5e1;
 }
 
 .yf-alert-success {
@@ -670,7 +685,7 @@ textarea.yf-input {
 }
 
 .yf-table tbody tr:hover {
-  background: rgba(239, 246, 255, 0.45);
+  background: rgba(212, 175, 55, 0.06);
 }
 
 /* =========================================================
@@ -872,3 +887,61 @@ textarea.yf-input {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* =========================================================
+   YASH LASER BRAND ACCENTS
+   ========================================================= */
+
+.yf-brand-gold {
+  color: var(--brand-gold);
+}
+
+.yf-brand-navy {
+  color: var(--brand-navy);
+}
+
+.yf-brand-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  font-weight: 900;
+  color: #6f5600;
+  background: var(--brand-gold-soft);
+  border: 1px solid #e7d58e;
+}
+
+.yf-brand-panel {
+  background:
+    linear-gradient(135deg, rgba(26, 43, 76, 0.98), rgba(16, 27, 45, 0.98));
+  color: white;
+  border: 1px solid rgba(212, 175, 55, 0.28);
+  box-shadow: 0 12px 28px rgba(16, 27, 45, 0.14);
+}
+
+.yf-brand-logo-shell {
+  background: #ffffff;
+  border: 1px solid rgba(212, 175, 55, 0.45);
+  box-shadow:
+    0 10px 24px rgba(16, 27, 45, 0.14),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.7);
+}
+
+.yf-brand-button {
+  color: #17202a;
+  background: linear-gradient(135deg, #e4c65a 0%, #d4af37 55%, #b8860b 100%);
+  border: 1px solid #b8860b;
+  box-shadow: 0 8px 18px rgba(184, 134, 11, 0.18);
+}
+
+.yf-brand-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #edd36f 0%, #d9b744 55%, #bf900e 100%);
+}
+
+.yf-brand-button:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+

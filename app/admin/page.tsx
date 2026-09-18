@@ -487,10 +487,10 @@ function DetailDrawer({
       />
 
       <aside className="absolute right-0 top-0 h-full w-full sm:max-w-lg bg-slate-50 shadow-2xl flex flex-col">
-        <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white px-5 py-4">
+        <div className="yf-brand-panel text-white px-5 py-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[10px] font-black tracking-[0.16em] text-blue-300">
+              <p className="text-[10px] font-black tracking-[0.16em] text-[#d4af37]">
                 QUICK DETAILS
               </p>
               <h2 className="text-xl font-black mt-1">{state.title}</h2>
@@ -1152,7 +1152,7 @@ const manualPunchRows = (
         <div className="yf-container py-4">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-white border border-white/30 flex items-center justify-center shadow-sm overflow-hidden p-1">
+              <div className="w-12 h-12 rounded-2xl bg-white border border-[#d4af37]/50 flex items-center justify-center shadow-sm overflow-hidden p-1">
                 <img
                   src="/yashflow-logo.png"
                   alt="Yash Laser"
@@ -1161,13 +1161,13 @@ const manualPunchRows = (
               </div>
 
               <div>
-                <p className="text-[10px] font-black tracking-[0.18em] text-blue-100">
+                <p className="text-[10px] font-black tracking-[0.18em] text-slate-200">
                   YASH LASER
                 </p>
                 <h1 className="text-xl sm:text-2xl font-black text-white mt-0.5">
                   YashFlow Admin
                 </h1>
-                <p className="text-blue-100 text-xs font-semibold mt-0.5">
+                <p className="text-slate-200 text-xs font-semibold mt-0.5">
                   Management Control Center
                 </p>
               </div>
@@ -1175,7 +1175,7 @@ const manualPunchRows = (
 
             <div className="flex flex-wrap items-center gap-2">
               <div className="rounded-xl bg-white/10 border border-white/15 px-3 py-2">
-                <p className="text-[9px] font-bold text-blue-100">TODAY</p>
+                <p className="text-[9px] font-bold text-slate-200">TODAY</p>
                 <p className="text-xs font-black text-white mt-0.5">
                   {displayDate}
                 </p>
@@ -1195,7 +1195,7 @@ const manualPunchRows = (
               <button
                 type="button"
                 onClick={handleLogout}
-                className="yf-btn bg-white text-blue-700 hover:bg-blue-50"
+                className="yf-btn bg-white text-[#1a2b4c] hover:bg-[#fbf6e7]"
               >
                 Logout
               </button>
@@ -1212,10 +1212,10 @@ const manualPunchRows = (
         )}
 
         <section className="yf-card overflow-hidden">
-          <div className="p-4 border-b border-slate-200 bg-gradient-to-r from-slate-900 to-slate-800 text-white">
+          <div className="p-4 border-b border-slate-200 yf-brand-panel text-white">
             <div className="flex items-end justify-between gap-3">
               <div>
-                <p className="text-[10px] font-black tracking-[0.15em] text-blue-300">
+                <p className="text-[10px] font-black tracking-[0.15em] text-[#d4af37]">
                   LIVE OPERATIONS
                 </p>
                 <h2 className="text-xl font-black mt-0.5">Today at a Glance</h2>

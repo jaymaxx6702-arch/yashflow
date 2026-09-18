@@ -133,15 +133,15 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white rounded-3xl shadow-xl overflow-hidden">
-        <div className="bg-gradient-to-br from-blue-700 to-blue-500 px-7 py-8 text-white">
-          <Link href="/" className="text-sm text-blue-100">
+    <main className="min-h-screen flex items-center justify-center p-4 bg-[radial-gradient(circle_at_top_left,rgba(212,175,55,0.10),transparent_30rem),linear-gradient(180deg,#f8f8f5_0%,#f3f4f6_100%)]">
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-[0_24px_70px_rgba(16,27,45,0.16)] overflow-hidden border border-[#e4e2dc]">
+        <div className="px-7 py-8 text-white bg-[linear-gradient(90deg,#d4af37,#b8860b)_top/100%_3px_no-repeat,linear-gradient(135deg,#101b2d_0%,#1a2b4c_72%,#24385f_100%)]">
+          <Link href="/" className="text-sm text-slate-200 hover:text-[#d4af37] transition">
             ← લૉગિન પર પાછા જાઓ
           </Link>
 
           <div className="flex items-center gap-4 mt-5">
-            <div className="w-16 h-16 shrink-0 rounded-2xl bg-white shadow-lg overflow-hidden p-1">
+            <div className="w-16 h-16 shrink-0 rounded-2xl yf-brand-logo-shell overflow-hidden p-1">
               <img
                 src="/yashflow-logo.png"
                 alt="Yash Laser"
@@ -154,7 +154,7 @@ export default function RegisterPage() {
                 નવું એકાઉન્ટ
               </h1>
 
-              <p className="text-blue-100 mt-1">
+              <p className="text-slate-200 mt-1">
                 YashFlow કર્મચારી નોંધણી
               </p>
             </div>
@@ -172,7 +172,7 @@ export default function RegisterPage() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="તમારું નામ લખો"
-              className="w-full border border-slate-300 rounded-xl p-4 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+              className="w-full border border-slate-300 rounded-xl p-4 outline-none focus:ring-2 focus:ring-[#d4af37] text-slate-900"
             />
           </div>
 
@@ -208,7 +208,7 @@ export default function RegisterPage() {
             <select
               value={department}
               onChange={(e) => setDepartment(e.target.value)}
-              className="w-full border border-slate-300 rounded-xl p-4 bg-white outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+              className="w-full border border-slate-300 rounded-xl p-4 bg-white outline-none focus:ring-2 focus:ring-[#d4af37] text-slate-900"
             >
               <option value="">વિભાગ પસંદ કરો</option>
 
@@ -234,7 +234,7 @@ export default function RegisterPage() {
                 setPin(e.target.value.replace(/\D/g, ""))
               }
               placeholder="******"
-              className="w-full border border-slate-300 rounded-xl p-4 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+              className="w-full border border-slate-300 rounded-xl p-4 outline-none focus:ring-2 focus:ring-[#d4af37] text-slate-900"
             />
           </div>
 
@@ -252,7 +252,7 @@ export default function RegisterPage() {
                 setConfirmPin(e.target.value.replace(/\D/g, ""))
               }
               placeholder="******"
-              className="w-full border border-slate-300 rounded-xl p-4 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+              className="w-full border border-slate-300 rounded-xl p-4 outline-none focus:ring-2 focus:ring-[#d4af37] text-slate-900"
             />
           </div>
 
@@ -272,7 +272,7 @@ export default function RegisterPage() {
             type="button"
             onClick={handleRegister}
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-bold text-lg py-4 rounded-xl shadow-md transition"
+            className="w-full yf-brand-button disabled:bg-slate-400 font-black text-lg py-4 rounded-xl transition"
           >
             {loading ? "નોંધણી થઈ રહી છે..." : "નોંધણી માટે મોકલો"}
           </button>
@@ -290,7 +290,7 @@ export default function RegisterPage() {
 
           <p className="text-center text-sm text-slate-500">
             પહેલેથી એકાઉન્ટ છે?{" "}
-            <Link href="/" className="text-blue-600 font-bold">
+            <Link href="/" className="text-[#1a2b4c] hover:text-[#b8860b] font-bold">
               લૉગિન કરો
             </Link>
           </p>
