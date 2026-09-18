@@ -29,6 +29,15 @@ type WorkloadCount = {
   orders: number;
 };
 
+function getIndiaDate() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
 export default function AdminLeavePage() {
   const router = useRouter();
 
@@ -220,8 +229,48 @@ export default function AdminLeavePage() {
     loadPage();
   }, [router]);
 
+  function isHistoricalLeave(leave: LeaveRequest) {
+    return leave.end_date < getIndiaDate();
+  }
+
   async function approveLeave(leave: LeaveRequest) {
     if (!adminId) return;
+
+    if (isHistoricalLeave(leave)) {
+      if (!window.confirm("જૂની તારીખની Leave approve કરવી છે? Current work handover નહીં થાય.")) {
+        return;
+      }
+
+      setActionId(leave.id);
+      setMessage("");
+
+      const supabase = createClient();
+      const now = new Date().toISOString();
+
+      const { error } = await supabase
+        .from("leave_requests")
+        .update({
+          status: "approved",
+          admin_note: notes[leave.id]?.trim() || null,
+          approved_by: adminId,
+          approved_at: now,
+          updated_at: now,
+        })
+        .eq("id", leave.id)
+        .eq("status", "pending");
+
+      if (error) {
+        setMessage(`Leave Approve Error: ${error.message}`);
+        setActionId(null);
+        return;
+      }
+
+      setMessage("જૂની તારીખની Leave Approved ✅ • Handover જરૂરી નથી.");
+
+      await loadLeaves();
+      setActionId(null);
+      return;
+    }
 
     const primaryId =
       primaryHandover[leave.id] || null;
@@ -583,7 +632,16 @@ export default function AdminLeavePage() {
                     <td className="px-5 py-4 min-w-[300px]">
                       {leave.status === "pending" ? (
                         <>
-                          {(() => {
+                          {isHistoricalLeave(leave) ? (
+                            <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                              <p className="text-xs font-black text-slate-600">
+                                HISTORICAL LEAVE
+                              </p>
+                              <p className="text-sm font-bold text-slate-800 mt-1">
+                                જૂની તારીખની Leave માટે Employee Handover જરૂરી નથી.
+                              </p>
+                            </div>
+                          ) : (() => {
                             const workload =
                               workloadByEmployee[leave.employee_id] || {
                                 tasks: 0,
