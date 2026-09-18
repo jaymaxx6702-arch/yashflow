@@ -16,7 +16,7 @@ type Priority = "low" | "normal" | "high" | "urgent";
 
 type WorkflowMode = "auto" | "admin_controlled" | "manual";
 
-type OrderTab = "new" | "production" | "attention" | "completed" | "all";
+type OrderTab = "new" | "production" | "attention" | "all";
 
 type WorkflowStatus =
   | "waiting"
@@ -2414,6 +2414,12 @@ export default function AdminOrdersPage() {
     const query = searchText.trim().toLowerCase();
 
     return orders.filter((order) => {
+      const isCompleted =
+        order.current_stage === "completed" ||
+        order.workflow_status === "completed";
+
+      if (isCompleted) return false;
+
       const searchMatch =
         !query ||
         order.order_number.toLowerCase().includes(query) ||
@@ -2435,10 +2441,6 @@ export default function AdminOrdersPage() {
         tabMatch = isProductionOrder(order);
       } else if (orderTab === "attention") {
         tabMatch = needsAttention(order);
-      } else if (orderTab === "completed") {
-        tabMatch =
-          order.current_stage === "completed" ||
-          order.workflow_status === "completed";
       }
 
       return searchMatch && stageMatch && priorityMatch && tabMatch;
@@ -2458,13 +2460,11 @@ export default function AdminOrdersPage() {
   const productionCount = orders.filter(isProductionOrder).length;
   const needsAttentionCount = orders.filter(needsAttention).length;
 
-  const completedCount = orders.filter(
+  const allOrdersCount = orders.filter(
     (order) =>
-      order.current_stage === "completed" ||
-      order.workflow_status === "completed"
+      order.current_stage !== "completed" &&
+      order.workflow_status !== "completed"
   ).length;
-
-  const allOrdersCount = orders.length;
 
   if (loading) {
     return (
@@ -2539,12 +2539,11 @@ export default function AdminOrdersPage() {
             </button>
           </div>
 
-          <div className="grid grid-cols-5 gap-1.5">
+          <div className="grid grid-cols-4 gap-1.5">
             {[
               ["new", "New Orders", newOrdersCount],
               ["production", "Production", productionCount],
               ["attention", "Needs Attention", needsAttentionCount],
-              ["completed", "Completed", completedCount],
               ["all", "All Orders", allOrdersCount],
             ].map(([tab, label, count]) => (
               <button
@@ -2587,7 +2586,6 @@ export default function AdminOrdersPage() {
                   {stage.name}
                 </option>
               ))}
-              <option value="completed">Completed</option>
               <option value="cancelled">Cancelled</option>
             </select>
 
@@ -2818,8 +2816,6 @@ export default function AdminOrdersPage() {
                   ? "PRODUCTION"
                   : orderTab === "attention"
                   ? "NEEDS ATTENTION"
-                  : orderTab === "completed"
-                  ? "COMPLETED"
                   : "ALL ORDERS"}
               </p>
 
