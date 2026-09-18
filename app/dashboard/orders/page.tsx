@@ -153,7 +153,6 @@ export default function EmployeeOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderTab, setOrderTab] = useState<EmployeeOrderTab>("assigned");
   const [searchText, setSearchText] = useState("");
 
@@ -1136,7 +1135,7 @@ export default function EmployeeOrdersPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => setSelectedOrder(order)}
+                        onClick={() => router.push(`/dashboard/orders/${order.id}`)}
                         className="text-base sm:text-lg font-black text-blue-700 hover:underline"
                       >
                         {order.order_number}
@@ -1450,7 +1449,7 @@ export default function EmployeeOrdersPage() {
 
                     <button
                       type="button"
-                      onClick={() => setSelectedOrder(order)}
+                      onClick={() => router.push(`/dashboard/orders/${order.id}`)}
                       className="yf-btn yf-btn-secondary"
                     >
                       View Details
@@ -1475,83 +1474,6 @@ export default function EmployeeOrdersPage() {
         </section>
       </div>
 
-      {selectedOrder && (
-        <div
-          className="fixed inset-0 z-50 bg-black/40"
-          onClick={() => setSelectedOrder(null)}
-        >
-          <div
-            className="absolute inset-x-0 bottom-0 max-h-[90vh] rounded-t-3xl bg-white shadow-2xl overflow-y-auto sm:inset-y-0 sm:left-auto sm:right-0 sm:h-full sm:max-h-none sm:max-w-lg sm:rounded-none"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="sticky top-0 bg-white border-b border-slate-200 p-4 flex items-start justify-between gap-4 rounded-t-3xl sm:rounded-none">
-              <div>
-                <p className="text-xs font-black tracking-[0.15em] text-blue-700">
-                  ORDER DETAILS
-                </p>
-                <h2 className="text-2xl font-black mt-1">
-                  {selectedOrder.order_number}
-                </h2>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setSelectedOrder(null)}
-                className="w-10 h-10 rounded-xl bg-slate-100 font-black"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="p-5 space-y-4">
-              <div className="yf-card p-4">
-                <p className="text-sm text-slate-400">Customer</p>
-                <p className="font-black mt-1">{selectedOrder.customer_name}</p>
-
-                <p className="text-sm text-slate-400 mt-3">Product</p>
-                <p className="font-black mt-1">{selectedOrder.product_name}</p>
-
-                <p className="text-sm text-slate-400 mt-3">Quantity</p>
-                <p className="font-black mt-1">{selectedOrder.quantity}</p>
-
-                <p className="text-sm text-slate-400 mt-3">Workflow Mode</p>
-                <p className="font-black mt-1 capitalize">
-                  {selectedOrder.workflow_mode.replace("_", " ")}
-                </p>
-              </div>
-
-              {selectedOrder.product_configuration &&
-                Object.keys(selectedOrder.product_configuration).length > 0 && (
-                  <div className="yf-card p-4 bg-blue-50">
-                    <p className="text-xs font-black text-blue-700">
-                      PRODUCT CONFIGURATION
-                    </p>
-
-                    <div className="mt-3 space-y-2">
-                      {Object.entries(selectedOrder.product_configuration).map(
-                        ([key, value]) => (
-                          <p key={key} className="text-sm">
-                            <span className="font-black">{key}:</span> {value}
-                          </p>
-                        )
-                      )}
-                    </div>
-                  </div>
-                )}
-
-              <button
-                type="button"
-                onClick={() =>
-                  router.push(`/dashboard/orders/${selectedOrder.id}`)
-                }
-                className="yf-btn yf-btn-secondary w-full"
-              >
-                Full Order Page →
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </main>
   );
 }
