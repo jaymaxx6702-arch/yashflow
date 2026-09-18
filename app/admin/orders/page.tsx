@@ -88,6 +88,17 @@ type Employee = {
   role: string | null;
 };
 
+type Department = {
+  id: number;
+  name: string;
+};
+
+type EmployeeDepartment = {
+  employee_id: string;
+  department_id: number;
+  is_primary: boolean;
+};
+
 type WorkflowStage = {
   id: string;
   code: string;
@@ -298,6 +309,9 @@ export default function AdminOrdersPage() {
   const [dependencies, setDependencies] = useState<ValueDependency[]>([]);
 
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [employeeDepartments, setEmployeeDepartments] =
+    useState<EmployeeDepartment[]>([]);
   const [workflowStages, setWorkflowStages] = useState<WorkflowStage[]>([]);
   const [workflowTemplates, setWorkflowTemplates] =
     useState<WorkflowTemplate[]>([]);
@@ -388,6 +402,52 @@ export default function AdminOrdersPage() {
     () => new Map(workflowStages.map((stage) => [stage.code, stage])),
     [workflowStages]
   );
+
+  const departmentMap = useMemo(
+    () => new Map(departments.map((department) => [department.id, department.name])),
+    [departments]
+  );
+
+  function employeeDepartmentNames(employee: Employee) {
+    const mapped = employeeDepartments
+      .filter((assignment) => assignment.employee_id === employee.id)
+      .map((assignment) => departmentMap.get(assignment.department_id))
+      .filter(Boolean) as string[];
+
+    const names = Array.from(
+      new Set([
+        ...(employee.department ? [employee.department] : []),
+        ...mapped,
+      ])
+    );
+
+    return names;
+  }
+
+  function eligibleEmployeesForOrder(order: Order) {
+    const stage = getOrderStage(order);
+    const base = employees.filter((employee) => employee.role !== "admin");
+
+    if (!stage?.department_id) return base;
+
+    const departmentName = (
+      departmentMap.get(stage.department_id) || ""
+    ).trim().toLowerCase();
+
+    return base.filter((employee) => {
+      const mappedMatch = employeeDepartments.some(
+        (assignment) =>
+          assignment.employee_id === employee.id &&
+          assignment.department_id === stage.department_id
+      );
+
+      const legacyMatch =
+        departmentName.length > 0 &&
+        (employee.department || "").trim().toLowerCase() === departmentName;
+
+      return mappedMatch || legacyMatch;
+    });
+  }
 
   const activeWorkByOrder = useMemo(() => {
     const map = new Map<string, StageWork>();
@@ -1128,6 +1188,8 @@ export default function AdminOrdersPage() {
 
     const [
       employeeResult,
+      departmentResult,
+      employeeDepartmentResult,
       stageResult,
       templateResult,
       templateStageResult,
@@ -1142,6 +1204,16 @@ export default function AdminOrdersPage() {
         .eq("is_active", true)
         .eq("is_hidden", false)
         .order("full_name"),
+
+      supabase
+        .from("departments")
+        .select("id, name")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true }),
+
+      supabase
+        .from("employee_departments")
+        .select("employee_id, department_id, is_primary"),
 
       supabase
         .from("workflow_stages")
@@ -1189,6 +1261,8 @@ export default function AdminOrdersPage() {
 
     const firstError =
       employeeResult.error ||
+      departmentResult.error ||
+      employeeDepartmentResult.error ||
       stageResult.error ||
       templateResult.error ||
       templateStageResult.error ||
@@ -1202,6 +1276,10 @@ export default function AdminOrdersPage() {
     }
 
     setEmployees((employeeResult.data || []) as Employee[]);
+    setDepartments((departmentResult.data || []) as Department[]);
+    setEmployeeDepartments(
+      (employeeDepartmentResult.data || []) as EmployeeDepartment[]
+    );
     setWorkflowStages((stageResult.data || []) as WorkflowStage[]);
     setWorkflowTemplates((templateResult.data || []) as WorkflowTemplate[]);
     setWorkflowTemplateStages(
@@ -2973,16 +3051,18 @@ export default function AdminOrdersPage() {
                     className="yf-input flex-1"
                   >
                     <option value="">Needs Assignment</option>
-                    {employees
-                      .filter((employee) => employee.role !== "admin")
-                      .map((employee) => (
+                    {eligibleEmployeesForOrder(selectedOrder).map((employee) => {
+                      const departmentNames = employeeDepartmentNames(employee);
+
+                      return (
                         <option key={employee.id} value={employee.id}>
                           {employee.full_name}
-                          {employee.department
-                            ? ` — ${employee.department}`
+                          {departmentNames.length
+                            ? ` — ${departmentNames.join(" + ")}`
                             : ""}
                         </option>
-                      ))}
+                      );
+                    })}
                   </select>
 
                   <button
