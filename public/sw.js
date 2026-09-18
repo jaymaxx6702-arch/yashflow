@@ -1,5 +1,5 @@
 const CACHE_PREFIX = "yashflow-";
-const CACHE_NAME = "yashflow-v3";
+const CACHE_NAME = "yashflow-v4";
 const CORE_ASSETS = [
   "/offline.html",
   "/manifest.webmanifest",
@@ -72,13 +72,40 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  const isStaticAsset =
-    /\.(?:png|jpg|jpeg|webp|svg|ico|woff2?|wav|css|js)$/i.test(
-      url.pathname
-    ) || url.pathname === "/manifest.webmanifest";
+  const isCodeAsset = /\.(?:css|js)$/i.test(url.pathname);
+  const isCacheableStaticAsset =
+    /\.(?:png|jpg|jpeg|webp|svg|ico|woff2?|wav)$/i.test(url.pathname) ||
+    url.pathname === "/manifest.webmanifest";
 
-  if (!isStaticAsset) return;
+  if (!isCodeAsset && !isCacheableStaticAsset) return;
 
+  if (isCodeAsset) {
+    // UI code/styles should be network-first so a newly deployed YashFlow
+    // does not keep showing an older cached interface on employee phones.
+    event.respondWith(
+      (async () => {
+        try {
+          const response = await fetch(request);
+
+          if (response.ok) {
+            const cache = await caches.open(CACHE_NAME);
+            await cache.put(request, response.clone());
+          }
+
+          return response;
+        } catch {
+          return (
+            (await caches.match(request)) ||
+            new Response("", { status: 504 })
+          );
+        }
+      })()
+    );
+    return;
+  }
+
+  // Images/fonts/manifest can stay fast from cache while refreshing behind
+  // the scenes.
   event.respondWith(
     (async () => {
       const cached = await caches.match(request);
