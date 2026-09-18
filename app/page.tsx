@@ -339,7 +339,7 @@ export default function Home() {
   return (
     <main className="min-h-screen flex items-center justify-center p-4 bg-[radial-gradient(circle_at_top_left,rgba(212,175,55,0.10),transparent_30rem),linear-gradient(180deg,#f8f8f5_0%,#f3f4f6_100%)]">
       <div className="w-full max-w-md bg-white rounded-3xl shadow-[0_24px_70px_rgba(16,27,45,0.16)] overflow-hidden border border-[#e4e2dc]">
-        <div className="px-7 pt-10 pb-12 text-white text-center bg-[linear-gradient(90deg,#d4af37,#b8860b)_top/100%_3px_no-repeat,linear-gradient(135deg,#101b2d_0%,#1a2b4c_72%,#24385f_100%)]">
+        <div className="px-7 pt-10 pb-9 text-center bg-white border-t-[3px] border-t-[#d4af37] border-b border-b-[#efe6c3]">
           <div className="mx-auto mb-4 w-24 h-24 rounded-2xl yf-brand-logo-shell flex items-center justify-center overflow-hidden p-1.5">
             <img
               src="/yashflow-logo.png"
