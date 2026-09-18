@@ -148,6 +148,13 @@ export default function AdminReportsButton() {
       />
 
       <QuickAppButton
+        icon="♻️"
+        label="Recovery"
+        title="Backup Validation & Recovery Guide"
+        onClick={() => router.push("/admin/recovery")}
+      />
+
+      <QuickAppButton
         icon="✅"
         label="Readiness"
         title="Production Readiness Center"

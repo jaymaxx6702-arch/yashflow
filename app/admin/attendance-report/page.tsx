@@ -413,12 +413,23 @@ if (officeSettingsError) {
             attendanceRecord.attendance_type ===
             "late"
           ) {
+            present++;
             late++;
           } else if (
             attendanceRecord.attendance_type ===
             "half_day"
           ) {
             halfDay++;
+          } else if (
+            attendanceRecord.attendance_type ===
+            "leave"
+          ) {
+            leave++;
+          } else if (
+            attendanceRecord.attendance_type ===
+            "absent"
+          ) {
+            absent++;
           } else {
             present++;
           }
@@ -584,7 +595,7 @@ if (date >= firstDay && date < today) {
                   </th>
 
                   <th className="text-center px-4 py-4 text-sm">
-                    Present
+                    Present (incl. Late)
                   </th>
 
                   <th className="text-center px-4 py-4 text-sm">

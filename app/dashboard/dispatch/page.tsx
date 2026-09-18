@@ -61,6 +61,7 @@ export default function DispatchManagementPage() {
 
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const [canManage, setCanManage] = useState(false);
 
@@ -149,6 +150,30 @@ export default function DispatchManagementPage() {
 
       if (userError || !user) {
         router.replace("/");
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("employees")
+        .select("role, approval_status, is_active")
+        .eq("auth_user_id", user.id)
+        .maybeSingle();
+
+      if (
+        profileError ||
+        !profile ||
+        profile.approval_status !== "approved" ||
+        !profile.is_active
+      ) {
+        router.replace("/");
+        return;
+      }
+
+      if (profile.role === "admin") {
+        setIsAdmin(true);
+        setCanManage(true);
+        await loadData();
+        setLoading(false);
         return;
       }
 
@@ -334,7 +359,7 @@ export default function DispatchManagementPage() {
 
           <button
             type="button"
-            onClick={() => router.push("/dashboard")}
+            onClick={() => router.push(isAdmin ? "/admin" : "/dashboard")}
             className="yf-btn bg-white text-blue-700"
           >
             ← Dashboard

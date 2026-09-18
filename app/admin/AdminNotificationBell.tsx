@@ -114,14 +114,13 @@ export default function AdminNotificationBell({ employeeId }: Props) {
     } catch (error) {
       console.warn("Notification sound blocked:", error);
 
-      setSoundEnabled(false);
       window.localStorage.setItem(
         "yashflow-admin-notification-sound-enabled",
-        "false"
+        "true"
       );
 
       setMessage(
-        "Browserએ sound block કર્યો. Bell ખોલીને Sound ON ફરી કરો અથવા Site Settings → Sound → Allow કરો."
+        "Browserએ automatic sound block કર્યો છે. Bell ખોલ્યા પછી Test Alert દબાવો અથવા Site Settings → Sound → Allow કરો. Preference ON જ રાખવામાં આવી છે."
       );
 
       return false;

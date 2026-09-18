@@ -32,12 +32,24 @@ type TableCheck = {
 };
 
 const backupTables = [
+  "departments",
+  "employees",
+  "products",
+  "workflow_stages",
+  "workflow_templates",
+  "workflow_template_stages",
+  "workflow_template_stage_workers",
   "orders",
+  "order_stage_work",
+  "order_stage_workers",
+  "order_stage_history",
+  "order_workflow_history",
   "order_operation_details",
   "tasks",
   "task_support_workers",
   "attendance",
   "leave_requests",
+  "notifications",
   "inventory_items",
   "inventory_transactions",
   "product_inventory_bom",
@@ -149,6 +161,9 @@ export default function SystemAuditPage() {
       setEmployeePermissions((assignmentResult.data || []) as EmployeePermission[]);
 
       const checkDefs = [
+        ["employees", "Employees"],
+        ["employee_departments", "Employee Departments"],
+        ["app_permissions", "Permission Master"],
         ["orders", "Orders"],
         ["tasks", "Tasks"],
         ["attendance", "Attendance"],
@@ -156,8 +171,7 @@ export default function SystemAuditPage() {
         ["inventory_items", "Inventory Items"],
         ["order_payments", "Payments"],
         ["order_billing", "Billing"],
-        ["id_card_batches", "ID Card Batches"],
-        ["order_operation_details", "Order Details"],
+        ["order_dispatch_records", "Dispatch"],
       ] as const;
 
       const checks = await Promise.all(
@@ -212,14 +226,19 @@ export default function SystemAuditPage() {
     setMessage("");
     const supabase = createClient();
     const snapshot: Record<string, unknown> = {
+      schema_version: 2,
       generated_at: new Date().toISOString(),
       timezone: "Asia/Kolkata",
       app: "YashFlow",
+      backup_type: "application-json-snapshot",
+      note: "Supabase Auth users and Storage file binaries are not included. Keep Supabase platform backups as the authoritative disaster-recovery backup.",
       tables: {},
+      row_counts: {},
       errors: {},
     };
 
     const tableData: Record<string, unknown[]> = {};
+    const rowCounts: Record<string, number> = {};
     const errors: Record<string, string> = {};
 
     for (const table of backupTables) {
@@ -228,10 +247,12 @@ export default function SystemAuditPage() {
         errors[table] = error.message;
       } else {
         tableData[table] = data || [];
+        rowCounts[table] = (data || []).length;
       }
     }
 
     snapshot.tables = tableData;
+    snapshot.row_counts = rowCounts;
     snapshot.errors = errors;
     downloadJson(`yashflow-backup-${indiaStamp()}.json`, snapshot);
 
@@ -261,10 +282,11 @@ export default function SystemAuditPage() {
             <h1 className="text-2xl sm:text-3xl font-black text-white mt-1">System Audit & Backup</h1>
             <p className="text-sm text-blue-100 mt-1">Permissions audit, table health અને portable JSON backup.</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button type="button" disabled={backingUp} onClick={() => void createBackup()} className="yf-btn bg-emerald-400 text-emerald-950 disabled:opacity-50">
               {backingUp ? "Backing Up..." : "⬇ Download Backup"}
             </button>
+            <button type="button" onClick={() => router.push("/admin/recovery")} className="yf-btn bg-white/10 text-white border border-white/20">♻ Recovery</button>
             <button type="button" onClick={() => router.push("/admin")} className="yf-btn bg-white text-blue-700">← Admin</button>
           </div>
         </div>
@@ -272,6 +294,13 @@ export default function SystemAuditPage() {
 
       <div className="yf-container">
         {message && <div className="yf-alert yf-alert-info mb-5">{message}</div>}
+
+        <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <p className="text-xs font-black text-amber-800">BACKUP SAFETY NOTE</p>
+          <p className="text-sm font-semibold text-amber-900 mt-1">
+            JSON backup app data માટે છે. Supabase Auth accounts અને Storageમાં રહેલા actual photo/video/file binaries આ JSONમાં નથી; full disaster recovery માટે Supabase platform backup પણ રાખવો જરૂરી છે.
+          </p>
+        </div>
 
         <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
           <div className="yf-card p-4"><p className="text-xs font-black text-slate-500">VISIBLE EMPLOYEES</p><p className="text-3xl font-black text-blue-700 mt-1">{employees.length}</p></div>

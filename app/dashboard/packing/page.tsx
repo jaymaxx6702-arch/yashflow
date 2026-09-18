@@ -32,6 +32,7 @@ export default function PackingPage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [canManage, setCanManage] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
   const [records, setRecords] = useState<DispatchRecord[]>([]);
   const [search, setSearch] = useState("");
@@ -91,6 +92,30 @@ export default function PackingPage() {
 
       if (userError || !user) {
         router.replace("/");
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("employees")
+        .select("role, approval_status, is_active")
+        .eq("auth_user_id", user.id)
+        .maybeSingle();
+
+      if (
+        profileError ||
+        !profile ||
+        profile.approval_status !== "approved" ||
+        !profile.is_active
+      ) {
+        router.replace("/");
+        return;
+      }
+
+      if (profile.role === "admin") {
+        setIsAdmin(true);
+        setCanManage(true);
+        await loadData();
+        setLoading(false);
         return;
       }
 
@@ -200,8 +225,8 @@ export default function PackingPage() {
             <h1 className="text-2xl sm:text-3xl font-black text-white mt-1">Packing Workflow</h1>
             <p className="text-sm text-blue-100 mt-1">Completed → Ready for Packing → Packed → Dispatch</p>
           </div>
-          <button type="button" onClick={() => router.push("/admin")} className="yf-btn bg-white text-blue-700">
-            ← Admin Dashboard
+          <button type="button" onClick={() => router.push(isAdmin ? "/admin" : "/dashboard")} className="yf-btn bg-white text-blue-700">
+            ← {isAdmin ? "Admin Dashboard" : "Dashboard"}
           </button>
         </div>
       </header>

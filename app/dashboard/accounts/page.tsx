@@ -42,6 +42,7 @@ export default function AccountsOrdersPage() {
 
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const [canViewPayments, setCanViewPayments] = useState(false);
   const [canManagePayments, setCanManagePayments] = useState(false);
@@ -175,6 +176,32 @@ export default function AccountsOrdersPage() {
 
       if (userError || !user) {
         router.replace("/");
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("employees")
+        .select("role, approval_status, is_active")
+        .eq("auth_user_id", user.id)
+        .maybeSingle();
+
+      if (
+        profileError ||
+        !profile ||
+        profile.approval_status !== "approved" ||
+        !profile.is_active
+      ) {
+        router.replace("/");
+        return;
+      }
+
+      if (profile.role === "admin") {
+        setIsAdmin(true);
+        setCanViewPayments(true);
+        setCanManagePayments(true);
+        setCanManageBilling(true);
+        await loadData(true, true, true);
+        setLoading(false);
         return;
       }
 
@@ -390,7 +417,7 @@ export default function AccountsOrdersPage() {
 
           <button
             type="button"
-            onClick={() => router.push("/dashboard")}
+            onClick={() => router.push(isAdmin ? "/admin/accounts" : "/dashboard")}
             className="yf-btn bg-white text-blue-700"
           >
             ← Dashboard

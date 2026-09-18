@@ -9,6 +9,7 @@ type Check = {
   label: string;
   ok: boolean;
   detail: string;
+  required?: boolean;
 };
 
 type ModuleLink = {
@@ -27,13 +28,12 @@ const modules: ModuleLink[] = [
   { label: "Reorder Center", route: "/admin/reorder", note: "Low stock purchase planning" },
   { label: "Packing", route: "/dashboard/packing", note: "Completed-order packing queue" },
   { label: "Dispatch", route: "/dashboard/dispatch", note: "Courier, transport and delivery" },
-  { label: "Bulk ID Cards", route: "/admin/id-cards", note: "Bulk card data, photos and print status" },
-  { label: "Order Details", route: "/dashboard/manage/order-details", note: "Production/print operational fields" },
   { label: "Accounts", route: "/admin/accounts", note: "Payments, billing summary and export" },
   { label: "Reports", route: "/admin/reports", note: "Operational reports and CSV export" },
   { label: "Escalations", route: "/admin/escalations", note: "Overdue, hold/rework and low-stock attention" },
   { label: "Files", route: "/admin/files", note: "Workflow proof documents" },
   { label: "System Audit", route: "/admin/system-audit", note: "Permissions, RLS health and JSON backup" },
+  { label: "Recovery", route: "/admin/recovery", note: "Backup validation and safe recovery checklist" },
 ];
 
 export default function ProductionReadinessPage() {
@@ -43,12 +43,17 @@ export default function ProductionReadinessPage() {
   const [checks, setChecks] = useState<Check[]>([]);
   const [dbChecks, setDbChecks] = useState<Check[]>([]);
 
-  const passed = useMemo(
-    () => [...checks, ...dbChecks].filter((check) => check.ok).length,
+  const requiredChecks = useMemo(
+    () => [...checks, ...dbChecks].filter((check) => check.required !== false),
     [checks, dbChecks]
   );
 
-  const total = checks.length + dbChecks.length;
+  const passed = useMemo(
+    () => requiredChecks.filter((check) => check.ok).length,
+    [requiredChecks]
+  );
+
+  const total = requiredChecks.length;
 
   useEffect(() => {
     async function load() {
@@ -83,55 +88,91 @@ export default function ProductionReadinessPage() {
           label: "Internet Connection",
           ok: navigator.onLine,
           detail: navigator.onLine ? "Online" : "Offline",
+          required: true,
         },
         {
           key: "service-worker",
           label: "PWA Service Worker Support",
           ok: "serviceWorker" in navigator,
           detail: "serviceWorker" in navigator ? "Supported" : "Not supported",
+          required: true,
+        },
+        {
+          key: "service-worker-controller",
+          label: "PWA Service Worker Active",
+          ok: !("serviceWorker" in navigator) || Boolean(navigator.serviceWorker.controller),
+          detail: !("serviceWorker" in navigator)
+            ? "Service Worker unsupported"
+            : navigator.serviceWorker.controller
+            ? "Active and controlling this page"
+            : "Supported; reload once after first install",
+          required: false,
         },
         {
           key: "storage",
           label: "Browser Storage",
           ok: Boolean(navigator.storage),
           detail: navigator.storage ? "Available" : "Unavailable",
+          required: true,
         },
         {
           key: "notifications",
           label: "Browser Notifications",
-          ok: "Notification" in window,
-          detail: "Notification" in window ? Notification.permission : "Not supported",
+          ok: true,
+          detail: "Notification" in window ? Notification.permission : "Not supported on this browser",
+          required: false,
         },
         {
           key: "vibration",
           label: "Vibration API",
-          ok: typeof navigator.vibrate === "function",
-          detail: typeof navigator.vibrate === "function" ? "Supported" : "Device/browser not supported",
+          ok: true,
+          detail: typeof navigator.vibrate === "function" ? "Supported" : "Optional — not supported on this device/browser",
+          required: false,
         },
         {
           key: "standalone",
           label: "Installed App / Standalone",
-          ok:
-            window.matchMedia("(display-mode: standalone)").matches ||
-            Boolean((navigator as Navigator & { standalone?: boolean }).standalone),
+          ok: true,
           detail:
             window.matchMedia("(display-mode: standalone)").matches ||
             Boolean((navigator as Navigator & { standalone?: boolean }).standalone)
               ? "Running as installed app"
-              : "Running in browser",
+              : "Running in browser — install is optional",
+          required: false,
         },
       ];
+      try {
+        const manifestResponse = await fetch("/manifest.webmanifest", { cache: "no-store" });
+        browserChecks.push({
+          key: "manifest",
+          label: "PWA Manifest",
+          ok: manifestResponse.ok,
+          detail: manifestResponse.ok ? "manifest.webmanifest reachable" : "Manifest could not be loaded",
+          required: true,
+        });
+      } catch {
+        browserChecks.push({
+          key: "manifest",
+          label: "PWA Manifest",
+          ok: false,
+          detail: "Manifest request failed",
+          required: true,
+        });
+      }
+
       setChecks(browserChecks);
 
       const tables = [
         ["orders", "Orders Database"],
         ["tasks", "Tasks Database"],
         ["attendance", "Attendance Database"],
+        ["leave_requests", "Leave Database"],
         ["inventory_items", "Inventory Database"],
         ["order_dispatch_records", "Dispatch Database"],
         ["order_payments", "Accounts Database"],
-        ["id_card_batches", "Bulk ID Card Database"],
-        ["order_operation_details", "Production Details Database"],
+        ["order_billing", "Billing Database"],
+        ["employee_departments", "Employee Department Mapping"],
+        ["app_permissions", "Permission Master"],
       ] as const;
 
       const results = await Promise.all(
@@ -147,11 +188,49 @@ export default function ProductionReadinessPage() {
             detail: result.error
               ? result.error.message
               : `Readable • ${result.count ?? 0} row(s)`,
+            required: true,
           } satisfies Check;
         })
       );
 
-      setDbChecks(results);
+      const requiredPermissionKeys = [
+        "orders.view",
+        "orders.manage",
+        "attendance.manage",
+        "inventory.view",
+        "inventory.manage",
+        "purchase.view",
+        "purchase.manage",
+        "dispatch.view",
+        "dispatch.manage",
+        "payments.view_sensitive",
+        "payments.manage",
+        "billing.manage",
+      ];
+
+      const permissionResult = await supabase
+        .from("app_permissions")
+        .select("permission_key")
+        .eq("is_active", true)
+        .in("permission_key", requiredPermissionKeys);
+
+      const activePermissionKeys = new Set(
+        (permissionResult.data || []).map((row) => row.permission_key)
+      );
+
+      const permissionChecks: Check[] = requiredPermissionKeys.map((key) => ({
+        key: `permission-${key}`,
+        label: `Permission: ${key}`,
+        ok: !permissionResult.error && activePermissionKeys.has(key),
+        detail: permissionResult.error
+          ? permissionResult.error.message
+          : activePermissionKeys.has(key)
+          ? "Active ✅"
+          : "Missing / inactive",
+        required: true,
+      }));
+
+      setDbChecks([...results, ...permissionChecks]);
       setLoading(false);
     }
 
@@ -189,6 +268,13 @@ export default function ProductionReadinessPage() {
       <div className="yf-container">
         {message && <div className="yf-alert yf-alert-info mb-5">{message}</div>}
 
+        <div className="mb-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <p className="text-xs font-black text-slate-500">CURRENT V1 SCOPE</p>
+          <p className="text-sm font-bold text-slate-700 mt-1">
+            Bulk ID Card end-to-end testing અને Order Production Details integration હાલ user scope મુજબ intentionally skipped છે; readiness scoreમાં ગણાતા નથી.
+          </p>
+        </div>
+
         <section className="yf-card p-5 mb-5">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
@@ -211,7 +297,7 @@ export default function ProductionReadinessPage() {
                 <div key={check.key} className={`rounded-2xl border p-4 ${check.ok ? "border-green-200 bg-green-50" : "border-amber-200 bg-amber-50"}`}>
                   <div className="flex items-center justify-between gap-3">
                     <p className="font-black text-slate-800">{check.label}</p>
-                    <span>{check.ok ? "✅" : "⚠️"}</span>
+                    <span>{check.required === false ? "ℹ️" : check.ok ? "✅" : "⚠️"}</span>
                   </div>
                   <p className="text-xs font-semibold text-slate-600 mt-1">{check.detail}</p>
                 </div>

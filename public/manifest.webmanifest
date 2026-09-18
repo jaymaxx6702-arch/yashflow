@@ -2,6 +2,8 @@
   "name": "YashFlow",
   "short_name": "YashFlow",
   "description": "Yash Laser Work Management",
+  "id": "/",
+  "lang": "gu",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
