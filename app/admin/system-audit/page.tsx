@@ -170,6 +170,9 @@ export default function SystemAuditPage() {
         ["order_payments", "Payments"],
         ["order_billing", "Billing"],
         ["order_dispatch_records", "Dispatch"],
+        ["id_card_batches", "Bulk ID Card Batches"],
+        ["id_card_entries", "Bulk ID Card Entries"],
+        ["order_operation_details", "Order Production Details"],
       ] as const;
 
       const checks = await Promise.all(
@@ -224,7 +227,7 @@ export default function SystemAuditPage() {
     setMessage("");
     const supabase = createClient();
     const snapshot: Record<string, unknown> = {
-      schema_version: 2,
+      schema_version: 3,
       generated_at: new Date().toISOString(),
       timezone: "Asia/Kolkata",
       app: "YashFlow",
