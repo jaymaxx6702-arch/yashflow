@@ -39,10 +39,7 @@ export default function AdminReportsButton() {
   const [target, setTarget] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
-    if (pathname !== "/admin") {
-      setTarget(null);
-      return;
-    }
+    if (pathname !== "/admin") return;
 
     function findQuickAppsGrid() {
       const heading = Array.from(document.querySelectorAll("h2")).find(
@@ -55,7 +52,7 @@ export default function AdminReportsButton() {
       if (grid) setTarget(grid);
     }
 
-    findQuickAppsGrid();
+    const frame = window.requestAnimationFrame(findQuickAppsGrid);
 
     const observer = new MutationObserver(findQuickAppsGrid);
     observer.observe(document.body, {
@@ -63,7 +60,10 @@ export default function AdminReportsButton() {
       subtree: true,
     });
 
-    return () => observer.disconnect();
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
   }, [pathname]);
 
   if (pathname !== "/admin" || !target) return null;
