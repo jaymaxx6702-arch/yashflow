@@ -1672,6 +1672,16 @@ const manualPunchRows = (
               icon="📦"
               badge={counts.openOrders > 0 ? String(counts.openOrders) : undefined}
             />
+            <ToolButton
+              href="/admin/completed-orders"
+              label="Completed"
+              icon="✅"
+              badge={
+                counts.completedOrders > 0
+                  ? String(counts.completedOrders)
+                  : undefined
+              }
+            />
             <ToolButton href="/admin/tasks" label="Tasks" icon="📋" />
             <ToolButton
               href="/admin/employees"
