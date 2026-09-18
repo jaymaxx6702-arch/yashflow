@@ -42,8 +42,6 @@ const backupTables = [
   "orders",
   "order_stage_work",
   "order_stage_workers",
-  "order_stage_history",
-  "order_workflow_history",
   "order_operation_details",
   "tasks",
   "task_support_workers",
