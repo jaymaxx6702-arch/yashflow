@@ -4,10 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 
-type TaskEmployee = {
+type EmployeeLite = {
   id: string;
   full_name: string;
-  department: string | null;
 };
 
 type Task = {
@@ -23,7 +22,6 @@ type Task = {
   started_at: string | null;
   completed_at: string | null;
   created_at: string;
-  employees: TaskEmployee | null;
 };
 
 function dateKey(value: string | null) {
@@ -62,6 +60,8 @@ export default function CompletedTasksPage() {
   const [loading, setLoading] = useState(true);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [currentEmployeeName, setCurrentEmployeeName] = useState("Employee");
+  const [employees, setEmployees] = useState<EmployeeLite[]>([]);
   const [message, setMessage] = useState("");
   const [openDates, setOpenDates] = useState<Record<string, boolean>>({});
 
@@ -77,7 +77,7 @@ export default function CompletedTasksPage() {
 
       const { data: profile, error: profileError } = await supabase
         .from("employees")
-        .select("id, role, approval_status, is_active")
+        .select("id, full_name, role, approval_status, is_active")
         .eq("auth_user_id", user.id)
         .single();
 
@@ -93,6 +93,16 @@ export default function CompletedTasksPage() {
 
       const admin = profile.role === "admin";
       setIsAdmin(admin);
+      setCurrentEmployeeName(profile.full_name || "Employee");
+
+      if (admin) {
+        const { data: employeeRows } = await supabase
+          .from("employees")
+          .select("id, full_name")
+          .eq("approval_status", "approved")
+          .eq("is_active", true);
+        setEmployees((employeeRows || []) as EmployeeLite[]);
+      }
 
       const { data, error } = await supabase
         .from("tasks")
@@ -108,12 +118,7 @@ export default function CompletedTasksPage() {
           admin_note,
           started_at,
           completed_at,
-          created_at,
-          employees!tasks_assigned_to_fkey (
-            id,
-            full_name,
-            department
-          )
+          created_at
         `)
         .eq("status", "completed")
         .order("completed_at", { ascending: false })
@@ -136,6 +141,11 @@ export default function CompletedTasksPage() {
 
     void loadPage();
   }, [router]);
+
+  const employeeMap = useMemo(
+    () => new Map(employees.map((employee) => [employee.id, employee.full_name])),
+    [employees]
+  );
 
   const grouped = useMemo(() => {
     const map = new Map<string, Task[]>();
@@ -238,7 +248,7 @@ export default function CompletedTasksPage() {
                               <b>Completed:</b> {timeLabel(task.completed_at)}
                             </div>
                             <div className="rounded-xl bg-slate-50 p-3">
-                              <b>Employee:</b> {task.employees?.full_name || "Employee"}
+                              <b>Employee:</b> {isAdmin ? employeeMap.get(task.assigned_to) || "Employee" : currentEmployeeName}
                             </div>
                             <div className="rounded-xl bg-slate-50 p-3">
                               <b>Priority:</b> {task.priority.toUpperCase()}
