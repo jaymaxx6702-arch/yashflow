@@ -173,8 +173,22 @@ export default function EmployeeApprovalPage() {
     setLoading(false);
   }
 
+  async function ensureCorePermissions() {
+    const supabase = createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return;
+
+    await fetch("/api/admin/ensure-permissions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      cache: "no-store",
+    });
+  }
+
   async function loadPage() {
     setLoading(true);
+
+    await ensureCorePermissions();
 
     await Promise.all([
       loadEmployees(),
