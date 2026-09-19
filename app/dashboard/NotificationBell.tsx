@@ -309,7 +309,6 @@ export default function NotificationBell({ employeeId }: Props) {
           icon: "/icon-192.png",
           badge: "/icon-192.png",
           tag: `yashflow-${notificationId}`,
-          renotify: true,
           data: { url },
         });
       } catch (error) {
