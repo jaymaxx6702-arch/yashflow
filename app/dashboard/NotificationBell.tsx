@@ -59,6 +59,8 @@ export default function NotificationBell({ employeeId }: Props) {
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [vibrateEnabled, setVibrateEnabled] = useState(false);
   const [vibrationSupported, setVibrationSupported] = useState(false);
+  const [systemNotificationsSupported, setSystemNotificationsSupported] = useState(false);
+  const [systemNotificationsEnabled, setSystemNotificationsEnabled] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const initializedRef = useRef(false);
@@ -92,6 +94,21 @@ export default function NotificationBell({ employeeId }: Props) {
     setSoundEnabled(savedSound);
     setVibrationSupported(canVibrate);
     setVibrateEnabled(savedVibrate);
+
+    const canNotify =
+      typeof window !== "undefined" &&
+      "Notification" in window &&
+      "serviceWorker" in navigator;
+
+    setSystemNotificationsSupported(canNotify);
+
+    if (canNotify) {
+      const enabled =
+        Notification.permission === "granted" &&
+        window.localStorage.getItem("yashflow-system-notifications-enabled") ===
+          "true";
+      setSystemNotificationsEnabled(enabled);
+    }
 
     return () => {
       if (audioRef.current) {
@@ -216,6 +233,92 @@ export default function NotificationBell({ employeeId }: Props) {
     runAlert();
   }
 
+  async function enableSystemNotifications() {
+    setMessage("");
+
+    if (
+      typeof window === "undefined" ||
+      !("Notification" in window) ||
+      !("serviceWorker" in navigator)
+    ) {
+      setMessage("આ browser/device Mobile Notifications support કરતું નથી.");
+      return;
+    }
+
+    if (systemNotificationsEnabled && Notification.permission === "granted") {
+      setSystemNotificationsEnabled(false);
+      window.localStorage.setItem(
+        "yashflow-system-notifications-enabled",
+        "false"
+      );
+      setMessage("Mobile screen notifications OFF થયા.");
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+
+    if (permission !== "granted") {
+      setSystemNotificationsEnabled(false);
+      window.localStorage.setItem(
+        "yashflow-system-notifications-enabled",
+        "false"
+      );
+      setMessage(
+        "Mobile Notification permission Allow કરો. Browser/App Settings → Notifications → Allow."
+      );
+      return;
+    }
+
+    await navigator.serviceWorker.ready;
+    setSystemNotificationsEnabled(true);
+    window.localStorage.setItem(
+      "yashflow-system-notifications-enabled",
+      "true"
+    );
+    setMessage("Mobile screen notifications ON ✅");
+  }
+
+  const showSystemNotification = useCallback(
+    async (
+      title: string,
+      body: string,
+      notificationId: string,
+      relatedType: string | null
+    ) => {
+      if (
+        typeof window === "undefined" ||
+        !("Notification" in window) ||
+        !("serviceWorker" in navigator) ||
+        Notification.permission !== "granted" ||
+        window.localStorage.getItem("yashflow-system-notifications-enabled") !==
+          "true"
+      ) {
+        return;
+      }
+
+      let url = "/dashboard";
+
+      if (relatedType === "order") url = "/dashboard/orders";
+      if (relatedType === "task") url = "/dashboard/tasks";
+      if (relatedType === "leave") url = "/dashboard/leave";
+
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        await registration.showNotification(title || "YashFlow", {
+          body: body || "New notification",
+          icon: "/icon-192.png",
+          badge: "/icon-192.png",
+          tag: `yashflow-${notificationId}`,
+          renotify: true,
+          data: { url },
+        });
+      } catch (error) {
+        console.warn("System notification failed:", error);
+      }
+    },
+    []
+  );
+
   const loadNotifications = useCallback(
     async (alertForNew = false) => {
       if (!employeeId) return;
@@ -248,12 +351,19 @@ export default function NotificationBell({ employeeId }: Props) {
       const rows = (data || []) as NotificationRow[];
 
       if (initializedRef.current && alertForNew) {
-        const hasNewUnread = rows.some(
+        const newUnread = rows.filter(
           (item) => !item.is_read && !knownIdsRef.current.has(item.id)
         );
 
-        if (hasNewUnread) {
+        if (newUnread.length > 0) {
           runAlert();
+          const newest = newUnread[0];
+          void showSystemNotification(
+            newest.title,
+            newest.message,
+            newest.id,
+            newest.related_type
+          );
         }
       }
 
@@ -263,7 +373,7 @@ export default function NotificationBell({ employeeId }: Props) {
       initializedRef.current = true;
       setLoading(false);
     },
-    [employeeId, runAlert]
+    [employeeId, runAlert, showSystemNotification]
   );
 
   useEffect(() => {
@@ -294,6 +404,12 @@ export default function NotificationBell({ employeeId }: Props) {
           if (newId && !knownIdsRef.current.has(newId)) {
             knownIdsRef.current.add(newId);
             runAlert();
+            void showSystemNotification(
+              String(newRow.title || "YashFlow"),
+              String(newRow.message || "New notification"),
+              newId,
+              newRow.related_type ? String(newRow.related_type) : null
+            );
           }
 
           void loadNotifications(false);
@@ -305,7 +421,7 @@ export default function NotificationBell({ employeeId }: Props) {
       window.clearInterval(pollTimer);
       void supabase.removeChannel(channel);
     };
-  }, [employeeId, loadNotifications, runAlert]);
+  }, [employeeId, loadNotifications, runAlert, showSystemNotification]);
 
   async function markRead(notificationId: string) {
     const supabase = createClient();
@@ -460,7 +576,7 @@ export default function NotificationBell({ employeeId }: Props) {
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 mt-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-4">
                 <button
                   type="button"
                   onClick={toggleSound}
@@ -488,6 +604,23 @@ export default function NotificationBell({ employeeId }: Props) {
                     : vibrateEnabled
                     ? "📳 Vibrate ON"
                     : "📴 Vibrate OFF"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => void enableSystemNotifications()}
+                  disabled={!systemNotificationsSupported}
+                  className={`yf-btn disabled:opacity-50 ${
+                    systemNotificationsEnabled
+                      ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-50"
+                      : "bg-white/10 text-white border border-white/20 hover:bg-white/20"
+                  }`}
+                >
+                  {!systemNotificationsSupported
+                    ? "📱 Unsupported"
+                    : systemNotificationsEnabled
+                    ? "📱 Mobile Alerts ON"
+                    : "📱 Enable Mobile Alerts"}
                 </button>
               </div>
 
