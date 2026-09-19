@@ -11,7 +11,7 @@ export function integrationSupabase() {
     process.env.SUPABASE_SECRET_KEY ||
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     ""
-  ).trim();
+  ).replace(/\s+/g, "");
   if (!url || !key) throw new Error("YashFlow server Supabase credentials are not configured.");
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -19,7 +19,7 @@ export function integrationSupabase() {
 }
 
 export function integrationAuthorised(request: Request) {
-  const expected = (process.env.YASHFLOW_INTEGRATION_SECRET || "").trim();
+  const expected = (process.env.YASHFLOW_INTEGRATION_SECRET || "").replace(/\s+/g, "");
   if (!expected) return false;
   const auth = request.headers.get("authorization") || "";
   return auth === `Bearer ${expected}`;
