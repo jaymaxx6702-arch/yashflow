@@ -13,17 +13,6 @@ type Item = {
   configuration?: Record<string, unknown>;
 };
 
-export async function GET() {
-  return NextResponse.json({
-    ok: true,
-    service: "yashflow-shop-integration",
-    supabaseUrl: Boolean(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL),
-    supabaseSecret: Boolean(process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY),
-    integrationSecret: Boolean(process.env.YASHFLOW_INTEGRATION_SECRET),
-    integrationEmployee: Boolean(process.env.YASHFLOW_INTEGRATION_EMPLOYEE_ID),
-  });
-}
-
 export async function POST(request: Request) {
   if (!integrationAuthorised(request))
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
