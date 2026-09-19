@@ -652,9 +652,19 @@ const rejectedCount = rows.filter(
       const result = await supabase
         .from("attendance")
         .update(payload)
-        .eq("id", manualAttendanceId);
+        .eq("id", manualAttendanceId)
+        .select("id")
+        .maybeSingle();
 
       error = result.error;
+
+      if (!result.error && !result.data) {
+        setMessage(
+          "Manual Punch Save Failed: update permission મળતી નથી. Supabase attendance policy ચેક કરો."
+        );
+        setManualSaving(false);
+        return;
+      }
     } else {
       const result = await supabase
         .from("attendance")
