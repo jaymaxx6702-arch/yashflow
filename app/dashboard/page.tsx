@@ -240,29 +240,75 @@ export default function EmployeeDashboard() {
         return;
       }
 
-      navigator.geolocation.getCurrentPosition(
+      let best:
+        | {
+            latitude: number;
+            longitude: number;
+            accuracy: number;
+          }
+        | null = null;
+      let finished = false;
+      let watchId: number | null = null;
+
+      const finish = (error?: Error) => {
+        if (finished) return;
+        finished = true;
+
+        if (watchId !== null) {
+          navigator.geolocation.clearWatch(watchId);
+        }
+
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        if (!best) {
+          reject(
+            new Error(
+              "GPS Location મળ્યું નથી. Phone Location/GPS ચાલુ કરો અને ફરી Try કરો."
+            )
+          );
+          return;
+        }
+
+        resolve(best);
+      };
+
+      const timeoutId = window.setTimeout(() => {
+        finish();
+      }, 12000);
+
+      watchId = navigator.geolocation.watchPosition(
         (position) => {
-          resolve({
+          const candidate = {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
             accuracy: position.coords.accuracy,
-          });
+          };
+
+          if (!best || candidate.accuracy < best.accuracy) {
+            best = candidate;
+          }
+
+          if (candidate.accuracy <= 50) {
+            window.clearTimeout(timeoutId);
+            finish();
+          }
         },
         (error) => {
+          window.clearTimeout(timeoutId);
+
           if (error.code === error.PERMISSION_DENIED) {
-            reject(
+            finish(
               new Error(
-                "Location Permission denied છે. Browser Settingsમાં Location Allow કરો."
+                "Location Permission denied છે. Browser Settingsમાં Precise Location Allow કરો."
               )
             );
           } else if (error.code === error.TIMEOUT) {
-            reject(
-              new Error(
-                "GPS Location timeout થયું. બહાર/બારી પાસે જઈ ફરી Try કરો."
-              )
-            );
+            finish();
           } else {
-            reject(
+            finish(
               new Error(
                 "GPS Location મળ્યું નથી. Phone Location/GPS ચાલુ કરો."
               )
@@ -271,7 +317,7 @@ export default function EmployeeDashboard() {
         },
         {
           enableHighAccuracy: true,
-          timeout: 15000,
+          timeout: 10000,
           maximumAge: 0,
         }
       );
@@ -800,34 +846,56 @@ export default function EmployeeDashboard() {
             accuracy: 0,
           };
       const supabase = createClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-      const { data, error } = await supabase.rpc(
-        "employee_gps_check_in",
-        {
-          p_latitude: location.latitude,
-          p_longitude: location.longitude,
-          p_accuracy_m: location.accuracy,
+      if (!session?.access_token) {
+        setMessage("Check In Error: Session મળ્યો નથી. ફરી login કરો.");
+        setAttendanceLoading(false);
+        return;
+      }
+
+      const response = await fetch("/api/attendance/check-in", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          latitude: location.latitude,
+          longitude: location.longitude,
+          accuracy: location.accuracy,
+        }),
+      });
+
+      const result = (await response.json()) as {
+        error?: string;
+        check_in?: string;
+        attendance_type?: string;
+        late_minutes?: number;
+        distance_m?: number | null;
+        accuracy_m?: number | null;
+        approval_required?: boolean;
+        gps_required?: boolean;
+      };
+
+      if (!response.ok || !result.check_in) {
+        if (response.status === 409) {
+          await loadAttendance(employee.id, officeSettings);
         }
-      );
 
-      if (error) {
-        setMessage(`Check In Error: ${error.message}`);
+        setMessage(
+          `Check In Error: ${result.error || "Check In save થયું નથી."}`
+        );
         setAttendanceLoading(false);
         return;
       }
 
       await loadAttendance(employee.id, officeSettings);
 
-      const result = (data || {}) as {
-        attendance_type?: string;
-        late_minutes?: number;
-        distance_m?: number;
-        accuracy_m?: number;
-        approval_required?: boolean;
-      };
-
       const distanceText =
-        result.distance_m === undefined
+        result.distance_m === null || result.distance_m === undefined
           ? ""
           : ` • Officeથી ${result.distance_m}m`;
 
@@ -841,7 +909,7 @@ export default function EmployeeDashboard() {
         );
       } else {
         setMessage(
-          gpsRequired
+          result.gps_required
             ? `Check In સફળ ✅ GPS Verified${distanceText}`
             : "Check In સફળ ✅ GPS Requirement OFF"
         );
