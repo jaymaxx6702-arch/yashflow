@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { integrationSupabase } from "@/utils/supabase/integration-server";
 
-const RESET_CUTOFF = "2026-09-19T10:20:00.000Z";
-
 function chunks<T>(items: T[], size = 100) {
   const result: T[][] = [];
   for (let i = 0; i < items.length; i += size) {
@@ -45,20 +43,13 @@ export async function POST(request: Request) {
 
     const { data: orderRows, error: orderError } = await db
       .from("orders")
-      .select("id, created_at");
+      .select("id");
 
     if (orderError) {
       return NextResponse.json({ error: orderError.message }, { status: 500 });
     }
 
-    const cutoffMs = Date.parse(RESET_CUTOFF);
-    const orderIds = (orderRows || [])
-      .filter((row) => {
-        if (!row.created_at) return true;
-        const createdMs = Date.parse(row.created_at);
-        return Number.isFinite(createdMs) && createdMs <= cutoffMs;
-      })
-      .map((row) => row.id);
+    const orderIds = (orderRows || []).map((row) => row.id);
 
     if (!orderIds.length) {
       return NextResponse.json({ ok: true, deleted_orders: 0, already_clean: true });
@@ -116,7 +107,6 @@ export async function POST(request: Request) {
       ok: true,
       deleted_orders: orderIds.length,
       deleted_proof_files: proofPaths.length,
-      cutoff: RESET_CUTOFF,
     });
   } catch (error) {
     return NextResponse.json(
