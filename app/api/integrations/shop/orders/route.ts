@@ -99,14 +99,26 @@ export async function POST(request: Request) {
     }
 
     const productId = map.get(item.shopProductId)!;
-    const { data: product } = await db
+    const { data: product, error: productError } = await db
       .from("products")
-      .select("id,name")
+      .select("id,name,is_active")
       .eq("id", productId)
-      .eq("is_active", true)
       .maybeSingle();
+    if (productError)
+      return NextResponse.json(
+        { error: `YashFlow product lookup failed: ${productError.message}` },
+        { status: 500 },
+      );
     if (!product)
-      return NextResponse.json({ error: `Mapped YashFlow product is unavailable for ${item.shopProductId}.` }, { status: 409 });
+      return NextResponse.json(
+        { error: `Mapped YashFlow product was not found for ${item.shopProductId}.` },
+        { status: 409 },
+      );
+    if (!product.is_active)
+      return NextResponse.json(
+        { error: `Mapped YashFlow product is inactive for ${item.shopProductId}.` },
+        { status: 409 },
+      );
 
     let { data: workflow } = await db
       .from("workflow_templates")
