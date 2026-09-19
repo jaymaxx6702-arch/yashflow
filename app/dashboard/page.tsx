@@ -645,11 +645,15 @@ export default function EmployeeDashboard() {
       )
       .eq("employee_id", employeeId)
       .eq("attendance_date", today)
-      .maybeSingle();
+      .order("check_in", { ascending: false, nullsFirst: false })
+      .limit(1);
 
-    if (!error) {
-      setAttendance(data);
+    if (error) {
+      setMessage(`Attendance Load Error: ${error.message}`);
+      return;
     }
+
+    setAttendance(((data || [])[0] as Attendance | undefined) || null);
   }
 
   useEffect(() => {
