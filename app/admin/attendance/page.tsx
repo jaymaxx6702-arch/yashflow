@@ -301,13 +301,29 @@ export default function AdminAttendancePage() {
       return;
     }
 
+    const attendanceByEmployee = new Map<string, Attendance>();
+
+    for (const item of (attendanceData || []) as Attendance[]) {
+      const existing = attendanceByEmployee.get(item.employee_id);
+      const itemCheckIn = item.check_in ? new Date(item.check_in).getTime() : 0;
+      const existingCheckIn = existing?.check_in
+        ? new Date(existing.check_in).getTime()
+        : 0;
+
+      if (
+        !existing ||
+        (Boolean(item.check_out) && !existing.check_out) ||
+        (Boolean(item.check_out) === Boolean(existing.check_out) &&
+          itemCheckIn > existingCheckIn)
+      ) {
+        attendanceByEmployee.set(item.employee_id, item);
+      }
+    }
+
     const finalRows: AttendanceRow[] =
       (employees || []).map((employee) => {
         const attendance =
-          (attendanceData || []).find(
-            (item) =>
-              item.employee_id === employee.id
-          ) || null;
+          attendanceByEmployee.get(employee.id) || null;
 
         const leave =
           (leaveData || []).find(
