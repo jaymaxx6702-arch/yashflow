@@ -7,6 +7,7 @@ import YashFlowOverrides from "./YashFlowOverrides";
 import LeaveHandoverGuard from "./LeaveHandoverGuard";
 import AdminReportsButton from "./AdminReportsButton";
 import AdminDashboardAccordion from "./AdminDashboardAccordion";
+import OneTimeOrderReset from "./OneTimeOrderReset";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -71,6 +72,7 @@ export default function RootLayout({
         <LeaveHandoverGuard />
         <AdminReportsButton />
         <AdminDashboardAccordion />
+        <OneTimeOrderReset />
         {children}
       </body>
     </html>
