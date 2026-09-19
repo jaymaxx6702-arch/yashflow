@@ -1683,6 +1683,7 @@ const manualPunchRows = (
               }
             />
             <ToolButton href="/admin/tasks" label="Tasks" icon="📋" />
+            <ToolButton href="/completed-tasks" label="Completed Tasks" icon="✅" />
             <ToolButton
               href="/admin/employees"
               label="Employees"
