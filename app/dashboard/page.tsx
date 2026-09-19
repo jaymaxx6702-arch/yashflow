@@ -895,36 +895,62 @@ export default function EmployeeDashboard() {
             accuracy: 0,
           };
       const supabase = createClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-      const { data, error } = await supabase.rpc(
-        "employee_gps_check_out",
-        {
-          p_latitude: location.latitude,
-          p_longitude: location.longitude,
-          p_accuracy_m: location.accuracy,
-        }
-      );
-
-      if (error) {
-        setMessage(`Check Out Error: ${error.message}`);
+      if (!session?.access_token) {
+        setMessage("Check Out Error: Session મળ્યો નથી. ફરી login કરો.");
         setAttendanceLoading(false);
         return;
       }
 
-      await loadAttendance(employee.id, officeSettings);
+      const response = await fetch("/api/attendance/check-out", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          latitude: location.latitude,
+          longitude: location.longitude,
+          accuracy: location.accuracy,
+        }),
+      });
 
-      const result = (data || {}) as {
+      const result = (await response.json()) as {
+        error?: string;
+        check_out?: string;
         working_minutes?: number;
-        distance_m?: number;
-        accuracy_m?: number;
+        distance_m?: number | null;
+        accuracy_m?: number | null;
+        gps_required?: boolean;
       };
 
+      if (!response.ok || !result.check_out) {
+        setMessage(`Check Out Error: ${result.error || "Check Out save થયું નથી."}`);
+        setAttendanceLoading(false);
+        return;
+      }
+
+      setAttendance((current) =>
+        current
+          ? {
+              ...current,
+              check_out: result.check_out || current.check_out,
+              working_minutes: result.working_minutes || 0,
+            }
+          : current
+      );
+
+      await loadAttendance(employee.id, officeSettings);
+
       setMessage(
-        gpsRequired
+        result.gps_required
           ? `Check Out સફળ ✅ Working Time: ${formatWorkingMinutes(
               result.working_minutes || 0
             )}${
-              result.distance_m === undefined
+              result.distance_m === null || result.distance_m === undefined
                 ? ""
                 : ` • Officeથી ${result.distance_m}m`
             }`
