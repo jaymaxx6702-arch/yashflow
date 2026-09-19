@@ -66,6 +66,7 @@ type StageWorker = {
   order_stage_work_id: string;
   employee_id: string;
   worker_role: "primary" | "support";
+  left_at: string | null;
 };
 
 type TemplateStageConfig = {
@@ -169,31 +170,40 @@ export default function EmployeeOrdersPage() {
     [employees]
   );
 
-  const workByOrder = useMemo(() => {
-    const map = new Map<string, StageWork>();
-
-    for (const work of stageWorks) {
-      if (!map.has(work.order_id)) {
-        map.set(work.order_id, work);
-      }
-    }
-
-    return map;
-  }, [stageWorks]);
-
   const teamByWork = useMemo(() => {
     const map = new Map<string, StageWorker[]>();
 
     for (const worker of stageWorkers) {
+      if (worker.left_at) continue;
+
       const list = map.get(worker.order_stage_work_id) || [];
-
       list.push(worker);
-
       map.set(worker.order_stage_work_id, list);
     }
 
     return map;
   }, [stageWorkers]);
+
+  const employeeWorkByOrder = useMemo(() => {
+    const map = new Map<string, StageWork>();
+
+    if (!employee) return map;
+
+    // stageWorks is newest-first. Pick the newest ACTIVE work that belongs
+    // to the logged-in employee, not just the newest work for the order.
+    for (const work of stageWorks) {
+      const isPrimary = work.primary_employee_id === employee.id;
+      const isSupport = (teamByWork.get(work.id) || []).some(
+        (worker) => worker.employee_id === employee.id
+      );
+
+      if ((isPrimary || isSupport) && !map.has(work.order_id)) {
+        map.set(work.order_id, work);
+      }
+    }
+
+    return map;
+  }, [stageWorks, employee, teamByWork]);
 
   const proofsByWork = useMemo(() => {
     const map = new Map<string, StageProof[]>();
@@ -331,7 +341,8 @@ export default function EmployeeOrdersPage() {
           id,
           order_stage_work_id,
           employee_id,
-          worker_role
+          worker_role,
+          left_at
         `)
         .in("order_stage_work_id", workIds),
 
@@ -959,7 +970,7 @@ export default function EmployeeOrdersPage() {
 
     return orders
       .filter((order) => {
-        const work = workByOrder.get(order.id);
+        const work = employeeWorkByOrder.get(order.id);
 
         if (!work) return false;
 
@@ -981,22 +992,22 @@ export default function EmployeeOrdersPage() {
 
         return priorityRank[b.priority] - priorityRank[a.priority];
       });
-  }, [orders, employee, workByOrder, teamByWork]);
+  }, [orders, employee, employeeWorkByOrder]);
 
   const assignedCount = myOrders.filter(
-    (order) => workByOrder.get(order.id)?.status === "assigned"
+    (order) => employeeWorkByOrder.get(order.id)?.status === "assigned"
   ).length;
 
   const inProgressCount = myOrders.filter(
-    (order) => workByOrder.get(order.id)?.status === "in_progress"
+    (order) => employeeWorkByOrder.get(order.id)?.status === "in_progress"
   ).length;
 
   const readyCount = myOrders.filter(
-    (order) => workByOrder.get(order.id)?.status === "ready_for_approval"
+    (order) => employeeWorkByOrder.get(order.id)?.status === "ready_for_approval"
   ).length;
 
   const attentionCount = myOrders.filter((order) => {
-    const status = workByOrder.get(order.id)?.status;
+    const status = employeeWorkByOrder.get(order.id)?.status;
     return (
       status === "waiting" ||
       status === "ready_for_approval" ||
@@ -1009,7 +1020,7 @@ export default function EmployeeOrdersPage() {
     const query = searchText.trim().toLowerCase();
 
     return myOrders.filter((order) => {
-      const status = workByOrder.get(order.id)?.status;
+      const status = employeeWorkByOrder.get(order.id)?.status;
       const searchMatch =
         !query ||
         order.order_number.toLowerCase().includes(query) ||
@@ -1029,7 +1040,7 @@ export default function EmployeeOrdersPage() {
 
       return searchMatch && tabMatch;
     });
-  }, [myOrders, searchText, orderTab, workByOrder]);
+  }, [myOrders, searchText, orderTab, employeeWorkByOrder]);
 
   if (loading) {
     return (
@@ -1121,7 +1132,7 @@ export default function EmployeeOrdersPage() {
 
         <section className="space-y-2">
           {filteredMyOrders.map((order) => {
-            const work = workByOrder.get(order.id);
+            const work = employeeWorkByOrder.get(order.id);
 
             if (!work) return null;
 
