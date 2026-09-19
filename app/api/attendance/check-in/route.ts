@@ -135,6 +135,13 @@ export async function POST(request: Request) {
       const officeLatitude = Number(geofence.latitude);
       const officeLongitude = Number(geofence.longitude);
       const radiusM = Number(geofence.radius_m || 200);
+
+      if (!Number.isFinite(officeLatitude) || !Number.isFinite(officeLongitude)) {
+        return NextResponse.json(
+          { error: "Office GPS Location valid નથી." },
+          { status: 400 }
+        );
+      }
       const maxAccuracyM = Number(geofence.max_accuracy_m || 150);
 
       if (
@@ -199,24 +206,26 @@ export async function POST(request: Request) {
       .select("id, check_in, check_out")
       .eq("employee_id", employee.id)
       .eq("attendance_date", today)
-      .limit(1);
+      .order("check_in", { ascending: false, nullsFirst: false });
 
     if (existingError) {
       return NextResponse.json({ error: existingError.message }, { status: 500 });
     }
 
-    const existing = existingRows?.[0];
+    const alreadyCheckedIn = (existingRows || []).find((row) => Boolean(row.check_in));
 
-    if (existing?.check_in) {
+    if (alreadyCheckedIn?.check_in) {
       return NextResponse.json(
         {
           error: "આજે Check In પહેલેથી થઈ ગયું છે.",
-          attendance_id: existing.id,
-          check_in: existing.check_in,
+          attendance_id: alreadyCheckedIn.id,
+          check_in: alreadyCheckedIn.check_in,
         },
         { status: 409 }
       );
     }
+
+    const existing = (existingRows || [])[0];
 
     const payload = {
       employee_id: employee.id,
