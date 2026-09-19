@@ -940,9 +940,7 @@ export default function EmployeeDashboard() {
     }
 
     const confirmed = window.confirm(
-      attendance.check_out
-        ? "Check Out time ફરી update કરવો છે? Current Check Out નવી GPS timeથી replace થશે."
-        : "હમણાં Check Out કરવું છે?"
+      "હમણાં Check Out કરવું છે?"
     );
 
     if (!confirmed) return;
@@ -1233,20 +1231,13 @@ export default function EmployeeDashboard() {
               )}
 
               {attendance?.check_out && (
-                <div className="flex items-center gap-2">
+                <div className="text-right">
                   <span className="yf-badge yf-badge-green">
                     Done ✓
                   </span>
-
-                  <button
-                    type="button"
-                    onClick={handleCheckOut}
-                    disabled={attendanceLoading}
-                    className="yf-btn yf-btn-warning disabled:opacity-60"
-                    title="Accidental checkout હોય તો actual leaving time પર ફરી update કરો"
-                  >
-                    {attendanceLoading ? "Wait..." : "Update Check Out"}
-                  </button>
+                  <p className="text-[10px] font-semibold text-slate-400 mt-1">
+                    Correction માટે Manual Punch વાપરો
+                  </p>
                 </div>
               )}
             </div>
