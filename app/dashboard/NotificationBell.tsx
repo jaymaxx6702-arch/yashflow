@@ -338,6 +338,7 @@ export default function NotificationBell({ employeeId }: Props) {
           created_at
         `)
         .eq("employee_id", employeeId)
+        .eq("is_read", false)
         .order("created_at", { ascending: false })
         .limit(30);
 
@@ -441,11 +442,7 @@ export default function NotificationBell({ employeeId }: Props) {
     }
 
     setNotifications((current) =>
-      current.map((item) =>
-        item.id === notificationId
-          ? { ...item, is_read: true, read_at: now }
-          : item
-      )
+      current.filter((item) => item.id !== notificationId)
     );
 
     return true;
@@ -475,13 +472,7 @@ export default function NotificationBell({ employeeId }: Props) {
       return;
     }
 
-    setNotifications((current) =>
-      current.map((item) => ({
-        ...item,
-        is_read: true,
-        read_at: item.read_at || now,
-      }))
-    );
+    setNotifications([]);
 
     setMarkingAll(false);
   }
