@@ -185,7 +185,6 @@ export default function TaskTeamCenterPage() {
         return Boolean(
           task.due_date &&
           task.due_date < today &&
-          task.status !== "completed" &&
           task.status !== "cancelled"
         );
       }
