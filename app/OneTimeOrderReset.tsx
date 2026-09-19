@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 
-const RESET_KEY = "yf-order-reset-2026-09-19-v1";
+const RESET_KEY = "yf-order-reset-2026-09-19-v2";
 
 export default function OneTimeOrderReset() {
   const pathname = usePathname();
