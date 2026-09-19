@@ -189,15 +189,34 @@ export default function EmployeeOrdersPage() {
 
     if (!employee) return map;
 
-    // stageWorks is newest-first. Pick the newest ACTIVE work that belongs
-    // to the logged-in employee, not just the newest work for the order.
+    const statusRank: Record<WorkflowStatus, number> = {
+      in_progress: 100,
+      assigned: 90,
+      rework: 85,
+      hold: 80,
+      ready_for_approval: 70,
+      waiting: 60,
+      completed: 10,
+      cancelled: 0,
+    };
+
     for (const work of stageWorks) {
       const isPrimary = work.primary_employee_id === employee.id;
       const isSupport = (teamByWork.get(work.id) || []).some(
         (worker) => worker.employee_id === employee.id
       );
 
-      if ((isPrimary || isSupport) && !map.has(work.order_id)) {
+      if (!isPrimary && !isSupport) continue;
+
+      const existing = map.get(work.order_id);
+
+      if (
+        !existing ||
+        statusRank[work.status] > statusRank[existing.status] ||
+        (statusRank[work.status] === statusRank[existing.status] &&
+          new Date(work.created_at).getTime() >
+            new Date(existing.created_at).getTime())
+      ) {
         map.set(work.order_id, work);
       }
     }
@@ -992,7 +1011,7 @@ export default function EmployeeOrdersPage() {
 
         return priorityRank[b.priority] - priorityRank[a.priority];
       });
-  }, [orders, employee, employeeWorkByOrder]);
+  }, [orders, employee, employeeWorkByOrder, teamByWork]);
 
   const assignedCount = myOrders.filter(
     (order) => employeeWorkByOrder.get(order.id)?.status === "assigned"
