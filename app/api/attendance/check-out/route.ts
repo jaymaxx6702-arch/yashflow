@@ -132,6 +132,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "આજે Check In મળ્યું નથી." }, { status: 400 });
     }
 
+    if (attendance.check_out) {
+      return NextResponse.json(
+        {
+          error:
+            "આજે Check Out પહેલેથી થઈ ગયું છે. Correction માટે Manual Punch અથવા Admin Attendance વાપરો.",
+          check_out: attendance.check_out,
+          working_minutes: attendance.working_minutes || 0,
+        },
+        { status: 409 }
+      );
+    }
+
     const gpsRequired = Boolean(geofence?.is_active && geofence.require_check_out);
     let distanceM: number | null = null;
     let accuracyM: number | null = null;
