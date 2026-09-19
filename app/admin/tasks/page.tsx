@@ -546,6 +546,8 @@ export default function AdminTasksPage() {
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
+      if (task.status === "completed") return false;
+
       const statusMatch =
         filterStatus === "all" || task.status === filterStatus;
 
@@ -614,13 +616,22 @@ export default function AdminTasksPage() {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => router.push("/admin")}
-            className="yf-btn border-white/20 bg-white/10 text-white hover:bg-white/20"
-          >
-            ← Admin Dashboard
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => router.push("/completed-tasks")}
+              className="yf-btn bg-green-600 text-white hover:bg-green-500"
+            >
+              Completed Tasks
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push("/admin")}
+              className="yf-btn border-white/20 bg-white/10 text-white hover:bg-white/20"
+            >
+              ← Admin Dashboard
+            </button>
+          </div>
         </div>
       </header>
 
@@ -882,9 +893,6 @@ export default function AdminTasksPage() {
                   </option>
                   <option value="in_progress">
                     In Progress
-                  </option>
-                  <option value="completed">
-                    Completed
                   </option>
                   <option value="cancelled">
                     Cancelled
