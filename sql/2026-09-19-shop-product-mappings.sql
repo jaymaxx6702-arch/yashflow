@@ -5,28 +5,35 @@
 
 begin;
 
-with required_names(name) as (
-  values
-    ('Shield'),
-    ('Wooden Mement'),
-    ('Standee Cut-Out'),
-    ('Name Plate'),
-    ('Key-Chain'),
-    ('ID CARD')
-),
-missing as (
-  select r.name
-  from required_names r
-  left join public.products p
-    on p.name = r.name and p.is_active = true
-  group by r.name
-  having count(p.id) <> 1
-)
-select case
-  when exists (select 1 from missing)
-  then 1 / 0
-  else 1
-end as mapping_preflight;
+do $
+declare
+  bad_names text;
+begin
+  select string_agg(name, ', ' order by name)
+  into bad_names
+  from (
+    select r.name
+    from (
+      values
+        ('Shield'),
+        ('Wooden Mement'),
+        ('Standee Cut-Out'),
+        ('Name Plate'),
+        ('Key-Chain'),
+        ('ID CARD')
+    ) as r(name)
+    left join public.products p
+      on p.name = r.name
+     and p.is_active = true
+    group by r.name
+    having count(p.id) <> 1
+  ) x;
+
+  if bad_names is not null then
+    raise exception 'Expected exactly one active YashFlow product for: %', bad_names;
+  end if;
+end
+$;
 
 with mappings(shop_product_id, yashflow_product_name) as (
 values
