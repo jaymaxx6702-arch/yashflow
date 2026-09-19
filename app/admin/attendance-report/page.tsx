@@ -358,6 +358,26 @@ if (officeSettingsError) {
       .split("-")
       .map(Number);
 
+    const attendanceByDay = new Map<string, Attendance>();
+
+    for (const item of attendance) {
+      const key = `${item.employee_id}|${item.attendance_date}`;
+      const existing = attendanceByDay.get(key);
+      const itemCheckIn = item.check_in ? new Date(item.check_in).getTime() : 0;
+      const existingCheckIn = existing?.check_in
+        ? new Date(existing.check_in).getTime()
+        : 0;
+
+      if (
+        !existing ||
+        (Boolean(item.check_out) && !existing.check_out) ||
+        (Boolean(item.check_out) === Boolean(existing.check_out) &&
+          itemCheckIn > existingCheckIn)
+      ) {
+        attendanceByDay.set(key, item);
+      }
+    }
+
     return employees.map((employee) => {
       let present = 0;
       let late = 0;
@@ -393,10 +413,8 @@ if (officeSettingsError) {
           continue;
         }
 
-        const attendanceRecord = attendance.find(
-          (item) =>
-            item.employee_id === employee.id &&
-            item.attendance_date === date
+        const attendanceRecord = attendanceByDay.get(
+          `${employee.id}|${date}`
         );
 
         if (attendanceRecord) {
