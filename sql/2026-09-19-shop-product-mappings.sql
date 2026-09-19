@@ -373,7 +373,7 @@ select
   now()
 from mappings m
 join public.products p
-  on p.name = m.yashflow_product_name
+  on lower(trim(p.name)) = lower(trim(m.yashflow_product_name))
  and p.is_active = true
 on conflict (shop_product_id)
 do update set
