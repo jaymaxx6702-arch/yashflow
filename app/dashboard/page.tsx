@@ -161,6 +161,7 @@ export default function EmployeeDashboard() {
   const [pendingLeaveCount, setPendingLeaveCount] = useState(0);
   const [canViewPurchase, setCanViewPurchase] = useState(false);
   const [canViewDispatch, setCanViewDispatch] = useState(false);
+  const [canCreateOrders, setCanCreateOrders] = useState(false);
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
 
   const [loading, setLoading] = useState(true);
@@ -479,6 +480,7 @@ export default function EmployeeDashboard() {
       purchaseManage,
       dispatchView,
       dispatchManage,
+      orderCreate,
     ] = await Promise.all([
       supabase.rpc("has_app_permission", {
         p_permission_key: "purchase.view",
@@ -492,13 +494,17 @@ export default function EmployeeDashboard() {
       supabase.rpc("has_app_permission", {
         p_permission_key: "dispatch.manage",
       }),
+      supabase.rpc("has_app_permission", {
+        p_permission_key: "orders.create",
+      }),
     ]);
 
     const firstError =
       purchaseView.error ||
       purchaseManage.error ||
       dispatchView.error ||
-      dispatchManage.error;
+      dispatchManage.error ||
+      orderCreate.error;
 
     if (firstError) {
       console.warn("Permission Load Error:", firstError.message);
@@ -512,6 +518,8 @@ export default function EmployeeDashboard() {
     setCanViewDispatch(
       Boolean(dispatchView.data) || Boolean(dispatchManage.data)
     );
+
+    setCanCreateOrders(Boolean(orderCreate.data));
   }
 
   async function loadLiveSummary(
@@ -1278,6 +1286,18 @@ export default function EmployeeDashboard() {
               icon="📋"
               onClick={() => router.push("/dashboard/tasks")}
             />
+            <QuickApp
+              label="Completed Tasks"
+              icon="✅"
+              onClick={() => router.push("/completed-tasks")}
+            />
+            {canCreateOrders && (
+              <QuickApp
+                label="Create Order"
+                icon="➕"
+                onClick={() => router.push("/dashboard/order-create")}
+              />
+            )}
             <QuickApp
               label="Leave"
               icon="🗓️"
