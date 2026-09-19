@@ -168,19 +168,39 @@ export default function ManualPunchRequest({
     setMessage("");
 
     const supabase = createClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-    const { error } = await supabase.rpc(
-      "employee_create_manual_punch_request",
-      {
-        p_attendance_date: attendanceDate,
-        p_punch_in: punchIn || null,
-        p_punch_out: punchOut || null,
-        p_reason: reason.trim(),
-      }
-    );
+    if (!session?.access_token) {
+      setMessage("Manual Punch Error: Session મળ્યો નથી. ફરી login કરો.");
+      setSaving(false);
+      return;
+    }
 
-    if (error) {
-      setMessage(`Manual Punch Error: ${error.message}`);
+    const response = await fetch("/api/attendance/manual-request", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        attendance_date: attendanceDate,
+        punch_in_time: punchIn || null,
+        punch_out_time: punchOut || null,
+        reason: reason.trim(),
+      }),
+    });
+
+    const result = (await response.json()) as {
+      error?: string;
+      request_id?: string;
+    };
+
+    if (!response.ok || !result.request_id) {
+      setMessage(
+        `Manual Punch Error: ${result.error || "Request save થયું નથી."}`
+      );
       setSaving(false);
       return;
     }
