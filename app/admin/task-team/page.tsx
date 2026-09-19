@@ -168,6 +168,8 @@ export default function TaskTeamCenterPage() {
     const today = todayIndia();
 
     return tasks.filter((task) => {
+      if (task.status === "completed") return false;
+
       const employee = employeeMap.get(task.assigned_to);
       const matchesSearch =
         !q ||
@@ -369,7 +371,6 @@ export default function TaskTeamCenterPage() {
             <option value="all">All Tasks</option>
             <option value="pending">Pending</option>
             <option value="in_progress">In Progress</option>
-            <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
           </select>
         </section>
