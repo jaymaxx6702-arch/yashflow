@@ -140,8 +140,12 @@ export async function POST(request: Request) {
       const latitude = Number(body.latitude);
       const longitude = Number(body.longitude);
       const accuracy = Number(body.accuracy);
-      const officeLatitude = Number(geofence?.latitude);
-      const officeLongitude = Number(geofence?.longitude);
+      if (geofence?.latitude === null || geofence?.longitude === null) {
+        return NextResponse.json({ error: "Office GPS Location set થયેલું નથી." }, { status: 400 });
+      }
+
+      const officeLatitude = Number(geofence.latitude);
+      const officeLongitude = Number(geofence.longitude);
       const radiusM = Number(geofence?.radius_m || 200);
       const maxAccuracyM = Number(geofence?.max_accuracy_m || 150);
 
