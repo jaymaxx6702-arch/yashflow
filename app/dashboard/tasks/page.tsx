@@ -184,9 +184,10 @@ export default function EmployeeTasksPage() {
   }
 
   const filteredTasks = useMemo(() => {
-    if (filterStatus === "all") return tasks;
+    const activeTasks = tasks.filter((task) => task.status !== "completed");
+    if (filterStatus === "all") return activeTasks;
 
-    return tasks.filter((task) => task.status === filterStatus);
+    return activeTasks.filter((task) => task.status === filterStatus);
   }, [tasks, filterStatus]);
 
   if (loading) {
@@ -208,13 +209,22 @@ export default function EmployeeTasksPage() {
             <p className="text-slate-300 text-sm mt-1">My Tasks</p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => router.push("/dashboard")}
-            className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl font-semibold"
-          >
-            ← Dashboard
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => router.push("/completed-tasks")}
+              className="bg-green-600 hover:bg-green-500 px-4 py-2 rounded-xl font-semibold"
+            >
+              Completed Tasks
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push("/dashboard")}
+              className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl font-semibold"
+            >
+              ← Dashboard
+            </button>
+          </div>
         </div>
       </header>
 
@@ -234,7 +244,6 @@ export default function EmployeeTasksPage() {
             <option value="all">All Tasks</option>
             <option value="pending">Pending</option>
             <option value="in_progress">In Progress</option>
-            <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
           </select>
         </div>
