@@ -541,7 +541,21 @@ setCorrectionRequests(visibleCorrections);
       const map: Record<string, ExistingAttendance> = {};
 
       for (const item of (attendanceRows || []) as ExistingAttendance[]) {
-        map[attendanceMapKey(item.employee_id, item.attendance_date)] = item;
+        const key = attendanceMapKey(item.employee_id, item.attendance_date);
+        const existing = map[key];
+        const itemCheckIn = item.check_in ? new Date(item.check_in).getTime() : 0;
+        const existingCheckIn = existing?.check_in
+          ? new Date(existing.check_in).getTime()
+          : 0;
+
+        if (
+          !existing ||
+          (Boolean(item.check_out) && !existing.check_out) ||
+          (Boolean(item.check_out) === Boolean(existing.check_out) &&
+            itemCheckIn > existingCheckIn)
+        ) {
+          map[key] = item;
+        }
       }
 
       setExistingAttendanceMap(map);
@@ -641,18 +655,39 @@ setCorrectionRequests(visibleCorrections);
     setMessage("");
 
     const supabase = createClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-    const { error } = await supabase.rpc(
-      "admin_review_manual_punch_request",
-      {
-        p_request_id: requestId,
-        p_action: action,
-        p_admin_note: manualNotes[requestId]?.trim() || null,
-      }
-    );
+    if (!session?.access_token) {
+      setMessage("Manual Punch Review Error: Admin session મળ્યો નથી.");
+      setActionId(null);
+      return;
+    }
 
-    if (error) {
-      setMessage(`Manual Punch ${action} Error: ${error.message}`);
+    const response = await fetch("/api/admin/attendance/manual-review", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        request_id: requestId,
+        action,
+        admin_note: manualNotes[requestId]?.trim() || null,
+      }),
+    });
+
+    const result = (await response.json()) as {
+      error?: string;
+      status?: string;
+      attendance_id?: string;
+    };
+
+    if (!response.ok) {
+      setMessage(
+        `Manual Punch ${action} Error: ${result.error || "Review failed."}`
+      );
       setActionId(null);
       return;
     }
