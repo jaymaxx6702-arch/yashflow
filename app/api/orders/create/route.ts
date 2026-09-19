@@ -89,7 +89,8 @@ export async function POST(request: Request) {
 
   if (!body?.customerName?.trim()) return NextResponse.json({ error: "Customer Name જરૂરી છે." }, { status: 400 });
   if (!body.productId) return NextResponse.json({ error: "Product select કરો." }, { status: 400 });
-  if (!Number.isInteger(body.quantity) || Number(body.quantity) <= 0) {
+  const qty = Number(body.quantity);
+  if (!Number.isInteger(qty) || qty <= 0) {
     return NextResponse.json({ error: "Quantity સાચી નાખો." }, { status: 400 });
   }
 
@@ -217,7 +218,7 @@ export async function POST(request: Request) {
       product_id: product.id,
       product_name: product.name,
       product_configuration: configurationSnapshot,
-      quantity: body.quantity,
+      quantity: qty,
       order_source: body.orderSource || "other",
       current_stage: firstStage.code,
       current_stage_id: firstStage.id,
