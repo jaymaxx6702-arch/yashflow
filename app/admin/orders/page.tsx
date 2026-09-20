@@ -640,29 +640,6 @@ export default function AdminOrdersPage() {
     await supabase.from("order_stage_workers").insert(rows);
   }
 
-  async function notifyAssignedWorkers(
-    employeeIds: string[],
-    title: string,
-    messageText: string,
-    orderId: string
-  ) {
-    if (!employeeIds.length) return;
-
-    const supabase = createClient();
-
-    await supabase.from("notifications").insert(
-      employeeIds.map((employeeId) => ({
-        employee_id: employeeId,
-        notification_type: "order_assignment",
-        title,
-        message: messageText,
-        related_type: "order",
-        related_id: orderId,
-      }))
-    );
-  }
-
-
   function resetFinancialForms() {
     setSelectedPayment(null);
     setSelectedBilling(null);
@@ -1646,13 +1623,6 @@ export default function AdminOrdersPage() {
       note: `Workflow: ${productWorkflow.name}`,
     });
 
-    await notifyAssignedWorkers(
-      initialAssignment.assignedIds,
-      "New Order Assigned",
-      `${newOrder.order_number} - ${firstStage.name} તમને assign થયું છે.`,
-      newOrder.id
-    );
-
     setCustomerName("");
     setCustomerMobile("");
     setSelectedProductId("");
@@ -2173,13 +2143,6 @@ export default function AdminOrdersPage() {
       to_status: targetStatus,
       employee_id: adminId,
     });
-
-    await notifyAssignedWorkers(
-      targetAssignment.assignedIds,
-      "Order Stage Assigned",
-      `${order.order_number} - ${targetStage.name} તમને assign થયું છે.`,
-      order.id
-    );
 
     setMessage(
       targetAssignment.assignedIds.length
