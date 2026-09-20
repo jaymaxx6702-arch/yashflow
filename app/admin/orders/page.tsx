@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import CreateOrderStagePlan, {
+  type CreateStagePlanValue,
+} from "./CreateOrderStagePlan";
 
 type OrderSource =
   | "amazon"
@@ -378,6 +381,8 @@ export default function AdminOrdersPage() {
   const [dueDate, setDueDate] = useState("");
   const [customerNote, setCustomerNote] = useState("");
   const [adminNote, setAdminNote] = useState("");
+  const [createStagePlanOverrides, setCreateStagePlanOverrides] =
+    useState<CreateStagePlanValue>({});
 
   const [editForm, setEditForm] = useState<EditOrderForm>({
     customer_name: "",
@@ -608,6 +613,68 @@ export default function AdminOrdersPage() {
       supportIds: [] as string[],
       assignedIds: [primaryId],
     };
+  }
+
+  function createWorkflowForSelectedProduct() {
+    if (!selectedProductId) return null;
+
+    return (
+      workflowTemplates.find(
+        (template) =>
+          template.product_id === selectedProductId &&
+          template.is_active
+      ) ||
+      workflowTemplates.find(
+        (template) =>
+          template.is_default && template.is_active
+      ) ||
+      null
+    );
+  }
+
+  function createTemplateSequence() {
+    const workflow = createWorkflowForSelectedProduct();
+    if (!workflow) return [];
+
+    return workflowTemplateStages
+      .filter((item) => item.template_id === workflow.id)
+      .sort((a, b) => a.sequence_no - b.sequence_no);
+  }
+
+  function createStagePlannerRows() {
+    return createTemplateSequence()
+      .map((item) => {
+        const stage = stageMap.get(item.stage_id);
+        if (!stage) return null;
+
+        const defaults = getAssignmentPlan(item);
+
+        return {
+          templateStageId: item.id,
+          stageId: item.stage_id,
+          stageName: stage.name,
+          departmentName: stage.department_id
+            ? departmentMap.get(stage.department_id) || null
+            : null,
+          sequenceNo: item.sequence_no,
+          defaultPrimaryId: defaults.primaryId,
+          defaultSupportIds: defaults.supportIds,
+        };
+      })
+      .filter(
+        (item): item is NonNullable<typeof item> => Boolean(item)
+      );
+  }
+
+  function createPlannerEmployees() {
+    return employees
+      .filter((employee) => employee.role !== "admin")
+      .map((employee) => ({
+        id: employee.id,
+        full_name: employee.full_name,
+        department: employee.department,
+        departmentNames: employeeDepartmentNames(employee),
+      }));
   }
 
   async function saveAssignedTeam(
@@ -1411,6 +1478,7 @@ export default function AdminOrdersPage() {
 
   useEffect(() => {
     loadProductConfiguration(selectedProductId);
+    setCreateStagePlanOverrides({});
   }, [selectedProductId]);
 
   function openOrder(order: Order) {
@@ -1507,8 +1575,41 @@ export default function AdminOrdersPage() {
       return;
     }
 
-    const initialAssignment = getAssignmentPlan(firstTemplateStage);
-    const initialDefaultWorkerId = initialAssignment.primaryId;
+    const stageTeamPlans = templateSequence.map((item) => {
+      const defaults = getAssignmentPlan(item);
+      const override = createStagePlanOverrides[item.id];
+
+      const primaryId =
+        override?.primaryId !== undefined
+          ? override.primaryId
+          : defaults.primaryId;
+
+      const supportIds = Array.from(
+        new Set(
+          (override?.supportIds ?? defaults.supportIds).filter(
+            (id) => id && id !== primaryId
+          )
+        )
+      );
+
+      return {
+        templateStage: item,
+        primaryId,
+        supportIds,
+        assignedIds: primaryId
+          ? [primaryId, ...supportIds]
+          : supportIds,
+        source: override
+          ? "override"
+          : item.assignment_rule === "auto_assign"
+          ? "auto"
+          : "default",
+      };
+    });
+
+    const initialAssignment = stageTeamPlans[0];
+    const initialDefaultWorkerId =
+      initialAssignment?.primaryId || null;
     const initialWorkflowStatus: WorkflowStatus =
       initialDefaultWorkerId ? "assigned" : "waiting";
 
@@ -1566,6 +1667,80 @@ export default function AdminOrdersPage() {
       return;
     }
 
+    const { data: savedPlans, error: planError } = await supabase
+      .from("order_stage_plans")
+      .insert(
+        stageTeamPlans.map((plan) => ({
+          order_id: newOrder.id,
+          workflow_template_stage_id: plan.templateStage.id,
+          stage_id: plan.templateStage.stage_id,
+          sequence_no: plan.templateStage.sequence_no,
+          primary_employee_id: plan.primaryId,
+          source: plan.source,
+        }))
+      )
+      .select("id, workflow_template_stage_id");
+
+    if (planError || !savedPlans) {
+      await supabase.from("orders").delete().eq("id", newOrder.id);
+      setMessage(
+        `Stage Team Plan Error: ${planError?.message || "Unknown error"}`
+      );
+      setSaving(false);
+      return;
+    }
+
+    const savedPlanMap = new Map(
+      savedPlans.map((plan) => [
+        plan.workflow_template_stage_id,
+        plan.id,
+      ])
+    );
+
+    const planWorkerRows = stageTeamPlans.flatMap((plan) => {
+      const planId = savedPlanMap.get(plan.templateStage.id);
+      if (!planId) return [];
+
+      const rows: Array<{
+        order_stage_plan_id: string;
+        employee_id: string;
+        worker_role: "primary" | "support";
+      }> = [];
+
+      if (plan.primaryId) {
+        rows.push({
+          order_stage_plan_id: planId,
+          employee_id: plan.primaryId,
+          worker_role: "primary",
+        });
+      }
+
+      for (const employeeId of plan.supportIds) {
+        rows.push({
+          order_stage_plan_id: planId,
+          employee_id: employeeId,
+          worker_role: "support",
+        });
+      }
+
+      return rows;
+    });
+
+    if (planWorkerRows.length) {
+      const { error: planWorkerError } = await supabase
+        .from("order_stage_plan_workers")
+        .insert(planWorkerRows);
+
+      if (planWorkerError) {
+        await supabase.from("orders").delete().eq("id", newOrder.id);
+        setMessage(
+          `Stage Team Save Error: ${planWorkerError.message}`
+        );
+        setSaving(false);
+        return;
+      }
+    }
+
     await supabase.from("order_product_configurations").insert({
       order_id: newOrder.id,
       product_id: selectedProduct.id,
@@ -1596,19 +1771,21 @@ export default function AdminOrdersPage() {
     if (workData?.id) {
       await saveAssignedTeam(
         workData.id,
-        initialAssignment.primaryId,
-        initialAssignment.supportIds
+        initialAssignment?.primaryId || null,
+        initialAssignment?.supportIds || []
       );
     }
 
-    if (
-      firstTemplateStage?.assignment_rule === "auto_assign" &&
-      initialAssignment.primaryId
-    ) {
-      await supabase
-        .from("workflow_template_stages")
-        .update({ last_assigned_employee_id: initialAssignment.primaryId })
-        .eq("id", firstTemplateStage.id);
+    for (const plan of stageTeamPlans) {
+      if (
+        plan.templateStage.assignment_rule === "auto_assign" &&
+        plan.primaryId
+      ) {
+        await supabase
+          .from("workflow_template_stages")
+          .update({ last_assigned_employee_id: plan.primaryId })
+          .eq("id", plan.templateStage.id);
+      }
     }
 
     await supabase.from("order_workflow_history").insert({
@@ -1636,6 +1813,7 @@ export default function AdminOrdersPage() {
     setDueDate("");
     setCustomerNote("");
     setAdminNote("");
+    setCreateStagePlanOverrides({});
     setShowCreate(false);
 
     setMessage(
@@ -2652,6 +2830,13 @@ export default function AdminOrdersPage() {
                   </div>
                 );
               })}
+
+              <CreateOrderStagePlan
+                stages={createStagePlannerRows()}
+                employees={createPlannerEmployees()}
+                value={createStagePlanOverrides}
+                onChange={setCreateStagePlanOverrides}
+              />
 
               <div>
                 <label className="block text-sm font-black mb-2">Quantity</label>
