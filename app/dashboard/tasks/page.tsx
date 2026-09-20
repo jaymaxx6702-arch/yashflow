@@ -29,37 +29,87 @@ export default function EmployeeTasksPage() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
 
-  async function loadTasks() {
+  async function loadTasks(employeeIdOverride?: string) {
+    const currentEmployeeId = employeeIdOverride || employeeId;
+    if (!currentEmployeeId) return;
+
     const supabase = createClient();
 
-    const { data, error } = await supabase
-      .from("tasks")
-      .select(`
-        id,
-        assigned_to,
-        title,
-        description,
-        priority,
-        status,
-        due_date,
-        employee_note,
-        admin_note,
-        started_at,
-        completed_at,
-        created_at
-      `)
-      .order("created_at", { ascending: false });
+    const taskSelect = `
+      id,
+      assigned_to,
+      title,
+      description,
+      priority,
+      status,
+      due_date,
+      employee_note,
+      admin_note,
+      started_at,
+      completed_at,
+      created_at
+    `;
 
-    if (error) {
-      setMessage(`Task Load Error: ${error.message}`);
+    const [directResult, supportResult] = await Promise.all([
+      supabase
+        .from("tasks")
+        .select(taskSelect)
+        .eq("assigned_to", currentEmployeeId),
+      supabase
+        .from("task_support_workers")
+        .select("task_id")
+        .eq("employee_id", currentEmployeeId)
+        .eq("is_active", true),
+    ]);
+
+    const firstError = directResult.error || supportResult.error;
+    if (firstError) {
+      setMessage(`Task Load Error: ${firstError.message}`);
       return;
     }
 
-    setTasks((data || []) as Task[]);
+    const supportIds = Array.from(
+      new Set(
+        (supportResult.data || [])
+          .map((row) => row.task_id)
+          .filter(Boolean)
+      )
+    );
+
+    let supportTasks: Task[] = [];
+
+    if (supportIds.length > 0) {
+      const { data, error } = await supabase
+        .from("tasks")
+        .select(taskSelect)
+        .in("id", supportIds);
+
+      if (error) {
+        setMessage(`Support Task Load Error: ${error.message}`);
+        return;
+      }
+
+      supportTasks = (data || []) as Task[];
+    }
+
+    const merged = new Map<string, Task>();
+    for (const task of [
+      ...((directResult.data || []) as Task[]),
+      ...supportTasks,
+    ]) {
+      merged.set(task.id, task);
+    }
+
+    const rows = Array.from(merged.values()).sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() -
+        new Date(a.created_at).getTime()
+    );
+
+    setTasks(rows);
 
     const drafts: Record<string, string> = {};
-
-    (data || []).forEach((task: Task) => {
+    rows.forEach((task) => {
       drafts[task.id] = task.employee_note || "";
     });
 
@@ -97,7 +147,7 @@ export default function EmployeeTasksPage() {
 
       setEmployeeId(profile.id);
 
-      await loadTasks();
+      await loadTasks(profile.id);
 
       setLoading(false);
     }
@@ -145,7 +195,7 @@ export default function EmployeeTasksPage() {
 
     setMessage("Task status update થયો ✅");
 
-    await loadTasks();
+    await loadTasks(employeeId || undefined);
   }
 
   async function saveNote(taskId: string) {
@@ -166,7 +216,7 @@ export default function EmployeeTasksPage() {
 
     setMessage("Employee Note save થઈ ✅");
 
-    await loadTasks();
+    await loadTasks(employeeId || undefined);
   }
 
   function getPriorityStyle(priority: string) {
