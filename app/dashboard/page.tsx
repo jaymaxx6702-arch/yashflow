@@ -870,6 +870,7 @@ export default function EmployeeDashboard() {
           latitude: location.latitude,
           longitude: location.longitude,
           accuracy: location.accuracy,
+          early_reason: earlyReason,
         }),
       });
 
@@ -882,6 +883,8 @@ export default function EmployeeDashboard() {
         accuracy_m?: number | null;
         approval_required?: boolean;
         gps_required?: boolean;
+        early_checkout?: boolean;
+        approval_required?: boolean;
       };
 
       if (!response.ok || !result.check_in) {
@@ -939,8 +942,32 @@ export default function EmployeeDashboard() {
       return;
     }
 
+    const nowMinutes = getMinutesFromDate(new Date(), officeSettings.timezone);
+    const officeEndMinutes = timeStringToMinutes(officeSettings.office_end_time);
+    const isEarlyCheckout = nowMinutes < officeEndMinutes;
+    let earlyReason: string | null = null;
+
+    if (isEarlyCheckout) {
+      const reason = window.prompt(
+        `Office End ${formatOfficeTime(
+          officeSettings.office_end_time
+        )} પહેલાં Punch Out કરી રહ્યા છો. Reason લખો:`
+      );
+
+      if (reason === null) return;
+
+      if (reason.trim().length < 3) {
+        setMessage("Early Punch Out માટે Reason જરૂરી છે.");
+        return;
+      }
+
+      earlyReason = reason.trim();
+    }
+
     const confirmed = window.confirm(
-      "હમણાં Check Out કરવું છે?"
+      isEarlyCheckout
+        ? "Early Punch Out confirm કરવું છે?"
+        : "હમણાં Check Out કરવું છે?"
     );
 
     if (!confirmed) return;
@@ -1016,7 +1043,11 @@ export default function EmployeeDashboard() {
       await loadAttendance(employee.id, officeSettings);
 
       setMessage(
-        result.gps_required
+        result.early_checkout
+          ? `Early Punch Out સફળ ✅ Reason save થયું • Admin Review Pending • Working Time: ${formatWorkingMinutes(
+              result.working_minutes || 0
+            )}`
+          : result.gps_required
           ? `Check Out સફળ ✅ Working Time: ${formatWorkingMinutes(
               result.working_minutes || 0
             )}${
