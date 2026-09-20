@@ -1427,27 +1427,8 @@ async function updateStageApproval(
       return;
     }
 
-    const supabase = createClient();
-
-    const { count, error: countError } = await supabase
-      .from("orders")
-      .select("id", { count: "exact", head: true })
-      .eq("workflow_template_id", template.id);
-
-    if (countError) {
-      setMessage(`Workflow Usage Check Error: ${countError.message}`);
-      return;
-    }
-
-    if ((count || 0) > 0) {
-      setMessage(
-        `આ Workflow ${count} Orderમાં ઉપયોગમાં છે, એટલે Delete નહીં થાય. Deactivate કરો.`
-      );
-      return;
-    }
-
     const confirmed = window.confirm(
-      `"${template.name}" Workflow permanently delete કરવો છે?`
+      `"${template.name}" Workflow permanently delete કરવો છે? તેના Stage/Team configuration પણ delete થશે.`
     );
 
     if (!confirmed) return;
@@ -1455,10 +1436,14 @@ async function updateStageApproval(
     setActionId(`delete-${template.id}`);
     setMessage("");
 
-    const { error } = await supabase
-      .from("workflow_templates")
-      .delete()
-      .eq("id", template.id);
+    const supabase = createClient();
+
+    const { error } = await supabase.rpc(
+      "admin_delete_workflow_template_v1",
+      {
+        p_template_id: template.id,
+      }
+    );
 
     if (error) {
       setMessage(`Workflow Delete Error: ${error.message}`);
@@ -1471,7 +1456,7 @@ async function updateStageApproval(
     }
 
     await loadAll();
-    setMessage("Workflow Deleted ✅");
+    setMessage("Workflow + Stage Configuration Deleted ✅");
     setActionId(null);
   }
 
