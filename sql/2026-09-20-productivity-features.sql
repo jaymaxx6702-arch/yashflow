@@ -490,7 +490,146 @@ after insert or update or delete on public.task_support_workers
 for each row execute function public.yf_audit_activity('task_support');
 
 -- =========================================================
--- 4) Offline replay receipts
+-- 4) Atomic employee Stage Start
+-- =========================================================
+
+create or replace function public.employee_start_stage_v1(
+  p_work_id uuid,
+  p_expected_status text,
+  p_action_at timestamptz default now(),
+  p_action_id text default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, auth
+as $
+declare
+  v_employee_id uuid;
+  v_work record;
+  v_action_at timestamptz := coalesce(p_action_at, now());
+begin
+  select e.id
+    into v_employee_id
+  from public.employees e
+  where e.auth_user_id = auth.uid()
+    and e.approval_status = 'approved'
+    and e.is_active = true
+  limit 1;
+
+  if v_employee_id is null then
+    raise exception 'Active employee profile required';
+  end if;
+
+  select
+    w.id,
+    w.order_id,
+    w.stage_id,
+    w.status,
+    w.primary_employee_id,
+    w.started_at
+  into v_work
+  from public.order_stage_work w
+  where w.id = p_work_id
+  for update;
+
+  if not found then
+    raise exception 'Order Stage not found';
+  end if;
+
+  if not (
+    v_work.primary_employee_id = v_employee_id
+    or exists (
+      select 1
+      from public.order_stage_workers osw
+      where osw.order_stage_work_id = v_work.id
+        and osw.employee_id = v_employee_id
+        and osw.left_at is null
+    )
+  ) then
+    raise exception 'This Order Stage is not assigned to you';
+  end if;
+
+  if v_work.status = 'in_progress' then
+    return jsonb_build_object(
+      'ok', true,
+      'already_started', true,
+      'work_id', v_work.id
+    );
+  end if;
+
+  if v_work.status is distinct from p_expected_status then
+    raise exception
+      'Stage status changed from % to %',
+      p_expected_status,
+      v_work.status;
+  end if;
+
+  if v_work.status not in ('assigned', 'rework') then
+    raise exception 'Stage cannot start from status %', v_work.status;
+  end if;
+
+  if v_action_at > now() + interval '5 minutes'
+     or v_action_at < now() - interval '24 hours' then
+    raise exception 'Captured Start time is outside the allowed sync window';
+  end if;
+
+  update public.order_stage_work
+  set
+    status = 'in_progress',
+    started_at = coalesce(started_at, v_action_at),
+    updated_at = now()
+  where id = v_work.id;
+
+  update public.orders
+  set
+    workflow_status = 'in_progress',
+    updated_at = now()
+  where id = v_work.order_id;
+
+  insert into public.order_workflow_history (
+    order_id,
+    order_stage_work_id,
+    action_type,
+    from_stage_id,
+    to_stage_id,
+    from_status,
+    to_status,
+    employee_id,
+    note
+  )
+  values (
+    v_work.order_id,
+    v_work.id,
+    case
+      when p_action_id is null then 'employee_started_work'
+      else 'employee_started_work_offline_sync'
+    end,
+    v_work.stage_id,
+    v_work.stage_id,
+    v_work.status,
+    'in_progress',
+    v_employee_id,
+    case
+      when p_action_id is null then null
+      else 'Offline action synced • ' || p_action_id
+    end
+  );
+
+  return jsonb_build_object(
+    'ok', true,
+    'already_started', false,
+    'work_id', v_work.id,
+    'started_at', coalesce(v_work.started_at, v_action_at)
+  );
+end;
+$;
+
+revoke all on function public.employee_start_stage_v1(uuid, text, timestamptz, text) from public;
+grant execute on function public.employee_start_stage_v1(uuid, text, timestamptz, text) to authenticated;
+
+-- =========================================================
+-- 5) Offline replay receipts
 -- =========================================================
 
 create table if not exists public.offline_action_receipts (
@@ -507,7 +646,7 @@ create index if not exists offline_action_receipts_employee_idx
 alter table public.offline_action_receipts enable row level security;
 
 -- =========================================================
--- 5) Automatic stuck / overdue alert engine
+-- 6) Automatic stuck / overdue alert engine
 -- =========================================================
 
 create table if not exists public.stuck_alert_receipts (
