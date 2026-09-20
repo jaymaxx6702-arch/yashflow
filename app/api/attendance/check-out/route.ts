@@ -61,6 +61,7 @@ export async function POST(request: Request) {
       latitude?: number;
       longitude?: number;
       accuracy?: number;
+      early_reason?: string | null;
     };
 
     const db = integrationSupabase();
@@ -73,7 +74,7 @@ export async function POST(request: Request) {
 
     const { data: employee, error: employeeError } = await db
       .from("employees")
-      .select("id, approval_status, is_active")
+      .select("id, full_name, approval_status, is_active")
       .eq("auth_user_id", user.id)
       .maybeSingle();
 
@@ -92,7 +93,7 @@ export async function POST(request: Request) {
     ] = await Promise.all([
       db
         .from("office_settings")
-        .select("timezone, recess_start_time, recess_end_time")
+        .select("timezone, office_end_time, recess_start_time, recess_end_time")
         .eq("is_active", true)
         .maybeSingle(),
       db
@@ -116,7 +117,7 @@ export async function POST(request: Request) {
 
     const { data: attendanceRows, error: attendanceError } = await db
       .from("attendance")
-      .select("id, check_in, check_out, working_minutes")
+      .select("id, check_in, check_out, working_minutes, admin_note")
       .eq("employee_id", employee.id)
       .eq("attendance_date", today)
       .order("check_in", { ascending: false, nullsFirst: false });
@@ -208,6 +209,20 @@ export async function POST(request: Request) {
     const checkInDate = new Date(attendance.check_in);
     const checkInMinutes = minutesOfDay(checkInDate, timeZone);
     const checkOutMinutes = minutesOfDay(now, timeZone);
+    const officeEndMinutes = timeStringToMinutes(office.office_end_time);
+    const earlyCheckout = checkOutMinutes < officeEndMinutes;
+    const earlyReason = String(body.early_reason || "").trim();
+
+    if (earlyCheckout && earlyReason.length < 3) {
+      return NextResponse.json(
+        {
+          error: "સમય પહેલાં Check Out માટે Reason જરૂરી છે.",
+          early_reason_required: true,
+        },
+        { status: 400 }
+      );
+    }
+
     const recessStart = timeStringToMinutes(office.recess_start_time);
     const recessEnd = timeStringToMinutes(office.recess_end_time);
 
@@ -225,12 +240,29 @@ export async function POST(request: Request) {
     const workingMinutes = Math.max(0, grossMinutes - recessOverlap);
     const checkOutIso = now.toISOString();
 
+    const existingNote = String(attendance.admin_note || "").trim();
+    const earlyNote = earlyCheckout
+      ? `Early Punch Out: ${earlyReason}`
+      : "";
+    const nextAdminNote = [existingNote, earlyNote].filter(Boolean).join(" | ") || null;
+
+    const updatePayload = earlyCheckout
+      ? {
+          check_out: checkOutIso,
+          working_minutes: workingMinutes,
+          admin_note: nextAdminNote,
+          approval_required: true,
+          approval_status: "pending",
+          approved_at: null,
+        }
+      : {
+          check_out: checkOutIso,
+          working_minutes: workingMinutes,
+        };
+
     const { data: updated, error: updateError } = await db
       .from("attendance")
-      .update({
-        check_out: checkOutIso,
-        working_minutes: workingMinutes,
-      })
+      .update(updatePayload)
       .eq("id", attendance.id)
       .select("id, check_out, working_minutes")
       .single();
@@ -242,6 +274,28 @@ export async function POST(request: Request) {
       );
     }
 
+    if (earlyCheckout) {
+      const { data: admins } = await db
+        .from("employees")
+        .select("id")
+        .eq("role", "admin")
+        .eq("approval_status", "approved")
+        .eq("is_active", true);
+
+      if (admins?.length) {
+        await db.from("notifications").insert(
+          admins.map((admin) => ({
+            employee_id: admin.id,
+            notification_type: "attendance",
+            title: "Early Punch Out",
+            message: `${employee.full_name} સમય પહેલાં Punch Out કર્યું • ${earlyReason}`,
+            related_type: "attendance",
+            related_id: attendance.id,
+          }))
+        );
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       check_out: updated.check_out,
@@ -249,6 +303,8 @@ export async function POST(request: Request) {
       distance_m: distanceM,
       accuracy_m: accuracyM,
       gps_required: gpsRequired,
+      early_checkout: earlyCheckout,
+      approval_required: earlyCheckout,
     });
   } catch (error) {
     return NextResponse.json(
