@@ -104,33 +104,107 @@ export default function CompletedTasksPage() {
         setEmployees((employeeRows || []) as EmployeeLite[]);
       }
 
-      const { data, error } = await supabase
-        .from("tasks")
-        .select(`
-          id,
-          title,
-          description,
-          assigned_to,
-          priority,
-          status,
-          due_date,
-          employee_note,
-          admin_note,
-          started_at,
-          completed_at,
-          created_at
-        `)
-        .eq("status", "completed")
-        .order("completed_at", { ascending: false })
-        .order("created_at", { ascending: false });
+      const taskSelect = `
+        id,
+        title,
+        description,
+        assigned_to,
+        priority,
+        status,
+        due_date,
+        employee_note,
+        admin_note,
+        started_at,
+        completed_at,
+        created_at
+      `;
 
-      if (error) {
-        setMessage(`Completed Task Load Error: ${error.message}`);
-        setLoading(false);
-        return;
+      let rows: Task[] = [];
+
+      if (admin) {
+        const { data, error } = await supabase
+          .from("tasks")
+          .select(taskSelect)
+          .eq("status", "completed")
+          .order("completed_at", { ascending: false })
+          .order("created_at", { ascending: false });
+
+        if (error) {
+          setMessage(`Completed Task Load Error: ${error.message}`);
+          setLoading(false);
+          return;
+        }
+
+        rows = (data || []) as Task[];
+      } else {
+        const [directResult, supportResult] = await Promise.all([
+          supabase
+            .from("tasks")
+            .select(taskSelect)
+            .eq("assigned_to", profile.id)
+            .eq("status", "completed"),
+          supabase
+            .from("task_support_workers")
+            .select("task_id")
+            .eq("employee_id", profile.id)
+            .eq("is_active", true),
+        ]);
+
+        const firstError = directResult.error || supportResult.error;
+        if (firstError) {
+          setMessage(`Completed Task Load Error: ${firstError.message}`);
+          setLoading(false);
+          return;
+        }
+
+        const supportIds = Array.from(
+          new Set(
+            (supportResult.data || [])
+              .map((row) => row.task_id)
+              .filter(Boolean)
+          )
+        );
+
+        let supportRows: Task[] = [];
+
+        if (supportIds.length > 0) {
+          const { data, error } = await supabase
+            .from("tasks")
+            .select(taskSelect)
+            .in("id", supportIds)
+            .eq("status", "completed");
+
+          if (error) {
+            setMessage(`Completed Support Task Load Error: ${error.message}`);
+            setLoading(false);
+            return;
+          }
+
+          supportRows = (data || []) as Task[];
+        }
+
+        const merged = new Map<string, Task>();
+        for (const task of [
+          ...((directResult.data || []) as Task[]),
+          ...supportRows,
+        ]) {
+          merged.set(task.id, task);
+        }
+
+        rows = Array.from(merged.values()).sort((a, b) => {
+          const completedDiff =
+            new Date(b.completed_at || b.created_at).getTime() -
+            new Date(a.completed_at || a.created_at).getTime();
+
+          if (completedDiff !== 0) return completedDiff;
+
+          return (
+            new Date(b.created_at).getTime() -
+            new Date(a.created_at).getTime()
+          );
+        });
       }
 
-      const rows = (data || []) as unknown as Task[];
       setTasks(rows);
 
       const firstKey = rows.length ? dateKey(rows[0].completed_at) : "";
