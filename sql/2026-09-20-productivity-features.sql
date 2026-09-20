@@ -289,6 +289,10 @@ begin
     return new;
   end if;
 
+  if current_setting('yashflow.admin_direct_complete', true) = '1' then
+    return new;
+  end if;
+
   if new.status not in ('ready_for_approval', 'completed') then
     return new;
   end if;
