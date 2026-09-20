@@ -259,22 +259,6 @@ export default function AdminTasksPage() {
     );
   }
 
-  async function sendSupportNotification(
-    employeeId: string,
-    taskId: string,
-    taskTitle: string
-  ) {
-    const supabase = createClient();
-
-    await supabase.from("notifications").insert({
-      employee_id: employeeId,
-      notification_type: "task",
-      title: "Task Support Assigned",
-      message: `${taskTitle} માં તમને Support Employee તરીકે add કરવામાં આવ્યા છે.`,
-      related_type: "task",
-      related_id: taskId,
-    });
-  }
 
   async function handleCreateTask() {
     if (!title.trim()) {
@@ -343,12 +327,6 @@ export default function AdminTasksPage() {
         setMessage(
           `Task create થયો, પરંતુ Support Employee add ન થયો: ${supportError.message}`
         );
-      } else {
-        await sendSupportNotification(
-          newTaskSupport,
-          newTask.id,
-          newTask.title
-        );
       }
     }
 
@@ -411,8 +389,6 @@ export default function AdminTasksPage() {
       setActionId(null);
       return;
     }
-
-    await sendSupportNotification(employeeId, task.id, task.title);
 
     setSupportPickers((prev) => ({
       ...prev,
