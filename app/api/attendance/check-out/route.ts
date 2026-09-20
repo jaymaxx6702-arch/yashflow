@@ -62,6 +62,8 @@ export async function POST(request: Request) {
       longitude?: number;
       accuracy?: number;
       early_reason?: string | null;
+      client_action_at?: string;
+      offline_action_id?: string;
     };
 
     const db = integrationSupabase();
@@ -85,6 +87,24 @@ export async function POST(request: Request) {
       !employee.is_active
     ) {
       return NextResponse.json({ error: "Active employee profile required." }, { status: 403 });
+    }
+
+    const offlineActionId = String(body.offline_action_id || "").trim();
+
+    if (offlineActionId) {
+      const { data: receipt, error: receiptError } = await db
+        .from("offline_action_receipts")
+        .select("response")
+        .eq("action_id", offlineActionId)
+        .maybeSingle();
+
+      if (receiptError) {
+        return NextResponse.json({ error: receiptError.message }, { status: 500 });
+      }
+
+      if (receipt?.response) {
+        return NextResponse.json(receipt.response);
+      }
     }
 
     const [
@@ -112,7 +132,32 @@ export async function POST(request: Request) {
     }
 
     const timeZone = office.timezone || "Asia/Kolkata";
-    const now = new Date();
+    const serverNow = new Date();
+    let now = serverNow;
+    let offlineSync = false;
+
+    if (offlineActionId && body.client_action_at) {
+      const capturedAt = new Date(body.client_action_at);
+      const ageMs = serverNow.getTime() - capturedAt.getTime();
+
+      if (!Number.isFinite(capturedAt.getTime())) {
+        return NextResponse.json(
+          { error: "Offline Punch timestamp valid નથી." },
+          { status: 400 }
+        );
+      }
+
+      if (ageMs < -5 * 60 * 1000 || ageMs > 12 * 60 * 60 * 1000) {
+        return NextResponse.json(
+          { error: "Offline Punch 12 કલાકની અંદર sync કરવો જરૂરી છે." },
+          { status: 400 }
+        );
+      }
+
+      now = capturedAt;
+      offlineSync = true;
+    }
+
     const today = indiaDate(now, timeZone);
 
     const { data: attendanceRows, error: attendanceError } = await db
@@ -244,9 +289,15 @@ export async function POST(request: Request) {
     const earlyNote = earlyCheckout
       ? `Early Punch Out: ${earlyReason}`
       : "";
-    const nextAdminNote = [existingNote, earlyNote].filter(Boolean).join(" | ") || null;
+    const offlineNote = offlineSync
+      ? `Offline Punch Out synced • Captured ${now.toISOString()}`
+      : "";
+    const nextAdminNote =
+      [existingNote, earlyNote, offlineNote].filter(Boolean).join(" | ") || null;
 
-    const updatePayload = earlyCheckout
+    const reviewRequired = earlyCheckout || offlineSync;
+
+    const updatePayload = reviewRequired
       ? {
           check_out: checkOutIso,
           working_minutes: workingMinutes,
@@ -274,7 +325,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (earlyCheckout) {
+    if (reviewRequired) {
       const { data: admins } = await db
         .from("employees")
         .select("id")
@@ -287,8 +338,10 @@ export async function POST(request: Request) {
           admins.map((admin) => ({
             employee_id: admin.id,
             notification_type: "attendance",
-            title: "Early Punch Out",
-            message: `${employee.full_name} સમય પહેલાં Punch Out કર્યું • ${earlyReason}`,
+            title: offlineSync ? "Offline Punch Review" : "Early Punch Out",
+            message: offlineSync
+              ? `${employee.full_name} Offline Punch Out sync થયું • Admin review required.`
+              : `${employee.full_name} સમય પહેલાં Punch Out કર્યું • ${earlyReason}`,
             related_type: "attendance",
             related_id: attendance.id,
           }))
@@ -296,7 +349,7 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({
+    const responsePayload = {
       ok: true,
       check_out: updated.check_out,
       working_minutes: updated.working_minutes || 0,
@@ -304,8 +357,20 @@ export async function POST(request: Request) {
       accuracy_m: accuracyM,
       gps_required: gpsRequired,
       early_checkout: earlyCheckout,
-      approval_required: earlyCheckout,
-    });
+      approval_required: reviewRequired,
+      offline_sync: offlineSync,
+    };
+
+    if (offlineActionId) {
+      await db.from("offline_action_receipts").upsert({
+        action_id: offlineActionId,
+        employee_id: employee.id,
+        action_type: "attendance_check_out",
+        response: responsePayload,
+      });
+    }
+
+    return NextResponse.json(responsePayload);
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Check Out failed." },
