@@ -249,6 +249,18 @@ export async function POST(request: Request) {
         (id) => id !== primaryId
       );
     } else if (
+      templateStage.assignment_rule === "manual" &&
+      candidateIds.length
+    ) {
+      primaryId =
+        templateStage.default_employee_id ||
+        workers.find((row) => row.is_primary)?.employee_id ||
+        candidateIds[0];
+
+      supportIds = candidateIds.filter(
+        (id) => id !== primaryId
+      );
+    } else if (
       templateStage.assignment_rule === "auto_assign" &&
       candidateIds.length
     ) {
