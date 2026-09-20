@@ -1419,7 +1419,7 @@ export default function EmployeeOrdersPage() {
                           type="button"
                           disabled={actionId === `start-${work.id}`}
                           onClick={() => startWork(work)}
-                          className="yf-btn yf-btn-primary disabled:opacity-50"
+                          className="yf-btn yf-btn-action disabled:opacity-50"
                         >
                           {actionId === `start-${work.id}`
                             ? "Starting..."
