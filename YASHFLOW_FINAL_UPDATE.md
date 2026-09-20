@@ -106,7 +106,43 @@ Smoke tests:
 - [x] Admin tools moved into native Daily vs Advanced sections.
 - [x] Remove redundant misspelled `app/menifest.ts`.
 
-## 8. Quality gate
+## 8. Productivity features — final employee/admin layer
+- [x] Smart Next Work card combines Orders + Tasks.
+- [x] Priority engine considers Urgent/High, due date, Rework and In Progress.
+- [x] Stage Checklist / SOP admin manager.
+- [x] Required checklist enforced in UI and database before Stage completion.
+- [x] Checklist visible in Assigned Orders and Full Order View.
+- [x] Checklist changes support Pending Sync during weak/offline network.
+- [x] Unified Activity History for Order, Stage, Task, Attendance and assignments.
+- [x] Activity History shows actor, timestamp and before → after values.
+- [x] Stuck workflow alerts use existing workflow delay settings.
+- [x] Overdue Order and Task alerts are generated for Admin.
+- [x] Stuck/overdue alerts are de-duplicated once per entity/day.
+- [x] Offline Queue covers Task Start/Complete/Note, Order Start/Complete, Checklist changes and Attendance Punch.
+- [x] Offline actions display a global Pending Sync banner.
+- [x] Attendance offline replay keeps captured time, validates max 12-hour age and requires Admin Review.
+- [x] Attendance offline replay uses action receipts to prevent duplicate Punch.
+- [x] Order completion replay checks current stage state before retrying.
+
+SQL:
+- `sql/2026-09-20-productivity-features.sql`
+
+Productivity smoke tests:
+- Next Work picks an Urgent item ahead of normal work.
+- Due Today / Overdue changes Next Work priority correctly.
+- Required Stage Checklist prevents Stage Complete until required steps are checked.
+- Optional checklist steps do not block completion.
+- Checklist works from My Orders and Full Order View.
+- Task Start while offline appears as Pending Sync and syncs after internet returns.
+- Task Complete and Employee Note replay exactly once.
+- Order Start replay does not duplicate workflow history on normal retry.
+- Order Complete replay does not re-complete an already completed/submitted stage.
+- Offline Punch In/Out shows Pending Sync and becomes Admin Review Pending after sync.
+- Activity History records Order / Task / Attendance changes with before → after values.
+- Delayed workflow creates one Admin alert per day, not repeated alert spam.
+- Overdue Order / Task creates Admin notification + tone.
+
+## 9. Quality gate
 - [x] Stabilization branch has CI on push.
 - [x] TypeScript check PASS.
 - [x] Next.js production build PASS.
