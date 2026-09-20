@@ -80,6 +80,29 @@ export default function NotificationBell({ employeeId }: Props) {
     audio.volume = 1;
     audioRef.current = audio;
 
+    const unlockAudio = () => {
+      const current = audioRef.current;
+      if (!current) return;
+
+      const previousVolume = current.volume;
+      current.volume = 0;
+      current.currentTime = 0;
+
+      void current
+        .play()
+        .then(() => {
+          current.pause();
+          current.currentTime = 0;
+          current.volume = previousVolume || 1;
+        })
+        .catch(() => {
+          current.volume = previousVolume || 1;
+        });
+    };
+
+    window.addEventListener("pointerdown", unlockAudio, { once: true });
+    window.addEventListener("keydown", unlockAudio, { once: true });
+
     window.localStorage.setItem(
       "yashflow-notification-sound-enabled",
       "true"
@@ -115,6 +138,9 @@ export default function NotificationBell({ employeeId }: Props) {
     }
 
     return () => {
+      window.removeEventListener("pointerdown", unlockAudio);
+      window.removeEventListener("keydown", unlockAudio);
+
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current = null;
