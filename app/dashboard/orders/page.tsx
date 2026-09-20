@@ -824,7 +824,11 @@ export default function EmployeeOrdersPage() {
     };
 
     if (!navigator.onLine) {
-      enqueueOfflineAction("order_start", offlinePayload);
+      enqueueOfflineAction(
+        "order_start",
+        offlinePayload,
+        { ownerEmployeeId: employee.id }
+      );
       setStageWorks((current) =>
         current.map((item) =>
           item.id === work.id
@@ -860,7 +864,11 @@ export default function EmployeeOrdersPage() {
 
     if (workError) {
       if (isLikelyNetworkError(workError.message)) {
-        enqueueOfflineAction("order_start", offlinePayload);
+        enqueueOfflineAction(
+        "order_start",
+        offlinePayload,
+        { ownerEmployeeId: employee.id }
+      );
         setStageWorks((current) =>
           current.map((item) =>
             item.id === work.id
@@ -1038,12 +1046,16 @@ export default function EmployeeOrdersPage() {
     const shouldWaiveProof = !hasPhotoProof && hideStageProofUi;
 
     if (!navigator.onLine) {
-      enqueueOfflineAction("order_complete", {
-        workId: work.id,
-        orderId: order.id,
-        employeeId: employee.id,
-        waiveProof: shouldWaiveProof,
-      });
+      enqueueOfflineAction(
+        "order_complete",
+        {
+          workId: work.id,
+          orderId: order.id,
+          employeeId: employee.id,
+          waiveProof: shouldWaiveProof,
+        },
+        { ownerEmployeeId: employee.id }
+      );
 
       setMessage(
         "Offline • Complete Stage Pending Sync ☁️ • Checklist server sync પછી verify થશે."
@@ -1068,12 +1080,16 @@ export default function EmployeeOrdersPage() {
 
       if (waiveError) {
         if (isLikelyNetworkError(waiveError.message)) {
-          enqueueOfflineAction("order_complete", {
-            workId: work.id,
-            orderId: order.id,
-            employeeId: employee.id,
-            waiveProof: true,
-          });
+          enqueueOfflineAction(
+            "order_complete",
+            {
+              workId: work.id,
+              orderId: order.id,
+              employeeId: employee.id,
+              waiveProof: true,
+            },
+            { ownerEmployeeId: employee.id }
+          );
           setMessage("Network weak • Complete Stage Pending Sync ☁️");
           return;
         }
@@ -1110,12 +1126,16 @@ export default function EmployeeOrdersPage() {
 
     if (error) {
       if (isLikelyNetworkError(error.message)) {
-        enqueueOfflineAction("order_complete", {
-          workId: work.id,
-          orderId: order.id,
-          employeeId: employee.id,
-          waiveProof: shouldWaiveProof && !proofWaivedNow,
-        });
+        enqueueOfflineAction(
+          "order_complete",
+          {
+            workId: work.id,
+            orderId: order.id,
+            employeeId: employee.id,
+            waiveProof: shouldWaiveProof && !proofWaivedNow,
+          },
+          { ownerEmployeeId: employee.id }
+        );
         setMessage("Network weak • Complete Stage Pending Sync ☁️");
         setActionId(null);
         return;
