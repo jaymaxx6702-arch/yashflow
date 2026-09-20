@@ -653,7 +653,8 @@ end;
 $$;
 
 revoke all on function public.yf_scan_stuck_work_alerts() from public;
-grant execute on function public.yf_scan_stuck_work_alerts() to authenticated;
+revoke all on function public.yf_scan_stuck_work_alerts() from authenticated;
+grant execute on function public.yf_scan_stuck_work_alerts() to service_role;
 
 -- Keep one scheduled job. Supabase pg_cron runs this independently of
 -- whether an Admin has the dashboard open.
