@@ -623,7 +623,7 @@ begin
     'started_at', coalesce(v_work.started_at, v_action_at)
   );
 end;
-$;
+$$;
 
 revoke all on function public.employee_start_stage_v1(uuid, text, timestamptz, text) from public;
 grant execute on function public.employee_start_stage_v1(uuid, text, timestamptz, text) to authenticated;
