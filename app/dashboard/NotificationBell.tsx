@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import {
+  disableWebPushSubscription,
+  ensureWebPushSubscription,
+} from "@/utils/push-client";
 
 type NotificationRow = {
   id: string;
@@ -239,19 +243,29 @@ export default function NotificationBell({ employeeId }: Props) {
     if (
       typeof window === "undefined" ||
       !("Notification" in window) ||
-      !("serviceWorker" in navigator)
+      !("serviceWorker" in navigator) ||
+      !("PushManager" in window)
     ) {
-      setMessage("આ browser/device Mobile Notifications support કરતું નથી.");
+      setMessage(
+        "આ browser/device Closed-App Notifications support કરતું નથી."
+      );
       return;
     }
 
-    if (systemNotificationsEnabled && Notification.permission === "granted") {
+    if (
+      systemNotificationsEnabled &&
+      Notification.permission === "granted"
+    ) {
+      await disableWebPushSubscription().catch((error) => {
+        console.warn("Push unsubscribe failed:", error);
+      });
+
       setSystemNotificationsEnabled(false);
       window.localStorage.setItem(
         "yashflow-system-notifications-enabled",
         "false"
       );
-      setMessage("Mobile screen notifications OFF થયા.");
+      setMessage("Mobile + Closed-App Notifications OFF થયા.");
       return;
     }
 
@@ -269,13 +283,29 @@ export default function NotificationBell({ employeeId }: Props) {
       return;
     }
 
-    await navigator.serviceWorker.ready;
-    setSystemNotificationsEnabled(true);
-    window.localStorage.setItem(
-      "yashflow-system-notifications-enabled",
-      "true"
-    );
-    setMessage("Mobile screen notifications ON ✅");
+    try {
+      await ensureWebPushSubscription();
+
+      setSystemNotificationsEnabled(true);
+      window.localStorage.setItem(
+        "yashflow-system-notifications-enabled",
+        "true"
+      );
+      setMessage(
+        "Mobile + Closed-App Notifications ON ✅ System notification sound પણ ON રહેશે."
+      );
+    } catch (error) {
+      setSystemNotificationsEnabled(false);
+      window.localStorage.setItem(
+        "yashflow-system-notifications-enabled",
+        "false"
+      );
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Closed-App Push setup failed."
+      );
+    }
   }
 
   const showSystemNotification = useCallback(
