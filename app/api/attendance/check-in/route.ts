@@ -293,9 +293,11 @@ export async function POST(request: Request) {
       approval_required: approvalRequired,
       approval_status: approvalRequired ? "pending" : "approved",
       approved_at: approvalRequired ? null : now.toISOString(),
-      admin_note: offlineSync
-        ? `Offline Punch In synced • Captured ${now.toISOString()}`
-        : null,
+      ...(offlineSync
+        ? {
+            admin_note: `Offline Punch In synced • Captured ${now.toISOString()}`,
+          }
+        : {}),
     };
 
     const saveResult = existing?.id
