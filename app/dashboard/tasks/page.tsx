@@ -173,7 +173,7 @@ export default function EmployeeTasksPage() {
       expectedUpdatedAt: task.updated_at,
     };
 
-    const optimisticUpdate = () => {
+    const optimisticUpdate = (syncAt: string) => {
       setTasks((current) =>
         current.map((item) =>
           item.id === task.id
@@ -182,10 +182,11 @@ export default function EmployeeTasksPage() {
                 status: newStatus,
                 started_at:
                   newStatus === "in_progress"
-                    ? item.started_at || now
+                    ? item.started_at || syncAt
                     : item.started_at,
                 completed_at:
-                  newStatus === "completed" ? now : null,
+                  newStatus === "completed" ? syncAt : null,
+                updated_at: syncAt,
               }
             : item
         )
@@ -193,12 +194,12 @@ export default function EmployeeTasksPage() {
     };
 
     if (!navigator.onLine) {
-      enqueueOfflineAction(
+      const queued = enqueueOfflineAction(
         "task_status",
         payload,
         { ownerEmployeeId: employeeId || "" }
       );
-      optimisticUpdate();
+      optimisticUpdate(queued.queuedAt);
       setMessage("Offline • Task update Pending Sync ☁️");
       return;
     }
@@ -234,12 +235,12 @@ export default function EmployeeTasksPage() {
 
     if (error) {
       if (isLikelyNetworkError(error.message)) {
-        enqueueOfflineAction(
-        "task_status",
-        payload,
-        { ownerEmployeeId: employeeId || "" }
-      );
-        optimisticUpdate();
+        const queued = enqueueOfflineAction(
+          "task_status",
+          payload,
+          { ownerEmployeeId: employeeId || "" }
+        );
+        optimisticUpdate(queued.queuedAt);
         setMessage("Network weak • Task update Pending Sync ☁️");
         return;
       }
@@ -262,7 +263,7 @@ export default function EmployeeTasksPage() {
     };
 
     if (!navigator.onLine) {
-      enqueueOfflineAction(
+      const queued = enqueueOfflineAction(
         "task_note",
         payload,
         { ownerEmployeeId: employeeId || "" }
@@ -270,7 +271,11 @@ export default function EmployeeTasksPage() {
       setTasks((current) =>
         current.map((task) =>
           task.id === taskId
-            ? { ...task, employee_note: note || null }
+            ? {
+                ...task,
+                employee_note: note || null,
+                updated_at: queued.queuedAt,
+              }
             : task
         )
       );
@@ -290,15 +295,19 @@ export default function EmployeeTasksPage() {
 
     if (error) {
       if (isLikelyNetworkError(error.message)) {
-        enqueueOfflineAction(
-        "task_note",
-        payload,
-        { ownerEmployeeId: employeeId || "" }
-      );
+        const queued = enqueueOfflineAction(
+          "task_note",
+          payload,
+          { ownerEmployeeId: employeeId || "" }
+        );
         setTasks((current) =>
           current.map((task) =>
             task.id === taskId
-              ? { ...task, employee_note: note || null }
+              ? {
+                  ...task,
+                  employee_note: note || null,
+                  updated_at: queued.queuedAt,
+                }
               : task
           )
         );
