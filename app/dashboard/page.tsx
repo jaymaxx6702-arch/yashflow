@@ -884,7 +884,6 @@ export default function EmployeeDashboard() {
           latitude: location.latitude,
           longitude: location.longitude,
           accuracy: location.accuracy,
-          early_reason: earlyReason,
         }),
       });
 
@@ -897,8 +896,6 @@ export default function EmployeeDashboard() {
         accuracy_m?: number | null;
         approval_required?: boolean;
         gps_required?: boolean;
-        early_checkout?: boolean;
-        approval_required?: boolean;
       };
 
       if (!response.ok || !result.check_in) {
@@ -1026,6 +1023,7 @@ export default function EmployeeDashboard() {
           latitude: location.latitude,
           longitude: location.longitude,
           accuracy: location.accuracy,
+          early_reason: earlyReason,
         }),
       });
 
@@ -1036,6 +1034,8 @@ export default function EmployeeDashboard() {
         distance_m?: number | null;
         accuracy_m?: number | null;
         gps_required?: boolean;
+        early_checkout?: boolean;
+        approval_required?: boolean;
       };
 
       if (!response.ok || !result.check_out) {
