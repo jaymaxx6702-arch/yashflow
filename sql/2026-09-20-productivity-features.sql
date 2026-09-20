@@ -704,7 +704,7 @@ begin
       and w.status_changed_at is not null
       and coalesce(ds.delay_minutes, 0) > 0
       and now() - w.status_changed_at >=
-        make_interval(mins => ds.delay_minutes)
+        make_interval(mins => ds.delay_minutes::int)
 
     union all
 
