@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import StageChecklist from "./StageChecklist";
+import UpcomingOrders from "./UpcomingOrders";
 import {
   enqueueOfflineAction,
   isLikelyNetworkError,
@@ -42,6 +43,8 @@ type Order = {
   priority: "low" | "normal" | "high" | "urgent";
   due_date: string | null;
   product_configuration: Record<string, string> | null;
+  customer_note: string | null;
+  admin_note: string | null;
 };
 
 type Stage = {
@@ -155,6 +158,7 @@ export default function EmployeeOrdersPage() {
   const [templateStageConfigs, setTemplateStageConfigs] = useState<
     TemplateStageConfig[]
   >([]);
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
 
   const [stageProofs, setStageProofs] = useState<StageProof[]>([]);
   const [uploadingWorkId, setUploadingWorkId] = useState<string | null>(null);
@@ -355,7 +359,9 @@ export default function EmployeeOrdersPage() {
           workflow_status,
           priority,
           due_date,
-          product_configuration
+          product_configuration,
+          customer_note,
+          admin_note
         `)
         .in("id", orderIds),
 
@@ -1226,6 +1232,10 @@ export default function EmployeeOrdersPage() {
           </div>
         )}
 
+        {employee && (
+          <UpcomingOrders employeeId={employee.id} />
+        )}
+
         <section className="yf-card p-3 sm:p-4 mb-3">
           <div className="grid grid-cols-4 gap-1.5">
             {[
@@ -1300,10 +1310,17 @@ export default function EmployeeOrdersPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => router.push(`/dashboard/orders/${order.id}`)}
-                        className="text-base sm:text-lg font-black text-blue-700 hover:underline"
+                        onClick={() =>
+                          setExpandedOrderId((current) =>
+                            current === order.id ? null : order.id
+                          )
+                        }
+                        className="text-base sm:text-lg font-black text-blue-700 hover:underline flex items-center gap-1"
                       >
                         {order.order_number}
+                        <span className="text-xs">
+                          {expandedOrderId === order.id ? "▲" : "▼"}
+                        </span>
                       </button>
 
                       <span className={`yf-badge ${priorityClass(order.priority)}`}>
@@ -1384,6 +1401,90 @@ export default function EmployeeOrdersPage() {
                           timeZone: "Asia/Kolkata",
                         })}
                       </p>
+                    )}
+
+                    {expandedOrderId === order.id && (
+                      <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50/40 p-3">
+                        <div className="grid sm:grid-cols-2 gap-3">
+                          <div>
+                            <p className="text-[10px] font-black text-slate-400">
+                              CUSTOMER / CONTACT
+                            </p>
+                            <p className="text-sm font-black text-slate-800 mt-1">
+                              {order.customer_name}
+                            </p>
+                            <p className="text-xs font-semibold text-slate-600">
+                              {order.customer_mobile || "Mobile not added"}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-[10px] font-black text-slate-400">
+                              WORK STATUS
+                            </p>
+                            <p className="text-sm font-black text-slate-800 mt-1">
+                              {stage?.name || order.current_stage} • {statusLabel(work.status)}
+                            </p>
+                            {work.hold_reason && (
+                              <p className="text-xs font-semibold text-amber-700">
+                                Hold: {work.hold_reason}
+                              </p>
+                            )}
+                            {work.rework_reason && (
+                              <p className="text-xs font-semibold text-red-700">
+                                Rework: {work.rework_reason}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {order.product_configuration &&
+                          Object.keys(order.product_configuration).length > 0 && (
+                            <div className="mt-3">
+                              <p className="text-[10px] font-black text-slate-400">
+                                PRODUCT DETAILS
+                              </p>
+                              <div className="mt-1 flex flex-wrap gap-1.5">
+                                {Object.entries(order.product_configuration).map(
+                                  ([key, value]) => (
+                                    <span
+                                      key={key}
+                                      className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700"
+                                    >
+                                      {key}: {value}
+                                    </span>
+                                  )
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                        {(order.customer_note || order.admin_note) && (
+                          <div className="mt-3 grid sm:grid-cols-2 gap-2">
+                            {order.customer_note && (
+                              <div className="rounded-xl border border-cyan-100 bg-white p-3">
+                                <p className="text-[10px] font-black text-cyan-700">
+                                  CUSTOMER NOTE
+                                </p>
+                                <p className="text-xs font-semibold text-slate-700 mt-1 whitespace-pre-wrap">
+                                  {order.customer_note}
+                                </p>
+                              </div>
+                            )}
+
+                            {order.admin_note && (
+                              <div className="rounded-xl border border-amber-100 bg-white p-3">
+                                <p className="text-[10px] font-black text-amber-700">
+                                  ADMIN NOTE
+                                </p>
+                                <p className="text-xs font-semibold text-slate-700 mt-1 whitespace-pre-wrap">
+                                  {order.admin_note}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     )}
 
                     {!hideStageProofUi && (
@@ -1612,13 +1713,6 @@ export default function EmployeeOrdersPage() {
                       </div>
                     )}
 
-                    <button
-                      type="button"
-                      onClick={() => router.push(`/dashboard/orders/${order.id}`)}
-                      className="yf-btn yf-btn-secondary"
-                    >
-                      View Details
-                    </button>
                   </div>
                 </div>
               </article>
