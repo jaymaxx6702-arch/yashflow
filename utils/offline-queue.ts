@@ -56,6 +56,16 @@ export function enqueueOfflineAction(
   type: OfflineActionType,
   payload: Record<string, unknown>
 ) {
+  const current = getOfflineActions();
+
+  if (
+    (type === "attendance_check_in" ||
+      type === "attendance_check_out") &&
+    current.some((action) => action.type === type)
+  ) {
+    return current.find((action) => action.type === type)!;
+  }
+
   const action: OfflineAction = {
     id: createActionId(),
     type,
@@ -65,7 +75,7 @@ export function enqueueOfflineAction(
     lastError: null,
   };
 
-  saveOfflineActions([...getOfflineActions(), action]);
+  saveOfflineActions([...current, action]);
   return action;
 }
 
