@@ -162,6 +162,7 @@ export default function EmployeeDashboard() {
   const [canViewPurchase, setCanViewPurchase] = useState(false);
   const [canViewDispatch, setCanViewDispatch] = useState(false);
   const [canCreateOrders, setCanCreateOrders] = useState(false);
+  const [canUseManagementAccess, setCanUseManagementAccess] = useState(false);
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
 
   const [loading, setLoading] = useState(true);
@@ -527,6 +528,8 @@ export default function EmployeeDashboard() {
       dispatchView,
       dispatchManage,
       orderCreate,
+      ordersManage,
+      attendanceManage,
     ] = await Promise.all([
       supabase.rpc("has_app_permission", {
         p_permission_key: "purchase.view",
@@ -543,6 +546,12 @@ export default function EmployeeDashboard() {
       supabase.rpc("has_app_permission", {
         p_permission_key: "orders.create",
       }),
+      supabase.rpc("has_app_permission", {
+        p_permission_key: "orders.manage",
+      }),
+      supabase.rpc("has_app_permission", {
+        p_permission_key: "attendance.manage",
+      }),
     ]);
 
     const firstError =
@@ -550,7 +559,9 @@ export default function EmployeeDashboard() {
       purchaseManage.error ||
       dispatchView.error ||
       dispatchManage.error ||
-      orderCreate.error;
+      orderCreate.error ||
+      ordersManage.error ||
+      attendanceManage.error;
 
     if (firstError) {
       console.warn("Permission Load Error:", firstError.message);
@@ -566,6 +577,9 @@ export default function EmployeeDashboard() {
     );
 
     setCanCreateOrders(Boolean(orderCreate.data));
+    setCanUseManagementAccess(
+      Boolean(ordersManage.data) || Boolean(attendanceManage.data)
+    );
   }
 
   async function loadLiveSummary(
@@ -1416,6 +1430,13 @@ export default function EmployeeDashboard() {
                 label="Create Order"
                 icon="➕"
                 onClick={() => router.push("/dashboard/order-create")}
+              />
+            )}
+            {canUseManagementAccess && (
+              <QuickApp
+                label="Admin Access"
+                icon="🛠️"
+                onClick={() => router.push("/dashboard/manage")}
               />
             )}
             <QuickApp
