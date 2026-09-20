@@ -2196,8 +2196,15 @@ export default function AdminOrdersPage() {
   async function completeOrder(order: Order) {
     if (!adminId) return;
 
+    const reason = window.prompt(
+      `${order.order_number} ને Direct Complete કરવો છે. Optional note લખો:`,
+      "Admin direct completed order"
+    );
+
+    if (reason === null) return;
+
     const confirmed = window.confirm(
-      `${order.order_number} ને Completed કરવો છે?`
+      `${order.order_number} ના active stages બંધ કરીને Order Completed કરવો છે?`
     );
 
     if (!confirmed) return;
@@ -2206,74 +2213,32 @@ export default function AdminOrdersPage() {
     setMessage("");
 
     const supabase = createClient();
-    const now = new Date().toISOString();
-    const work = activeWorkByOrder.get(order.id);
-    const currentStage = getOrderStage(order);
 
-    if (!work || work.status !== "ready_for_approval") {
-      setMessage(
-        "Final Stage Ready for Approval થયા પછી જ Order Complete કરી શકાય."
-      );
-      setActionId(null);
-      return;
-    }
-
-    if (work) {
-      const { error: workError } = await supabase
-        .from("order_stage_work")
-        .update({
-          status: "completed",
-          completed_at: now,
-          approved_by: adminId,
-          approved_at: now,
-          updated_at: now,
-        })
-        .eq("id", work.id);
-
-      if (workError) {
-        setMessage(`Complete Work Error: ${workError.message}`);
-        setActionId(null);
-        return;
+    const { data, error } = await supabase.rpc(
+      "admin_complete_order_v1",
+      {
+        p_order_id: order.id,
+        p_note: reason.trim() || null,
       }
-    }
-
-    const { error } = await supabase
-      .from("orders")
-      .update({
-        current_stage: "completed",
-        current_stage_id: null,
-        workflow_status: "completed",
-        completed_at: now,
-        updated_at: now,
-      })
-      .eq("id", order.id);
+    );
 
     if (error) {
-      setMessage(`Complete Order Error: ${error.message}`);
+      setMessage(`Direct Complete Error: ${error.message}`);
       setActionId(null);
       return;
     }
 
-    await supabase.from("order_stage_history").insert({
-      order_id: order.id,
-      from_stage: order.current_stage,
-      to_stage: "completed",
-      changed_by: adminId,
-      note: "Admin Completed Order",
-    });
+    const result = (data || {}) as {
+      ok?: boolean;
+      already_completed?: boolean;
+    };
 
-    await supabase.from("order_workflow_history").insert({
-      order_id: order.id,
-      order_stage_work_id: work?.id || null,
-      action_type: "order_completed",
-      from_stage_id: currentStage?.id || null,
-      to_stage_id: null,
-      from_status: work.status,
-      to_status: "completed",
-      employee_id: adminId,
-    });
+    setMessage(
+      result.already_completed
+        ? `${order.order_number} પહેલેથી Completed છે ✅`
+        : `${order.order_number} Direct Completed ✅`
+    );
 
-    setMessage(`${order.order_number} Completed ✅`);
     setSelectedOrder(null);
     await refreshOrders();
     setActionId(null);
