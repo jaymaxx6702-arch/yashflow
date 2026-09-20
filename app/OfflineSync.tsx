@@ -195,7 +195,29 @@ async function executeAction(action: OfflineAction) {
     const workId = String(action.payload.workId || "");
     const waiveProof = Boolean(action.payload.waiveProof);
 
-    if (waiveProof) {
+    const { data: current, error: loadError } = await supabase
+      .from("order_stage_work")
+      .select("id, status, proof_waived")
+      .eq("id", workId)
+      .maybeSingle();
+
+    if (loadError) throw new Error(loadError.message);
+    if (!current) return;
+
+    if (
+      current.status === "completed" ||
+      current.status === "ready_for_approval"
+    ) {
+      return;
+    }
+
+    if (current.status !== "in_progress") {
+      throw new Error(
+        `Stage હવે ${current.status} statusમાં છે. Manual review જરૂરી છે.`
+      );
+    }
+
+    if (waiveProof && !current.proof_waived) {
       const { error: waiveError } = await supabase.rpc(
         "employee_waive_stage_proof",
         {
