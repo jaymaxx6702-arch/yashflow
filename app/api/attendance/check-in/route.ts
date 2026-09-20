@@ -61,6 +61,8 @@ export async function POST(request: Request) {
       latitude?: number;
       longitude?: number;
       accuracy?: number;
+      client_action_at?: string;
+      offline_action_id?: string;
     };
 
     const db = integrationSupabase();
@@ -87,6 +89,24 @@ export async function POST(request: Request) {
         { error: "Active employee profile required." },
         { status: 403 }
       );
+    }
+
+    const offlineActionId = String(body.offline_action_id || "").trim();
+
+    if (offlineActionId) {
+      const { data: receipt, error: receiptError } = await db
+        .from("offline_action_receipts")
+        .select("response")
+        .eq("action_id", offlineActionId)
+        .maybeSingle();
+
+      if (receiptError) {
+        return NextResponse.json({ error: receiptError.message }, { status: 500 });
+      }
+
+      if (receipt?.response) {
+        return NextResponse.json(receipt.response);
+      }
     }
 
     const [
@@ -185,7 +205,32 @@ export async function POST(request: Request) {
     }
 
     const timeZone = office.timezone || "Asia/Kolkata";
-    const now = new Date();
+    const serverNow = new Date();
+    let now = serverNow;
+    let offlineSync = false;
+
+    if (offlineActionId && body.client_action_at) {
+      const capturedAt = new Date(body.client_action_at);
+      const ageMs = serverNow.getTime() - capturedAt.getTime();
+
+      if (!Number.isFinite(capturedAt.getTime())) {
+        return NextResponse.json(
+          { error: "Offline Punch timestamp valid નથી." },
+          { status: 400 }
+        );
+      }
+
+      if (ageMs < -5 * 60 * 1000 || ageMs > 12 * 60 * 60 * 1000) {
+        return NextResponse.json(
+          { error: "Offline Punch 12 કલાકની અંદર sync કરવો જરૂરી છે." },
+          { status: 400 }
+        );
+      }
+
+      now = capturedAt;
+      offlineSync = true;
+    }
+
     const today = dateInTimeZone(now, timeZone);
     const checkInMinutes = minutesOfDay(now, timeZone);
     const officeStartMinutes = timeStringToMinutes(office.office_start_time);
@@ -206,7 +251,9 @@ export async function POST(request: Request) {
         : 0;
 
     const approvalRequired =
-      attendanceType === "late" || attendanceType === "half_day";
+      offlineSync ||
+      attendanceType === "late" ||
+      attendanceType === "half_day";
 
     const { data: existingRows, error: existingError } = await db
       .from("attendance")
@@ -246,6 +293,9 @@ export async function POST(request: Request) {
       approval_required: approvalRequired,
       approval_status: approvalRequired ? "pending" : "approved",
       approved_at: approvalRequired ? null : now.toISOString(),
+      admin_note: offlineSync
+        ? `Offline Punch In synced • Captured ${now.toISOString()}`
+        : null,
     };
 
     const saveResult = existing?.id
@@ -281,11 +331,12 @@ export async function POST(request: Request) {
           admins.map((admin) => ({
             employee_id: admin.id,
             notification_type: "attendance",
-            title: "Attendance Approval",
-            message:
-              attendanceType === "half_day"
-                ? `${employee.full_name} Half Day Check In — approval required.`
-                : `${employee.full_name} ${lateMinutes} min Late — approval required.`,
+            title: offlineSync ? "Offline Punch Review" : "Attendance Approval",
+            message: offlineSync
+              ? `${employee.full_name} Offline Punch In sync થયું • Admin review required.`
+              : attendanceType === "half_day"
+              ? `${employee.full_name} Half Day Check In — approval required.`
+              : `${employee.full_name} ${lateMinutes} min Late — approval required.`,
             related_type: "attendance",
             related_id: saveResult.data.id,
           }))
@@ -293,7 +344,7 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({
+    const responsePayload = {
       ok: true,
       attendance_id: saveResult.data.id,
       check_in: saveResult.data.check_in,
@@ -303,7 +354,19 @@ export async function POST(request: Request) {
       distance_m: distanceM,
       accuracy_m: accuracyM,
       gps_required: gpsRequired,
-    });
+      offline_sync: offlineSync,
+    };
+
+    if (offlineActionId) {
+      await db.from("offline_action_receipts").upsert({
+        action_id: offlineActionId,
+        employee_id: employee.id,
+        action_type: "attendance_check_in",
+        response: responsePayload,
+      });
+    }
+
+    return NextResponse.json(responsePayload);
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Check In failed." },
