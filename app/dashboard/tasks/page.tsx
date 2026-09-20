@@ -228,10 +228,14 @@ export default function EmployeeTasksPage() {
       updateData.completed_at = null;
     }
 
-    const { error } = await supabase
+    const { data: updatedTask, error } = await supabase
       .from("tasks")
       .update(updateData)
-      .eq("id", task.id);
+      .eq("id", task.id)
+      .eq("status", task.status)
+      .eq("updated_at", task.updated_at)
+      .select("id")
+      .maybeSingle();
 
     if (error) {
       if (isLikelyNetworkError(error.message)) {
@@ -246,6 +250,14 @@ export default function EmployeeTasksPage() {
       }
 
       setMessage(`Task Update Error: ${error.message}`);
+      return;
+    }
+
+    if (!updatedTask) {
+      setMessage(
+        "Task વચ્ચે બદલાઈ ગયો છે. Latest data load કરીને ફરી action કરો."
+      );
+      await loadTasks(employeeId || undefined);
       return;
     }
 
