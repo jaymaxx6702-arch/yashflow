@@ -104,9 +104,11 @@ export default function DispatchManagementPage() {
           customer_mobile,
           product_name,
           quantity,
-          completed_at
+          completed_at,
+          current_stage,
+          workflow_status
         `)
-        .eq("current_stage", "completed")
+        .or("current_stage.eq.completed,workflow_status.eq.completed")
         .order("completed_at", { ascending: false }),
 
       supabase
