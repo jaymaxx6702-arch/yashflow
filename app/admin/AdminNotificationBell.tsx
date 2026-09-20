@@ -36,7 +36,9 @@ function notificationIcon(type: string | null) {
     case "order_assignment":
     case "order_update":
       return "📦";
+    case "task":
     case "task_assignment":
+    case "task_update":
       return "📋";
     case "leave":
     case "leave_status":
