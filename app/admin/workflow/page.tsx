@@ -1267,17 +1267,6 @@ async function updateStageApproval(
           .join(" + ")}`,
       });
 
-      for (const employeeId of [primaryId, ...supportIds]) {
-        await supabase.from("notifications").insert({
-          employee_id: employeeId,
-          notification_type: "order_assignment",
-          title: "Order Assigned",
-          message: `${order?.order_number || "Order"} તમને assign થયું છે.`,
-          related_type: "order",
-          related_id: work.order_id,
-        });
-      }
-
       assignedCount += 1;
     }
 
