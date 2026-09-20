@@ -1750,7 +1750,40 @@ const manualPunchRows = (
               }
             />
             <ToolButton href="/dashboard/purchase" label="Purchase" icon="🛒" />
+            <ToolButton href="/dashboard/packing" label="Packing" icon="📦" />
             <ToolButton href="/dashboard/dispatch" label="Dispatch" icon="🚚" />
+            <ToolButton href="/admin/accounts" label="Accounts" icon="💰" />
+            <ToolButton href="/admin/task-team" label="Task / Team" icon="👥" />
+            <ToolButton href="/admin/id-cards" label="Bulk ID Cards" icon="🪪" />
+            <ToolButton
+              href="/dashboard/manage/order-details"
+              label="Order Details"
+              icon="🧩"
+            />
+            <ToolButton href="/admin/reports" label="Export" icon="📤" />
+            <ToolButton href="/admin/reorder" label="Reorder" icon="🧾" />
+            <ToolButton href="/admin/escalations" label="Escalations" icon="🚨" />
+          </div>
+        </section>
+
+        <section className="mt-4 yf-card p-4">
+          <div>
+            <p className="text-[10px] font-black tracking-[0.15em] text-amber-700">
+              ADVANCED TOOLS
+            </p>
+            <h2 className="text-lg font-black text-slate-900 mt-0.5">
+              System & Recovery
+            </h2>
+            <p className="text-xs font-semibold text-slate-500 mt-1">
+              Daily staff work માટે જરૂરી નથી. Admin troubleshooting અને system checks માટે.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3 mt-4">
+            <ToolButton href="/admin/files" label="Files" icon="📁" />
+            <ToolButton href="/admin/system-audit" label="System Audit" icon="🛡️" />
+            <ToolButton href="/admin/recovery" label="Recovery" icon="♻️" />
+            <ToolButton href="/admin/readiness" label="Health Check" icon="✅" />
           </div>
         </section>
 
