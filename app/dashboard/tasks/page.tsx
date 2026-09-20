@@ -21,6 +21,7 @@ type Task = {
   started_at: string | null;
   completed_at: string | null;
   created_at: string;
+  updated_at: string;
 };
 
 export default function EmployeeTasksPage() {
@@ -51,7 +52,8 @@ export default function EmployeeTasksPage() {
       admin_note,
       started_at,
       completed_at,
-      created_at
+      created_at,
+      updated_at
     `;
 
     const [directResult, supportResult] = await Promise.all([
@@ -167,6 +169,8 @@ export default function EmployeeTasksPage() {
     const payload = {
       taskId: task.id,
       status: newStatus,
+      expectedStatus: task.status,
+      expectedUpdatedAt: task.updated_at,
     };
 
     const optimisticUpdate = () => {
@@ -189,7 +193,11 @@ export default function EmployeeTasksPage() {
     };
 
     if (!navigator.onLine) {
-      enqueueOfflineAction("task_status", payload);
+      enqueueOfflineAction(
+        "task_status",
+        payload,
+        { ownerEmployeeId: employeeId || "" }
+      );
       optimisticUpdate();
       setMessage("Offline • Task update Pending Sync ☁️");
       return;
@@ -226,7 +234,11 @@ export default function EmployeeTasksPage() {
 
     if (error) {
       if (isLikelyNetworkError(error.message)) {
-        enqueueOfflineAction("task_status", payload);
+        enqueueOfflineAction(
+        "task_status",
+        payload,
+        { ownerEmployeeId: employeeId || "" }
+      );
         optimisticUpdate();
         setMessage("Network weak • Task update Pending Sync ☁️");
         return;
@@ -242,10 +254,19 @@ export default function EmployeeTasksPage() {
 
   async function saveNote(taskId: string) {
     const note = noteDrafts[taskId]?.trim() || "";
-    const payload = { taskId, note };
+    const task = tasks.find((item) => item.id === taskId);
+    const payload = {
+      taskId,
+      note,
+      expectedEmployeeNote: task?.employee_note || null,
+    };
 
     if (!navigator.onLine) {
-      enqueueOfflineAction("task_note", payload);
+      enqueueOfflineAction(
+        "task_note",
+        payload,
+        { ownerEmployeeId: employeeId || "" }
+      );
       setTasks((current) =>
         current.map((task) =>
           task.id === taskId
@@ -269,7 +290,11 @@ export default function EmployeeTasksPage() {
 
     if (error) {
       if (isLikelyNetworkError(error.message)) {
-        enqueueOfflineAction("task_note", payload);
+        enqueueOfflineAction(
+        "task_note",
+        payload,
+        { ownerEmployeeId: employeeId || "" }
+      );
         setTasks((current) =>
           current.map((task) =>
             task.id === taskId
