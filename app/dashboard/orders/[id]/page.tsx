@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import StageChecklist from "../StageChecklist";
 
 type Order = {
   id: string;
@@ -16,6 +17,7 @@ type Order = {
   due_date: string | null;
   current_stage: string;
   current_stage_id: string | null;
+  workflow_template_id: string | null;
   workflow_status: string;
   workflow_mode: string;
   product_configuration: Record<string, string> | null;
@@ -164,6 +166,22 @@ export default function EmployeeOrderDetailsPage() {
     );
   }, [stageWorks]);
 
+  const canEditCurrentChecklist = useMemo(() => {
+    if (!employee || !currentWork || currentWork.status !== "in_progress") {
+      return false;
+    }
+
+    if (currentWork.primary_employee_id === employee.id) {
+      return true;
+    }
+
+    return (workersByWork.get(currentWork.id) || []).some(
+      (worker) =>
+        !worker.left_at &&
+        worker.employee_id === employee.id
+    );
+  }, [employee, currentWork, workersByWork]);
+
   function employeeName(id: string | null | undefined) {
     if (!id) return "-";
     return employeeMap.get(id)?.full_name || "Employee";
@@ -230,6 +248,7 @@ export default function EmployeeOrderDetailsPage() {
             due_date,
             current_stage,
             current_stage_id,
+            workflow_template_id,
             workflow_status,
             workflow_mode,
             product_configuration,
@@ -486,6 +505,16 @@ export default function EmployeeOrderDetailsPage() {
             </div>
           </div>
         </section>
+
+        {employee && currentWork && (
+          <StageChecklist
+            workId={currentWork.id}
+            templateId={order.workflow_template_id}
+            stageId={currentWork.stage_id}
+            employeeId={employee.id}
+            canEdit={canEditCurrentChecklist}
+          />
+        )}
 
         {(order.customer_note || order.admin_note) && (
           <section className="yf-card p-5 mt-4">
