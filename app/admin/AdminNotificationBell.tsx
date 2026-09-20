@@ -56,7 +56,7 @@ export default function AdminNotificationBell({ employeeId }: Props) {
   const [markingAll, setMarkingAll] = useState(false);
   const [message, setMessage] = useState("");
 
-  const [soundEnabled, setSoundEnabled] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
   const [vibrateEnabled, setVibrateEnabled] = useState(false);
   const [vibrationSupported, setVibrationSupported] = useState(false);
 
@@ -75,9 +75,11 @@ export default function AdminNotificationBell({ employeeId }: Props) {
     audio.volume = 1;
     audioRef.current = audio;
 
-    const savedSound =
-      window.localStorage.getItem("yashflow-admin-notification-sound-enabled") ===
-      "true";
+    window.localStorage.setItem(
+      "yashflow-admin-notification-sound-enabled",
+      "true"
+    );
+    setSoundEnabled(true);
 
     const canVibrate =
       typeof navigator !== "undefined" &&
@@ -89,7 +91,6 @@ export default function AdminNotificationBell({ employeeId }: Props) {
         "yashflow-admin-notification-vibrate-enabled"
       ) === "true";
 
-    setSoundEnabled(savedSound);
     setVibrationSupported(canVibrate);
     setVibrateEnabled(savedVibrate);
 
@@ -148,36 +149,6 @@ export default function AdminNotificationBell({ employeeId }: Props) {
       vibrate();
     }
   }, [playSound, soundEnabled, vibrate, vibrateEnabled]);
-
-  async function toggleSound() {
-    setMessage("");
-
-    if (soundEnabled) {
-      setSoundEnabled(false);
-      window.localStorage.setItem(
-        "yashflow-admin-notification-sound-enabled",
-        "false"
-      );
-
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-      }
-
-      return;
-    }
-
-    // Must play directly inside user click so Chrome can unlock audio.
-    const ok = await playSound();
-
-    if (ok) {
-      setSoundEnabled(true);
-      window.localStorage.setItem(
-        "yashflow-admin-notification-sound-enabled",
-        "true"
-      );
-    }
-  }
 
   function toggleVibrate() {
     setMessage("");
@@ -456,17 +427,12 @@ export default function AdminNotificationBell({ employeeId }: Props) {
               </div>
 
               <div className="grid grid-cols-2 gap-2 mt-4">
-                <button
-                  type="button"
-                  onClick={toggleSound}
-                  className={`yf-btn ${
-                    soundEnabled
-                      ? "bg-green-100 text-green-800 hover:bg-green-50"
-                      : "bg-white/10 text-white border border-white/20 hover:bg-white/20"
-                  }`}
+                <div
+                  className="yf-btn yf-btn-success cursor-default"
+                  title="Notification sound is always enabled"
                 >
-                  {soundEnabled ? "🔊 Sound ON" : "🔇 Sound OFF"}
-                </button>
+                  🔊 Sound Always ON
+                </div>
 
                 <button
                   type="button"
