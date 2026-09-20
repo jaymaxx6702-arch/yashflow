@@ -119,14 +119,16 @@ export async function POST(request: Request) {
       .select("id, check_in, check_out, working_minutes")
       .eq("employee_id", employee.id)
       .eq("attendance_date", today)
-      .order("check_in", { ascending: false })
-      .limit(1);
+      .order("check_in", { ascending: false, nullsFirst: false });
 
     if (attendanceError) {
       return NextResponse.json({ error: attendanceError.message }, { status: 500 });
     }
 
-    const attendance = attendanceRows?.[0];
+    const attendance =
+      (attendanceRows || []).find((row) => Boolean(row.check_in) && !row.check_out) ||
+      (attendanceRows || []).find((row) => Boolean(row.check_in)) ||
+      null;
 
     if (!attendance?.check_in) {
       return NextResponse.json({ error: "આજે Check In મળ્યું નથી." }, { status: 400 });
@@ -149,17 +151,24 @@ export async function POST(request: Request) {
     let accuracyM: number | null = null;
 
     if (gpsRequired) {
+      if (!geofence) {
+        return NextResponse.json(
+          { error: "GPS Settings મળ્યાં નથી." },
+          { status: 400 }
+        );
+      }
+
       const latitude = Number(body.latitude);
       const longitude = Number(body.longitude);
       const accuracy = Number(body.accuracy);
-      if (geofence?.latitude === null || geofence?.longitude === null) {
+      if (geofence.latitude === null || geofence.longitude === null) {
         return NextResponse.json({ error: "Office GPS Location set થયેલું નથી." }, { status: 400 });
       }
 
       const officeLatitude = Number(geofence.latitude);
       const officeLongitude = Number(geofence.longitude);
-      const radiusM = Number(geofence?.radius_m || 200);
-      const maxAccuracyM = Number(geofence?.max_accuracy_m || 150);
+      const radiusM = Number(geofence.radius_m || 200);
+      const maxAccuracyM = Number(geofence.max_accuracy_m || 150);
 
       if (
         !Number.isFinite(latitude) ||
