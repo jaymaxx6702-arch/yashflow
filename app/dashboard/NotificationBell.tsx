@@ -34,6 +34,7 @@ function formatNotificationTime(value: string) {
 function notificationIcon(type: string | null) {
   switch (type) {
     case "order_assignment":
+    case "order_update":
       return "📦";
     case "task_assignment":
       return "📋";
