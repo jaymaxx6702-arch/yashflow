@@ -288,6 +288,10 @@ export default function OfflineSync() {
       onQueueChanged
     );
 
+    if (navigator.onLine && getOfflineActions().length > 0) {
+      void flush();
+    }
+
     return () => {
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
@@ -297,12 +301,6 @@ export default function OfflineSync() {
       );
     };
   }, [flush, refreshPending]);
-
-  useEffect(() => {
-    if (online && pending > 0) {
-      void flush();
-    }
-  }, [online, pending, flush]);
 
   if (online && pending === 0 && !syncing) {
     return null;
