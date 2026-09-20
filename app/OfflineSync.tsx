@@ -240,8 +240,6 @@ async function executeAction(
 
   if (action.type === "order_start") {
     const workId = String(action.payload.workId || "");
-    const orderId = String(action.payload.orderId || "");
-    const stageId = String(action.payload.stageId || "");
     const employeeId = String(action.payload.employeeId || "");
     const fromStatus = String(action.payload.fromStatus || "assigned");
 
@@ -251,70 +249,18 @@ async function executeAction(
       );
     }
 
-    const { data: current, error: loadError } = await supabase
-      .from("order_stage_work")
-      .select("id, status, started_at")
-      .eq("id", workId)
-      .maybeSingle();
+    const { error } = await supabase.rpc(
+      "employee_start_stage_v1",
+      {
+        p_work_id: workId,
+        p_expected_status: fromStatus,
+        p_action_at: action.queuedAt,
+        p_action_id: action.id,
+      }
+    );
 
-    if (loadError) throw new Error(loadError.message);
-    if (!current) {
-      throw new Error("Order Stage હવે મળતો નથી. Manual review જરૂરી છે.");
-    }
-
-    if (current.status === "in_progress") return;
-
-    if (current.status !== fromStatus) {
-      throw new Error(
-        `Order Stage ${fromStatus}થી ${current.status} થઈ ગયો છે. Offline Start auto-overwrite નહીં થાય.`
-      );
-    }
-
-    const { data: updated, error } = await supabase
-      .from("order_stage_work")
-      .update({
-        status: "in_progress",
-        started_at: current.started_at || action.queuedAt,
-        updated_at: action.queuedAt,
-      })
-      .eq("id", workId)
-      .eq("status", fromStatus)
-      .select("id")
-      .maybeSingle();
-
-    if (error) throw new Error(error.message);
-    if (!updated) {
-      throw new Error(
-        "Stage sync પહેલાં બદલાઈ ગયો. Manual review જરૂરી છે."
-      );
-    }
-
-    const { error: orderError } = await supabase
-      .from("orders")
-      .update({
-        workflow_status: "in_progress",
-        updated_at: action.queuedAt,
-      })
-      .eq("id", orderId);
-
-    if (orderError) throw new Error(orderError.message);
-
-    const { error: historyError } = await supabase
-      .from("order_workflow_history")
-      .insert({
-        order_id: orderId,
-        order_stage_work_id: workId,
-        action_type: "employee_started_work_offline_sync",
-        from_stage_id: stageId,
-        to_stage_id: stageId,
-        from_status: fromStatus,
-        to_status: "in_progress",
-        employee_id: currentEmployeeId,
-        note: `Offline action synced • ${action.id}`,
-      });
-
-    if (historyError) {
-      throw new Error(historyError.message);
+    if (error) {
+      throw new Error(error.message);
     }
 
     return;
