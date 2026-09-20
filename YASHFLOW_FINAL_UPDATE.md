@@ -127,6 +127,19 @@ Smoke tests:
 SQL:
 - `sql/2026-09-20-productivity-features.sql`
 
+Resilience safeguards:
+- [x] Offline actions are scoped to the employee who created them.
+- [x] Attendance offline de-duplication uses Employee + India Business Date + Action Type.
+- [x] Permanent/conflict offline errors move to Needs Review without blocking later valid actions.
+- [x] Task status replay is version-aware and will not overwrite newer Admin/Employee changes.
+- [x] Sequential offline Task actions preserve the queued version timestamp.
+- [x] Stage Checklist definitions are snapshotted per Order Stage; later SOP edits affect new stages only.
+- [x] Checklist definitions are archived/deactivated instead of destructively deleted.
+- [x] Order Stage Start uses one atomic RPC for online and offline actions.
+- [x] Stuck/Overdue alert scan runs automatically every 15 minutes through Supabase Cron.
+- [x] Manual Admin Refresh uses the same DB scanner as Cron.
+- [x] Activity History update rows store changed-field diffs instead of full duplicate rows.
+
 Productivity smoke tests:
 - Next Work picks an Urgent item ahead of normal work.
 - Due Today / Overdue changes Next Work priority correctly.
@@ -144,6 +157,7 @@ Productivity smoke tests:
 
 ## 9. Quality gate
 - [x] Stabilization branch has CI on push.
+- [ ] SQL migration sanity PASS on latest commit.
 - [x] TypeScript check PASS.
 - [x] Next.js production build PASS.
 - [x] ESLint advisory reviewed.
@@ -156,12 +170,17 @@ Productivity smoke tests:
 
 ## Required deployment order
 1. Take/verify database backup.
-2. Run stability-guard SQL.
-3. Resolve any duplicate-data error reported by guard SQL.
-4. Run Admin Direct Complete SQL.
-5. Run Workflow Delete SQL.
-6. Run Order/Task Notification SQL.
-7. Confirm CI is green.
-8. Merge PR #2.
-9. Verify Vercel deployment is Success.
-10. Smoke-test Admin and Employee on mobile.
+2. Run `sql/2026-09-20-final-stability-guards.sql`.
+3. Resolve any duplicate-data error reported by stability guards.
+4. Run `sql/2026-09-20-admin-direct-complete.sql`.
+5. Run `sql/2026-09-20-safe-workflow-delete.sql`.
+6. Run `sql/2026-09-20-order-task-change-notifications.sql`.
+7. Run `sql/2026-09-20-productivity-features.sql`.
+8. Verify Supabase Cron contains `yashflow-stuck-alert-scan` (every 15 minutes).
+9. Confirm Preview server has required Supabase server secret.
+10. Preview smoke-test Admin + Employee + Offline/Online sync.
+11. Confirm CI is fully green.
+12. Merge PR #2 to main only after smoke-test approval.
+13. Verify Vercel production deployment is Success.
+14. Run final live smoke test.
+15. Only then mark Final Update LIVE.
