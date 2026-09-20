@@ -70,9 +70,16 @@ set search_path = public
 as $$
 declare
   v_employee_id uuid;
+  v_actor_employee_id uuid;
   v_changes text[] := array[]::text[];
   v_message text;
 begin
+  select e.id
+    into v_actor_employee_id
+  from public.employees e
+  where e.auth_user_id = auth.uid()
+  limit 1;
+
   if tg_op = 'UPDATE' then
     if new.title is distinct from old.title then
       v_changes := array_append(v_changes, 'Title');
@@ -121,15 +128,19 @@ begin
       coalesce(new.priority::text, 'normal');
   end if;
 
-  -- Current primary employee.
-  perform public.yf_notify_employee(
-    new.assigned_to,
-    case when tg_op = 'INSERT' then 'task_assignment' else 'task' end,
-    case when tg_op = 'INSERT' then 'New Task Assigned' else 'Task Updated' end,
-    v_message,
-    'task',
-    new.id
-  );
+  -- Assignment alerts still reach the assignee on INSERT.
+  -- On UPDATE, skip the employee who performed the change to avoid self-tone.
+  if tg_op = 'INSERT'
+     or new.assigned_to is distinct from v_actor_employee_id then
+    perform public.yf_notify_employee(
+      new.assigned_to,
+      case when tg_op = 'INSERT' then 'task_assignment' else 'task' end,
+      case when tg_op = 'INSERT' then 'New Task Assigned' else 'Task Updated' end,
+      v_message,
+      'task',
+      new.id
+    );
+  end if;
 
   -- Current active support employees.
   for v_employee_id in
@@ -138,6 +149,10 @@ begin
     where tsw.task_id = new.id
       and tsw.is_active = true
       and tsw.employee_id is distinct from new.assigned_to
+      and (
+        tg_op = 'INSERT'
+        or tsw.employee_id is distinct from v_actor_employee_id
+      )
   loop
     perform public.yf_notify_employee(
       v_employee_id,
@@ -152,7 +167,8 @@ begin
   -- If primary assignment moved away from someone, tell the previous primary too.
   if tg_op = 'UPDATE'
      and old.assigned_to is not null
-     and old.assigned_to is distinct from new.assigned_to then
+     and old.assigned_to is distinct from new.assigned_to
+     and old.assigned_to is distinct from v_actor_employee_id then
     perform public.yf_notify_employee(
       old.assigned_to,
       'task_assignment',
@@ -241,7 +257,14 @@ set search_path = public
 as $$
 declare
   v_employee_id uuid;
+  v_actor_employee_id uuid;
 begin
+  select e.id
+    into v_actor_employee_id
+  from public.employees e
+  where e.auth_user_id = auth.uid()
+  limit 1;
+
   for v_employee_id in
     with active_work as (
       select w.id, w.primary_employee_id, w.status
@@ -287,6 +310,7 @@ begin
     select distinct employee_id
     from team
     where employee_id is not null
+      and employee_id is distinct from v_actor_employee_id
   loop
     perform public.yf_notify_employee(
       v_employee_id,
