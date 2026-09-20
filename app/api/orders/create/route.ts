@@ -284,20 +284,6 @@ export async function POST(request: Request) {
     note: `Workflow: ${workflow.name}`,
   });
 
-  const assignedIds = primaryId ? [primaryId, ...supportIds] : [];
-  if (assignedIds.length) {
-    await db.from("notifications").insert(
-      assignedIds.map((employeeId) => ({
-        employee_id: employeeId,
-        notification_type: "order_assignment",
-        title: "New Order Assigned",
-        message: `${newOrder.order_number} - ${firstStage.name} તમને assign થયું છે.`,
-        related_type: "order",
-        related_id: newOrder.id,
-      }))
-    );
-  }
-
   return NextResponse.json({
     ok: true,
     orderId: newOrder.id,
