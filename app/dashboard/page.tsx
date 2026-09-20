@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import {
   enqueueOfflineAction,
+  getOfflineActions,
   isLikelyNetworkError,
+  offlineQueueEventName,
 } from "@/utils/offline-queue";
 import TodaysWork from "./TodaysWork";
 import NotificationBell from "./NotificationBell";
@@ -174,6 +176,51 @@ export default function EmployeeDashboard() {
   const [message, setMessage] = useState("");
   const [summaryDrawer, setSummaryDrawer] =
     useState<SummaryDrawerKey>(null);
+
+  function setOfflineAttendanceState(
+    kind: "check_in" | "check_out",
+    capturedAt = new Date()
+  ) {
+    if (!officeSettings) return;
+
+    const capturedIso = capturedAt.toISOString();
+
+    setAttendance((current) => {
+      if (kind === "check_in") {
+        return (
+          current || {
+            id: "offline-pending-check-in",
+            attendance_date: getDateInTimeZone(officeSettings.timezone),
+            check_in: capturedIso,
+            check_out: null,
+            status: "present",
+            attendance_type: "offline_pending",
+            late_minutes: 0,
+            working_minutes: 0,
+            approval_required: true,
+            approval_status: "pending",
+            approved_at: null,
+            admin_note: "Offline Punch In • Pending Sync",
+          }
+        );
+      }
+
+      if (!current?.check_in) return current;
+
+      return {
+        ...current,
+        check_out: capturedIso,
+        approval_required: true,
+        approval_status: "pending",
+        admin_note: [
+          current.admin_note,
+          "Offline Punch Out • Pending Sync",
+        ]
+          .filter(Boolean)
+          .join(" | "),
+      };
+    });
+  }
 
   // Stable refs for Android/browser Back handling.
   const summaryDrawerRef = useRef<SummaryDrawerKey>(null);
@@ -845,6 +892,38 @@ export default function EmployeeDashboard() {
     loadDashboard();
   }, [router]);
 
+  useEffect(() => {
+    if (!employee || !officeSettings) return;
+
+    const syncAttendanceAfterQueue = () => {
+      if (!navigator.onLine) return;
+
+      const hasPendingAttendance = getOfflineActions().some(
+        (action) =>
+          action.type === "attendance_check_in" ||
+          action.type === "attendance_check_out"
+      );
+
+      if (!hasPendingAttendance) {
+        void loadAttendance(employee.id, officeSettings);
+      }
+    };
+
+    window.addEventListener(
+      offlineQueueEventName(),
+      syncAttendanceAfterQueue
+    );
+
+    return () => {
+      window.removeEventListener(
+        offlineQueueEventName(),
+        syncAttendanceAfterQueue
+      );
+    };
+    // loadAttendance is intentionally read from current component scope.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employee, officeSettings]);
+
   async function handleCheckIn() {
     if (!employee || !officeSettings) return;
 
@@ -882,6 +961,7 @@ export default function EmployeeDashboard() {
           longitude: location.longitude,
           accuracy: location.accuracy,
         });
+        setOfflineAttendanceState("check_in");
         setMessage(
           "Offline • Punch In deviceમાં save થયું ☁️ Internet આવ્યા પછી auto-sync + Admin Review થશે."
         );
@@ -965,6 +1045,7 @@ export default function EmployeeDashboard() {
           longitude: capturedLocation.longitude,
           accuracy: capturedLocation.accuracy,
         });
+        setOfflineAttendanceState("check_in");
         setMessage(
           "Network weak • Punch In Pending Sync ☁️ Internet આવ્યા પછી Admin Review થશે."
         );
@@ -1054,6 +1135,7 @@ export default function EmployeeDashboard() {
           accuracy: location.accuracy,
           early_reason: earlyReason,
         });
+        setOfflineAttendanceState("check_out");
         setMessage(
           "Offline • Punch Out deviceમાં save થયું ☁️ Internet આવ્યા પછી auto-sync + Admin Review થશે."
         );
@@ -1140,6 +1222,7 @@ export default function EmployeeDashboard() {
           accuracy: capturedLocation.accuracy,
           early_reason: earlyReason,
         });
+        setOfflineAttendanceState("check_out");
         setMessage(
           "Network weak • Punch Out Pending Sync ☁️ Internet આવ્યા પછી Admin Review થશે."
         );
