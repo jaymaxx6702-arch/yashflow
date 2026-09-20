@@ -651,6 +651,37 @@ export default function AdminPage() {
     setDrawer((prev) => ({ ...prev, open: false }));
   }
 
+  async function scanStuckAlerts() {
+    const supabase = createClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session?.access_token) return;
+
+    const response = await fetch("/api/admin/stuck-work-scan", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const result = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      console.warn(
+        "Stuck Alert Scan Error:",
+        result.error || response.statusText
+      );
+    }
+  }
+
+  async function refreshDashboard() {
+    await loadDashboardCounts();
+    await scanStuckAlerts();
+  }
+
   async function loadDashboardCounts() {
     const supabase = createClient();
 
@@ -1118,6 +1149,7 @@ const manualPunchRows = (
       setAdminId(adminProfile.id);
 
       await loadDashboardCounts();
+      void scanStuckAlerts();
       setLoading(false);
     }
 
@@ -1185,7 +1217,7 @@ const manualPunchRows = (
 
               <button
                 type="button"
-                onClick={loadDashboardCounts}
+                onClick={refreshDashboard}
                 disabled={refreshing}
                 className="yf-btn bg-white/15 border-white/20 text-white hover:bg-white/25 disabled:opacity-60"
               >
