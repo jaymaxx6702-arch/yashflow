@@ -292,18 +292,18 @@ begin
     v_new := to_jsonb(new);
     v_entity_id := coalesce(v_new->>'id', '');
     v_action := 'created';
-    select coalesce(array_agg(key order by key), array[]::text[])
+    select coalesce(array_agg(k.key order by k.key), array[]::text[])
       into v_changed
-    from jsonb_object_keys(v_new) as key
-    where key not in ('created_at', 'updated_at');
+    from jsonb_object_keys(v_new) as k(key)
+    where k.key not in ('created_at', 'updated_at');
   elsif tg_op = 'DELETE' then
     v_old := to_jsonb(old);
     v_entity_id := coalesce(v_old->>'id', '');
     v_action := 'deleted';
-    select coalesce(array_agg(key order by key), array[]::text[])
+    select coalesce(array_agg(k.key order by k.key), array[]::text[])
       into v_changed
-    from jsonb_object_keys(v_old) as key
-    where key not in ('created_at', 'updated_at');
+    from jsonb_object_keys(v_old) as k(key)
+    where k.key not in ('created_at', 'updated_at');
   else
     v_old := to_jsonb(old);
     v_new := to_jsonb(new);
@@ -340,9 +340,13 @@ begin
     v_new
   );
 
-  return coalesce(new, old);
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+
+  return new;
 end;
-$$;
+$;
 
 drop trigger if exists trg_yf_audit_orders on public.orders;
 create trigger trg_yf_audit_orders
