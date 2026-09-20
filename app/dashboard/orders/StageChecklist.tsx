@@ -145,7 +145,11 @@ export default function StageChecklist({
     };
 
     if (!navigator.onLine) {
-      enqueueOfflineAction("checklist_toggle", payload);
+      enqueueOfflineAction(
+        "checklist_toggle",
+        payload,
+        { ownerEmployeeId: employeeId }
+      );
       setMessage("Offline • Checklist change Pending Sync ☁️");
       return;
     }
@@ -171,7 +175,11 @@ export default function StageChecklist({
 
     if (error) {
       if (isLikelyNetworkError(error.message)) {
-        enqueueOfflineAction("checklist_toggle", payload);
+        enqueueOfflineAction(
+        "checklist_toggle",
+        payload,
+        { ownerEmployeeId: employeeId }
+      );
         setMessage("Network weak • Checklist change Pending Sync ☁️");
         return;
       }
