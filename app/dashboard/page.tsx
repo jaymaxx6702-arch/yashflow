@@ -956,11 +956,15 @@ export default function EmployeeDashboard() {
       capturedLocation = location;
 
       if (!navigator.onLine) {
-        enqueueOfflineAction("attendance_check_in", {
-          latitude: location.latitude,
-          longitude: location.longitude,
-          accuracy: location.accuracy,
-        });
+        enqueueOfflineAction(
+          "attendance_check_in",
+          {
+            latitude: location.latitude,
+            longitude: location.longitude,
+            accuracy: location.accuracy,
+          },
+          { ownerEmployeeId: employee.id }
+        );
         setOfflineAttendanceState("check_in");
         setMessage(
           "Offline • Punch In deviceમાં save થયું ☁️ Internet આવ્યા પછી auto-sync + Admin Review થશે."
@@ -1040,11 +1044,15 @@ export default function EmployeeDashboard() {
       }
     } catch (error) {
       if (capturedLocation && isLikelyNetworkError(error)) {
-        enqueueOfflineAction("attendance_check_in", {
-          latitude: capturedLocation.latitude,
-          longitude: capturedLocation.longitude,
-          accuracy: capturedLocation.accuracy,
-        });
+        enqueueOfflineAction(
+          "attendance_check_in",
+          {
+            latitude: capturedLocation.latitude,
+            longitude: capturedLocation.longitude,
+            accuracy: capturedLocation.accuracy,
+          },
+          { ownerEmployeeId: employee.id }
+        );
         setOfflineAttendanceState("check_in");
         setMessage(
           "Network weak • Punch In Pending Sync ☁️ Internet આવ્યા પછી Admin Review થશે."
@@ -1129,12 +1137,16 @@ export default function EmployeeDashboard() {
       capturedLocation = location;
 
       if (!navigator.onLine) {
-        enqueueOfflineAction("attendance_check_out", {
-          latitude: location.latitude,
-          longitude: location.longitude,
-          accuracy: location.accuracy,
-          early_reason: earlyReason,
-        });
+        enqueueOfflineAction(
+          "attendance_check_out",
+          {
+            latitude: location.latitude,
+            longitude: location.longitude,
+            accuracy: location.accuracy,
+            early_reason: earlyReason,
+          },
+          { ownerEmployeeId: employee.id }
+        );
         setOfflineAttendanceState("check_out");
         setMessage(
           "Offline • Punch Out deviceમાં save થયું ☁️ Internet આવ્યા પછી auto-sync + Admin Review થશે."
@@ -1216,12 +1228,16 @@ export default function EmployeeDashboard() {
       );
     } catch (error) {
       if (capturedLocation && isLikelyNetworkError(error)) {
-        enqueueOfflineAction("attendance_check_out", {
-          latitude: capturedLocation.latitude,
-          longitude: capturedLocation.longitude,
-          accuracy: capturedLocation.accuracy,
-          early_reason: earlyReason,
-        });
+        enqueueOfflineAction(
+          "attendance_check_out",
+          {
+            latitude: capturedLocation.latitude,
+            longitude: capturedLocation.longitude,
+            accuracy: capturedLocation.accuracy,
+            early_reason: earlyReason,
+          },
+          { ownerEmployeeId: employee.id }
+        );
         setOfflineAttendanceState("check_out");
         setMessage(
           "Network weak • Punch Out Pending Sync ☁️ Internet આવ્યા પછી Admin Review થશે."
