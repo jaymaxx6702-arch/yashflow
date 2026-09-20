@@ -503,7 +503,7 @@ returns jsonb
 language plpgsql
 security definer
 set search_path = public, auth
-as $
+as $$
 declare
   v_employee_id uuid;
   v_work record;
