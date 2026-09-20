@@ -812,7 +812,8 @@ export default function EmployeeOrdersPage() {
             ? {
                 ...item,
                 status: "in_progress",
-                started_at: item.started_at || new Date().toISOString(),
+                started_at:
+                  item.started_at || new Date().toISOString(),
               }
             : item
         )
@@ -827,25 +828,23 @@ export default function EmployeeOrdersPage() {
     const supabase = createClient();
     const now = new Date().toISOString();
 
-    const { data: updatedWork, error: workError } = await supabase
-      .from("order_stage_work")
-      .update({
-        status: "in_progress",
-        started_at: work.started_at || now,
-        updated_at: now,
-      })
-      .eq("id", work.id)
-      .eq("status", work.status)
-      .select("id")
-      .maybeSingle();
+    const { error } = await supabase.rpc(
+      "employee_start_stage_v1",
+      {
+        p_work_id: work.id,
+        p_expected_status: work.status,
+        p_action_at: now,
+        p_action_id: null,
+      }
+    );
 
-    if (workError) {
-      if (isLikelyNetworkError(workError.message)) {
+    if (error) {
+      if (isLikelyNetworkError(error.message)) {
         enqueueOfflineAction(
-        "order_start",
-        offlinePayload,
-        { ownerEmployeeId: employee.id }
-      );
+          "order_start",
+          offlinePayload,
+          { ownerEmployeeId: employee.id }
+        );
         setStageWorks((current) =>
           current.map((item) =>
             item.id === work.id
@@ -863,47 +862,9 @@ export default function EmployeeOrdersPage() {
         return;
       }
 
-      setMessage(`Start Work Error: ${workError.message}`);
+      setMessage(`Start Work Error: ${error.message}`);
       setActionId(null);
       return;
-    }
-
-    if (!updatedWork) {
-      setMessage("Stage update થઈ શક્યો નથી. Page refresh કરીને ફરી try કરો.");
-      setActionId(null);
-      return;
-    }
-
-    const { error: orderSyncError } = await supabase
-      .from("orders")
-      .update({
-        workflow_status: "in_progress",
-        updated_at: now,
-      })
-      .eq("id", work.order_id);
-
-    if (orderSyncError) {
-      console.warn(
-        "Order workflow_status sync failed:",
-        orderSyncError.message
-      );
-    }
-
-    const { error: historyError } = await supabase
-      .from("order_workflow_history")
-      .insert({
-        order_id: work.order_id,
-        order_stage_work_id: work.id,
-        action_type: "employee_started_work",
-        from_stage_id: work.stage_id,
-        to_stage_id: work.stage_id,
-        from_status: work.status,
-        to_status: "in_progress",
-        employee_id: employee.id,
-      });
-
-    if (historyError) {
-      console.warn("Workflow history insert failed:", historyError.message);
     }
 
     setMessage("Work Started ✅");
