@@ -26,9 +26,6 @@ type OperationDetails = {
   print_taken_status: "pending" | "done" | "not_required";
   print_job_given_by: string | null;
   print_received_status: "pending" | "received" | "not_required";
-  payment_receiver: string | null;
-  bill_created: boolean;
-  bill_number: string | null;
   job_start_folder_details: string | null;
   production_note: string | null;
 };
@@ -41,9 +38,6 @@ type FormState = {
   print_taken_status: "pending" | "done" | "not_required";
   print_job_given_by: string;
   print_received_status: "pending" | "received" | "not_required";
-  payment_receiver: string;
-  bill_created: boolean;
-  bill_number: string;
   job_start_folder_details: string;
   production_note: string;
 };
@@ -56,9 +50,6 @@ const EMPTY_FORM: FormState = {
   print_taken_status: "pending",
   print_job_given_by: "",
   print_received_status: "pending",
-  payment_receiver: "",
-  bill_created: false,
-  bill_number: "",
   job_start_folder_details: "",
   production_note: "",
 };
@@ -192,9 +183,6 @@ export default function OrderOperationDetailsPage() {
             print_taken_status: existing.print_taken_status,
             print_job_given_by: existing.print_job_given_by || "",
             print_received_status: existing.print_received_status,
-            payment_receiver: existing.payment_receiver || "",
-            bill_created: existing.bill_created,
-            bill_number: existing.bill_number || "",
             job_start_folder_details: existing.job_start_folder_details || "",
             production_note: existing.production_note || "",
           }
@@ -205,11 +193,6 @@ export default function OrderOperationDetailsPage() {
 
   async function saveDetails() {
     if (!selectedOrder || !editorEmployeeId) return;
-
-    if (form.bill_created && !form.bill_number.trim()) {
-      setMessage("Bill Created હોય તો Bill Number જરૂરી છે.");
-      return;
-    }
 
     setSaving(true);
     setMessage("");
@@ -225,9 +208,6 @@ export default function OrderOperationDetailsPage() {
         print_taken_status: form.print_taken_status,
         print_job_given_by: form.print_job_given_by.trim() || null,
         print_received_status: form.print_received_status,
-        payment_receiver: form.payment_receiver.trim() || null,
-        bill_created: form.bill_created,
-        bill_number: form.bill_created ? form.bill_number.trim() || null : null,
         job_start_folder_details: form.job_start_folder_details.trim() || null,
         production_note: form.production_note.trim() || null,
         updated_by: editorEmployeeId,
@@ -301,7 +281,6 @@ export default function OrderOperationDetailsPage() {
               row?.material ||
                 row?.size_details ||
                 row?.print_size ||
-                row?.bill_number ||
                 row?.job_start_folder_details
             );
 
@@ -416,20 +395,14 @@ export default function OrderOperationDetailsPage() {
                 </select>
               </label>
 
-              <label className="block">
-                <span className="text-sm font-black text-slate-700">Payment Receiver</span>
-                <input className="yf-input mt-2" value={form.payment_receiver} onChange={(e) => setForm((x) => ({ ...x, payment_receiver: e.target.value }))} />
-              </label>
-
-              <label className="flex items-center gap-3 rounded-2xl border border-slate-200 p-4">
-                <input type="checkbox" checked={form.bill_created} onChange={(e) => setForm((x) => ({ ...x, bill_created: e.target.checked }))} />
-                <span className="font-black text-slate-700">Bill Created</span>
-              </label>
-
-              <label className="block">
-                <span className="text-sm font-black text-slate-700">Bill Number</span>
-                <input className="yf-input mt-2" disabled={!form.bill_created} value={form.bill_number} onChange={(e) => setForm((x) => ({ ...x, bill_number: e.target.value }))} />
-              </label>
+              <div className="md:col-span-2 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm font-black text-amber-900">
+                  💳 Payment & Billing
+                </p>
+                <p className="text-xs font-semibold text-amber-800 mt-1">
+                  Financial details Accounts moduleમાં જ manage થશે જેથી એક જ source of truth રહે.
+                </p>
+              </div>
 
               <label className="md:col-span-2 block">
                 <span className="text-sm font-black text-slate-700">Job Start Folder Details</span>
