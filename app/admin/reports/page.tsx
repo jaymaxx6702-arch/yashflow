@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import { canonicalAttendanceMap } from "@/utils/business-rules";
 
 type AnyRow = Record<string, any>;
 
@@ -181,7 +182,19 @@ export default function AdminReportsPage() {
     }
 
     setOrders((ordersResult.data || []) as AnyRow[]);
-    setAttendance((attendanceResult.data || []) as AnyRow[]);
+
+    const rawAttendance = (attendanceResult.data || []) as Array<
+      AnyRow & {
+        employee_id: string;
+        attendance_date: string;
+        check_in: string | null;
+        check_out: string | null;
+      }
+    >;
+
+    setAttendance(
+      Array.from(canonicalAttendanceMap(rawAttendance).values())
+    );
     setInventory((inventoryResult.data || []) as AnyRow[]);
     setEmployees((employeesResult.data || []) as Employee[]);
     setRefreshing(false);
