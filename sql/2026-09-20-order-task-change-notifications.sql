@@ -28,6 +28,19 @@ begin
     return;
   end if;
 
+  -- One business action can touch orders + stage work in the same transaction.
+  -- Avoid notification/tone storms for the same employee/entity within 2 seconds.
+  if exists (
+    select 1
+    from public.notifications n
+    where n.employee_id = p_employee_id
+      and n.related_type = p_related_type
+      and n.related_id = p_related_id
+      and n.created_at >= now() - interval '2 seconds'
+  ) then
+    return;
+  end if;
+
   insert into public.notifications (
     employee_id,
     notification_type,
@@ -231,18 +244,22 @@ declare
 begin
   for v_employee_id in
     with active_work as (
-      select w.id, w.primary_employee_id
+      select w.id, w.primary_employee_id, w.status
       from public.order_stage_work w
       where w.order_id = p_order_id
-        and w.status in (
-          'waiting',
-          'assigned',
-          'in_progress',
-          'ready_for_approval',
-          'hold',
-          'rework'
-        )
-      order by w.created_at desc
+      order by
+        case
+          when w.status in (
+            'waiting',
+            'assigned',
+            'in_progress',
+            'ready_for_approval',
+            'hold',
+            'rework'
+          ) then 0
+          else 1
+        end,
+        w.created_at desc
       limit 1
     ),
     team as (
@@ -256,7 +273,16 @@ begin
       from active_work aw
       join public.order_stage_workers osw
         on osw.order_stage_work_id = aw.id
-      where osw.left_at is null
+      where
+        aw.status not in (
+          'waiting',
+          'assigned',
+          'in_progress',
+          'ready_for_approval',
+          'hold',
+          'rework'
+        )
+        or osw.left_at is null
     )
     select distinct employee_id
     from team
@@ -449,7 +475,7 @@ begin
   where w.id = coalesce(new.order_stage_work_id, old.order_stage_work_id);
 
   if v_order_id is null then
-    return coalesce(new, old);
+    return new;
   end if;
 
   if tg_op = 'INSERT' then
