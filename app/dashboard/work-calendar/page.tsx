@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import { canonicalAttendanceMap } from "@/utils/business-rules";
 
 type Employee = {
   id: string;
@@ -11,6 +12,7 @@ type Employee = {
 
 type Attendance = {
   id: string;
+  employee_id: string;
   attendance_date: string;
   check_in: string | null;
   check_out: string | null;
@@ -56,6 +58,13 @@ type StageWork = {
 type StageWorker = {
   order_stage_work_id: string;
   employee_id: string;
+  left_at: string | null;
+};
+
+type TaskSupportWorker = {
+  task_id: string;
+  employee_id: string;
+  is_active: boolean;
 };
 
 type OrderRow = {
@@ -579,6 +588,7 @@ export default function EmployeeWorkCalendarPage() {
       attendanceResult,
       leaveResult,
       tasksResult,
+      taskSupportResult,
       primaryStageResult,
       supportWorkerResult,
       correctionResult,
@@ -588,7 +598,7 @@ export default function EmployeeWorkCalendarPage() {
       supabase
         .from("attendance")
         .select(
-          "id, attendance_date, check_in, check_out, attendance_type, status, late_minutes, working_minutes, approval_status"
+          "id, employee_id, attendance_date, check_in, check_out, attendance_type, status, late_minutes, working_minutes, approval_status"
         )
         .eq("employee_id", employeeId)
         .gte("attendance_date", monthStart)
@@ -613,6 +623,12 @@ export default function EmployeeWorkCalendarPage() {
         .eq("assigned_to", employeeId),
 
       supabase
+        .from("task_support_workers")
+        .select("task_id, employee_id, is_active")
+        .eq("employee_id", employeeId)
+        .eq("is_active", true),
+
+      supabase
         .from("order_stage_work")
         .select(
           "id, order_id, stage_id, status, primary_employee_id, started_at, completed_at, created_at"
@@ -621,8 +637,9 @@ export default function EmployeeWorkCalendarPage() {
 
       supabase
         .from("order_stage_workers")
-        .select("order_stage_work_id, employee_id")
-        .eq("employee_id", employeeId),
+        .select("order_stage_work_id, employee_id, left_at")
+        .eq("employee_id", employeeId)
+        .is("left_at", null),
 
       supabase
         .from("attendance_correction_requests")
@@ -652,6 +669,7 @@ export default function EmployeeWorkCalendarPage() {
       attendanceResult.error ||
       leaveResult.error ||
       tasksResult.error ||
+      taskSupportResult.error ||
       primaryStageResult.error ||
       supportWorkerResult.error ||
       correctionResult.error ||
@@ -663,6 +681,40 @@ export default function EmployeeWorkCalendarPage() {
       setMonthLoading(false);
       return;
     }
+
+    const directTasks = (tasksResult.data || []) as TaskRow[];
+    const taskSupportRows =
+      (taskSupportResult.data || []) as TaskSupportWorker[];
+
+    const supportTaskIds = Array.from(
+      new Set(
+        taskSupportRows
+          .filter((row) => row.is_active)
+          .map((row) => row.task_id)
+          .filter(Boolean)
+      )
+    );
+
+    let supportTasks: TaskRow[] = [];
+
+    if (supportTaskIds.length > 0) {
+      const { data, error } = await supabase
+        .from("tasks")
+        .select(
+          "id, title, assigned_to, status, priority, due_date, started_at, completed_at"
+        )
+        .in("id", supportTaskIds);
+
+      if (!error) {
+        supportTasks = (data || []) as TaskRow[];
+      }
+    }
+
+    const mergedTaskMap = new Map<string, TaskRow>();
+    for (const task of [...directTasks, ...supportTasks]) {
+      mergedTaskMap.set(task.id, task);
+    }
+    const mergedTasks = Array.from(mergedTaskMap.values());
 
     const primaryWorks = (primaryStageResult.data || []) as StageWork[];
     const supportWorkers =
@@ -725,11 +777,14 @@ export default function EmployeeWorkCalendarPage() {
         : Promise.resolve({ data: [], error: null }),
     ]);
 
+    const rawAttendance =
+      (attendanceResult.data || []) as Attendance[];
+
     setAttendanceRows(
-      (attendanceResult.data || []) as Attendance[]
+      Array.from(canonicalAttendanceMap(rawAttendance).values())
     );
     setLeaveRows((leaveResult.data || []) as LeaveRequest[]);
-    setTaskRows((tasksResult.data || []) as TaskRow[]);
+    setTaskRows(mergedTasks);
     setStageWorkRows(mergedWorks);
     setOrders((ordersResult.data || []) as OrderRow[]);
     setStages((stagesResult.data || []) as StageRow[]);
