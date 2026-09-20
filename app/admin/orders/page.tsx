@@ -615,6 +615,49 @@ export default function AdminOrdersPage() {
     };
   }
 
+  function getCreateDefaultPlan(
+    item: WorkflowTemplateStage | undefined
+  ) {
+    if (!item) {
+      return {
+        primaryId: null as string | null,
+        supportIds: [] as string[],
+        assignedIds: [] as string[],
+      };
+    }
+
+    if (item.assignment_rule !== "manual") {
+      return getAssignmentPlan(item);
+    }
+
+    const selectedWorkers =
+      configuredWorkersForTemplateStage(item.id);
+
+    if (!selectedWorkers.length) {
+      return {
+        primaryId: null as string | null,
+        supportIds: [] as string[],
+        assignedIds: [] as string[],
+      };
+    }
+
+    const primaryId =
+      item.default_employee_id ||
+      selectedWorkers.find((worker) => worker.is_primary)
+        ?.employee_id ||
+      selectedWorkers[0].employee_id;
+
+    const supportIds = selectedWorkers
+      .map((worker) => worker.employee_id)
+      .filter((id) => id !== primaryId);
+
+    return {
+      primaryId,
+      supportIds,
+      assignedIds: [primaryId, ...supportIds],
+    };
+  }
+
   function createWorkflowForSelectedProduct() {
     if (!selectedProductId) return null;
 
@@ -647,7 +690,7 @@ export default function AdminOrdersPage() {
         const stage = stageMap.get(item.stage_id);
         if (!stage) return null;
 
-        const defaults = getAssignmentPlan(item);
+        const defaults = getCreateDefaultPlan(item);
 
         return {
           templateStageId: item.id,
@@ -1576,7 +1619,7 @@ export default function AdminOrdersPage() {
     }
 
     const stageTeamPlans = templateSequence.map((item) => {
-      const defaults = getAssignmentPlan(item);
+      const defaults = getCreateDefaultPlan(item);
       const override = createStagePlanOverrides[item.id];
 
       const primaryId =
