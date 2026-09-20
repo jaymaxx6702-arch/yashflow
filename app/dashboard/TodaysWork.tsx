@@ -47,6 +47,7 @@ type Stage = {
 
 type Task = {
   id: string;
+  assigned_to: string | null;
   title: string;
   description: string | null;
   priority: "low" | "medium" | "high" | "urgent";
@@ -268,159 +269,205 @@ export default function TodaysWork({ employeeId }: Props) {
     setLoading(true);
     setMessage("");
 
-    const [workResult, taskResult] = await Promise.all([
+    const activeWorkStatuses = [
+      "waiting",
+      "assigned",
+      "in_progress",
+      "ready_for_approval",
+      "hold",
+      "rework",
+    ];
+
+    const activeTaskStatuses = ["pending", "in_progress"];
+
+    const workSelect = `
+      id,
+      order_id,
+      stage_id,
+      status,
+      primary_employee_id,
+      started_at,
+      hold_reason,
+      rework_reason,
+      created_at
+    `;
+
+    const taskSelect = `
+      id,
+      assigned_to,
+      title,
+      description,
+      priority,
+      status,
+      due_date,
+      employee_note,
+      admin_note,
+      started_at,
+      completed_at,
+      created_at
+    `;
+
+    const [
+      primaryWorkResult,
+      supportWorkLinkResult,
+      primaryTaskResult,
+      supportTaskLinkResult,
+    ] = await Promise.all([
       supabase
         .from("order_stage_work")
-        .select(`
-          id,
-          order_id,
-          stage_id,
-          status,
-          primary_employee_id,
-          started_at,
-          hold_reason,
-          rework_reason,
-          created_at
-        `)
-        .in("status", [
-          "waiting",
-          "assigned",
-          "in_progress",
-          "ready_for_approval",
-          "hold",
-          "rework",
-        ])
-        .order("created_at", {
-          ascending: false,
-        }),
-
+        .select(workSelect)
+        .eq("primary_employee_id", employeeId)
+        .in("status", activeWorkStatuses),
+      supabase
+        .from("order_stage_workers")
+        .select("order_stage_work_id")
+        .eq("employee_id", employeeId)
+        .is("left_at", null),
       supabase
         .from("tasks")
-        .select(`
-          id,
-          title,
-          description,
-          priority,
-          status,
-          due_date,
-          employee_note,
-          admin_note,
-          started_at,
-          completed_at,
-          created_at
-        `)
-        .in("status", [
-          "pending",
-          "in_progress",
-        ])
-        .order("created_at", {
-          ascending: false,
-        }),
+        .select(taskSelect)
+        .eq("assigned_to", employeeId)
+        .in("status", activeTaskStatuses),
+      supabase
+        .from("task_support_workers")
+        .select("task_id")
+        .eq("employee_id", employeeId)
+        .eq("is_active", true),
     ]);
 
     const errors: string[] = [];
 
-    if (workResult.error) {
-      errors.push(
-        `Order Work: ${workResult.error.message}`
-      );
+    const initialError =
+      primaryWorkResult.error ||
+      supportWorkLinkResult.error ||
+      primaryTaskResult.error ||
+      supportTaskLinkResult.error;
 
+    if (initialError) {
+      setMessage(`Today's Work Load Error: ${initialError.message}`);
       setWorks([]);
       setOrders([]);
       setStages([]);
-    } else {
-      const visibleRows =
-        (workResult.data || []) as StageWork[];
-
-      setWorks(visibleRows);
-
-      if (visibleRows.length > 0) {
-        const orderIds = Array.from(
-          new Set(
-            visibleRows.map(
-              (work) => work.order_id
-            )
-          )
-        );
-
-        const stageIds = Array.from(
-          new Set(
-            visibleRows.map(
-              (work) => work.stage_id
-            )
-          )
-        );
-
-        const [
-          ordersResult,
-          stagesResult,
-        ] = await Promise.all([
-          supabase
-            .from("orders")
-            .select(`
-              id,
-              order_number,
-              customer_name,
-              product_name,
-              quantity,
-              priority,
-              due_date
-            `)
-            .in("id", orderIds),
-
-          supabase
-            .from("workflow_stages")
-            .select("id, name")
-            .in("id", stageIds),
-        ]);
-
-        if (ordersResult.error) {
-          errors.push(
-            `Orders: ${ordersResult.error.message}`
-          );
-
-          setOrders([]);
-        } else {
-          setOrders(
-            (ordersResult.data || []) as Order[]
-          );
-        }
-
-        if (stagesResult.error) {
-          errors.push(
-            `Stages: ${stagesResult.error.message}`
-          );
-
-          setStages([]);
-        } else {
-          setStages(
-            (stagesResult.data || []) as Stage[]
-          );
-        }
-      } else {
-        setOrders([]);
-        setStages([]);
-      }
-    }
-
-    if (taskResult.error) {
-      errors.push(
-        `Tasks: ${taskResult.error.message}`
-      );
-
       setTasks([]);
-    } else {
-      setTasks(
-        (taskResult.data || []) as Task[]
-      );
+      setLoading(false);
+      return;
     }
+
+    const supportWorkIds = Array.from(
+      new Set(
+        (supportWorkLinkResult.data || [])
+          .map((row) => row.order_stage_work_id)
+          .filter(Boolean)
+      )
+    );
+
+    const supportTaskIds = Array.from(
+      new Set(
+        (supportTaskLinkResult.data || [])
+          .map((row) => row.task_id)
+          .filter(Boolean)
+      )
+    );
+
+    const [supportWorkResult, supportTaskResult] = await Promise.all([
+      supportWorkIds.length > 0
+        ? supabase
+            .from("order_stage_work")
+            .select(workSelect)
+            .in("id", supportWorkIds)
+            .in("status", activeWorkStatuses)
+        : Promise.resolve({ data: [], error: null }),
+      supportTaskIds.length > 0
+        ? supabase
+            .from("tasks")
+            .select(taskSelect)
+            .in("id", supportTaskIds)
+            .in("status", activeTaskStatuses)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+    if (supportWorkResult.error) {
+      errors.push(`Support Order Work: ${supportWorkResult.error.message}`);
+    }
+
+    if (supportTaskResult.error) {
+      errors.push(`Support Tasks: ${supportTaskResult.error.message}`);
+    }
+
+    const workMap = new Map<string, StageWork>();
+    for (const work of [
+      ...((primaryWorkResult.data || []) as StageWork[]),
+      ...((supportWorkResult.data || []) as StageWork[]),
+    ]) {
+      workMap.set(work.id, work);
+    }
+
+    const visibleRows = Array.from(workMap.values()).sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() -
+        new Date(a.created_at).getTime()
+    );
+
+    setWorks(visibleRows);
+
+    if (visibleRows.length > 0) {
+      const orderIds = Array.from(
+        new Set(visibleRows.map((work) => work.order_id))
+      );
+
+      const stageIds = Array.from(
+        new Set(visibleRows.map((work) => work.stage_id))
+      );
+
+      const [ordersResult, stagesResult] = await Promise.all([
+        supabase
+          .from("orders")
+          .select(`
+            id,
+            order_number,
+            customer_name,
+            product_name,
+            quantity,
+            priority,
+            due_date
+          `)
+          .in("id", orderIds),
+        supabase
+          .from("workflow_stages")
+          .select("id, name")
+          .in("id", stageIds),
+      ]);
+
+      if (ordersResult.error) {
+        errors.push(`Orders: ${ordersResult.error.message}`);
+        setOrders([]);
+      } else {
+        setOrders((ordersResult.data || []) as Order[]);
+      }
+
+      if (stagesResult.error) {
+        errors.push(`Stages: ${stagesResult.error.message}`);
+        setStages([]);
+      } else {
+        setStages((stagesResult.data || []) as Stage[]);
+      }
+    } else {
+      setOrders([]);
+      setStages([]);
+    }
+
+    const taskMap = new Map<string, Task>();
+    for (const task of [
+      ...((primaryTaskResult.data || []) as Task[]),
+      ...((supportTaskResult.data || []) as Task[]),
+    ]) {
+      taskMap.set(task.id, task);
+    }
+
+    setTasks(Array.from(taskMap.values()));
 
     if (errors.length > 0) {
-      setMessage(
-        `Today's Work Load Error: ${errors.join(
-          " | "
-        )}`
-      );
+      setMessage(`Today's Work Load Error: ${errors.join(" | ")}`);
     }
 
     setLoading(false);
