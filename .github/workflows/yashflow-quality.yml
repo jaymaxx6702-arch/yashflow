@@ -2,7 +2,9 @@ name: YashFlow Quality Check
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - "stabilization/**"
   pull_request:
     branches: [main]
 
