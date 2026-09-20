@@ -36,16 +36,7 @@ jobs:
 
       - name: SQL migration sanity
         run: |
-          if grep -RInE '^[[:space:]]*\$;[[:space:]]*
-        run: npm run build
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
-          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-public-key
-
-      - name: ESLint advisory check
-        continue-on-error: true
-        run: npm run lint
- sql; then
+          if grep -RInE '^[[:space:]]*\$;[[:space:]]*$' sql; then
             echo "Malformed SQL dollar terminator found."
             exit 1
           fi
