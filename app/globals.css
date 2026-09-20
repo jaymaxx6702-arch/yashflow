@@ -397,22 +397,69 @@ textarea.yf-input {
 }
 
 /* =========================================================
-   BUTTONS
+   BUTTONS — YashFlow Glossy 3D System
+   Gold = primary, Blue = start/action, Green = success,
+   Amber = hold/pending, Red = danger, Silver = secondary.
    ========================================================= */
 
 .yf-btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 42px;
-  border-radius: 12px;
-  padding: 9px 16px;
+  min-height: 48px;
+  border-radius: 14px;
+  padding: 10px 17px;
   font-size: 0.875rem;
   line-height: 1.2;
-  font-weight: 800;
+  font-weight: 900;
   border: 1px solid transparent;
   white-space: nowrap;
+  user-select: none;
+  transform: translateY(0);
+  transition:
+    transform 120ms ease,
+    box-shadow 140ms ease,
+    filter 140ms ease,
+    background 140ms ease;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+}
+
+.yf-btn::before {
+  content: "";
+  position: absolute;
+  inset: 1px 2px auto 2px;
+  height: 44%;
+  border-radius: 12px 12px 48% 48%;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.58),
+    rgba(255, 255, 255, 0.08)
+  );
+  pointer-events: none;
+}
+
+.yf-btn > * {
+  position: relative;
+  z-index: 1;
+}
+
+.yf-btn:hover:not(:disabled) {
+  filter: brightness(1.04) saturate(1.04);
+}
+
+.yf-btn:active:not(:disabled) {
+  transform: translateY(2px);
+  filter: brightness(0.98);
+}
+
+.yf-btn:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.18);
+  box-shadow: none !important;
+  transform: none !important;
 }
 
 .yf-btn:focus-visible,
@@ -421,56 +468,105 @@ textarea.yf-input {
   box-shadow: var(--focus-ring);
 }
 
-.yf-btn-primary {
-  color: #ffffff;
-  background: var(--primary);
+/* Primary brand action — metallic gold */
+.yf-btn-primary,
+.yf-brand-button {
+  color: #1b2430;
+  border-color: #9b7000;
+  background:
+    linear-gradient(180deg, #fff1a6 0%, #f6cc43 17%, #d9a91c 62%, #b77d00 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    inset 0 -2px 0 rgba(109, 73, 0, 0.34),
+    0 5px 0 #8c6200,
+    0 9px 16px rgba(117, 78, 0, 0.22);
 }
 
-.yf-btn-primary:hover:not(:disabled) {
-  background: var(--primary-hover);
+.yf-btn-primary:hover:not(:disabled),
+.yf-brand-button:hover:not(:disabled) {
+  background:
+    linear-gradient(180deg, #fff7c8 0%, #f8d75c 18%, #dfb52a 63%, #bf8708 100%);
+}
+
+.yf-btn-primary:active:not(:disabled),
+.yf-brand-button:active:not(:disabled) {
+  box-shadow:
+    inset 0 2px 5px rgba(92, 58, 0, 0.2),
+    0 2px 0 #8c6200,
+    0 4px 8px rgba(117, 78, 0, 0.18);
+}
+
+/* Work action — glossy blue */
+.yf-btn-action {
+  color: #ffffff;
+  border-color: #0758b8;
+  background:
+    linear-gradient(180deg, #8ed1ff 0%, #258df4 17%, #0873df 62%, #0756b8 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.68),
+    inset 0 -2px 0 rgba(0, 45, 112, 0.32),
+    0 5px 0 #06488e,
+    0 9px 16px rgba(6, 72, 142, 0.22);
 }
 
 .yf-btn-success {
   color: #ffffff;
-  background: var(--success);
-}
-
-.yf-btn-success:hover:not(:disabled) {
-  background: var(--success-hover);
+  border-color: #087b3d;
+  background:
+    linear-gradient(180deg, #8bf0b8 0%, #1fc36a 18%, #0ca653 63%, #087a3e 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.68),
+    inset 0 -2px 0 rgba(0, 82, 39, 0.32),
+    0 5px 0 #086532,
+    0 9px 16px rgba(8, 101, 50, 0.22);
 }
 
 .yf-btn-warning {
-  color: #ffffff;
-  background: var(--warning);
-}
-
-.yf-btn-warning:hover:not(:disabled) {
-  background: var(--warning-hover);
+  color: #241700;
+  border-color: #bc7900;
+  background:
+    linear-gradient(180deg, #ffe99e 0%, #ffc438 18%, #ee9f0d 64%, #c77900 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    inset 0 -2px 0 rgba(126, 73, 0, 0.3),
+    0 5px 0 #9a6300,
+    0 9px 16px rgba(154, 99, 0, 0.2);
 }
 
 .yf-btn-danger {
   color: #ffffff;
-  background: var(--danger);
-}
-
-.yf-btn-danger:hover:not(:disabled) {
-  background: var(--danger-hover);
+  border-color: #ae1d24;
+  background:
+    linear-gradient(180deg, #ff9aa0 0%, #f0444d 18%, #d9232d 63%, #ad1922 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.66),
+    inset 0 -2px 0 rgba(104, 0, 7, 0.3),
+    0 5px 0 #8e151c,
+    0 9px 16px rgba(142, 21, 28, 0.22);
 }
 
 .yf-btn-secondary {
-  color: #334155;
-  background: var(--surface);
-  border-color: var(--border-strong);
-}
-
-.yf-btn-secondary:hover:not(:disabled) {
-  background: var(--surface-soft);
+  color: #253247;
+  border-color: #aeb6c2;
+  background:
+    linear-gradient(180deg, #ffffff 0%, #f8fafc 22%, #e8edf3 68%, #cbd3dc 100%);
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    inset 0 -2px 0 rgba(93, 105, 120, 0.18),
+    0 4px 0 #9aa4b0,
+    0 8px 14px rgba(71, 85, 105, 0.16);
 }
 
 .yf-btn-ghost {
   color: #475569;
   background: transparent;
   border-color: transparent;
+  box-shadow: none;
+  text-shadow: none;
+}
+
+.yf-btn-ghost::before {
+  display: none;
 }
 
 .yf-btn-ghost:hover:not(:disabled) {
@@ -478,15 +574,15 @@ textarea.yf-input {
 }
 
 .yf-btn-sm {
-  min-height: 36px;
-  border-radius: 10px;
-  padding: 7px 11px;
+  min-height: 38px;
+  border-radius: 11px;
+  padding: 7px 12px;
   font-size: 0.75rem;
 }
 
 .yf-btn-icon {
-  width: 42px;
-  min-width: 42px;
+  width: 48px;
+  min-width: 48px;
   padding-inline: 0;
 }
 
@@ -630,9 +726,13 @@ textarea.yf-input {
 }
 
 .yf-tab-active {
-  border-color: var(--primary);
-  background: var(--primary);
-  color: #ffffff;
+  border-color: var(--brand-gold-deep);
+  color: #1b2430;
+  background: linear-gradient(180deg, #fff1a6 0%, #f2c43d 42%, #d4a51b 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.75),
+    0 3px 0 #a97806,
+    0 6px 12px rgba(169,120,6,0.16);
 }
 
 .yf-toolbar {
