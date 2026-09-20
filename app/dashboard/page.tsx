@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import {
   enqueueOfflineAction,
-  getOfflineActions,
+  getOfflineActionsForEmployee,
   isLikelyNetworkError,
   offlineQueueEventName,
 } from "@/utils/offline-queue";
@@ -898,11 +898,13 @@ export default function EmployeeDashboard() {
     const syncAttendanceAfterQueue = () => {
       if (!navigator.onLine) return;
 
-      const hasPendingAttendance = getOfflineActions().some(
-        (action) =>
-          action.type === "attendance_check_in" ||
-          action.type === "attendance_check_out"
-      );
+      const hasPendingAttendance =
+        getOfflineActionsForEmployee(employee.id).some(
+          (action) =>
+            action.state === "pending" &&
+            (action.type === "attendance_check_in" ||
+              action.type === "attendance_check_out")
+        );
 
       if (!hasPendingAttendance) {
         void loadAttendance(employee.id, officeSettings);
