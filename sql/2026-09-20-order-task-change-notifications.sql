@@ -124,7 +124,7 @@ begin
   -- Current primary employee.
   perform public.yf_notify_employee(
     new.assigned_to,
-    case when tg_op = 'INSERT' then 'task_assignment' else 'task_update' end,
+    case when tg_op = 'INSERT' then 'task_assignment' else 'task' end,
     case when tg_op = 'INSERT' then 'New Task Assigned' else 'Task Updated' end,
     v_message,
     'task',
@@ -141,7 +141,7 @@ begin
   loop
     perform public.yf_notify_employee(
       v_employee_id,
-      'task_update',
+      'task',
       case when tg_op = 'INSERT' then 'New Task' else 'Task Updated' end,
       v_message,
       'task',
@@ -232,7 +232,7 @@ create or replace function public.yf_notify_order_team(
   p_order_id uuid,
   p_title text,
   p_message text,
-  p_notification_type text default 'order_update'
+  p_notification_type text default 'order_assignment'
 )
 returns void
 language plpgsql
@@ -368,7 +368,7 @@ begin
       else 'Order Updated'
     end,
     v_message,
-    'order_update'
+    'order_assignment'
   );
 
   return new;
@@ -429,7 +429,7 @@ begin
       coalesce(v_stage_name, 'Stage') ||
       ' • Changed: ' ||
       array_to_string(v_changes, ', '),
-    'order_update'
+    'order_assignment'
   );
 
   -- If primary changed away from someone, inform the previous primary as well.
