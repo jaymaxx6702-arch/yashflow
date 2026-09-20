@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import {
+  disableWebPushSubscription,
+  ensureWebPushSubscription,
+} from "@/utils/push-client";
 
 type NotificationRow = {
   id: string;
@@ -62,6 +66,8 @@ export default function AdminNotificationBell({ employeeId }: Props) {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [vibrateEnabled, setVibrateEnabled] = useState(false);
   const [vibrationSupported, setVibrationSupported] = useState(false);
+  const [closedAppPushEnabled, setClosedAppPushEnabled] = useState(false);
+  const [closedAppPushSupported, setClosedAppPushSupported] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const initializedRef = useRef(false);
@@ -119,6 +125,23 @@ export default function AdminNotificationBell({ employeeId }: Props) {
 
     setVibrationSupported(canVibrate);
     setVibrateEnabled(savedVibrate);
+
+    const canPush =
+      typeof window !== "undefined" &&
+      "Notification" in window &&
+      "serviceWorker" in navigator &&
+      "PushManager" in window;
+
+    setClosedAppPushSupported(canPush);
+
+    if (canPush) {
+      setClosedAppPushEnabled(
+        Notification.permission === "granted" &&
+          window.localStorage.getItem(
+            "yashflow-system-notifications-enabled"
+          ) === "true"
+      );
+    }
 
     return () => {
       window.removeEventListener("pointerdown", unlockAudio);
@@ -214,6 +237,64 @@ export default function AdminNotificationBell({ employeeId }: Props) {
     }
 
     runAlert();
+  }
+
+  async function toggleClosedAppPush() {
+    setMessage("");
+
+    if (!closedAppPushSupported) {
+      setMessage(
+        "આ browser/device Closed-App Push support કરતું નથી."
+      );
+      return;
+    }
+
+    if (
+      closedAppPushEnabled &&
+      Notification.permission === "granted"
+    ) {
+      await disableWebPushSubscription().catch((error) => {
+        console.warn("Admin push unsubscribe failed:", error);
+      });
+
+      setClosedAppPushEnabled(false);
+      window.localStorage.setItem(
+        "yashflow-system-notifications-enabled",
+        "false"
+      );
+      setMessage("Closed-App Notifications OFF થયા.");
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+
+    if (permission !== "granted") {
+      setClosedAppPushEnabled(false);
+      setMessage(
+        "Notification permission Allow કરો. Browser/App Settings → Notifications → Allow."
+      );
+      return;
+    }
+
+    try {
+      await ensureWebPushSubscription();
+
+      setClosedAppPushEnabled(true);
+      window.localStorage.setItem(
+        "yashflow-system-notifications-enabled",
+        "true"
+      );
+      setMessage(
+        "Closed-App Notifications ON ✅ App બંધ હોય ત્યારે પણ system sound સાથે alert આવશે."
+      );
+    } catch (error) {
+      setClosedAppPushEnabled(false);
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Closed-App Push setup failed."
+      );
+    }
   }
 
   const loadNotifications = useCallback(
@@ -455,7 +536,7 @@ export default function AdminNotificationBell({ employeeId }: Props) {
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 mt-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-4">
                 <div
                   className="yf-btn yf-btn-success cursor-default"
                   title="Notification sound is always enabled"
@@ -478,6 +559,23 @@ export default function AdminNotificationBell({ employeeId }: Props) {
                     : vibrateEnabled
                     ? "📳 Vibrate ON"
                     : "📴 Vibrate OFF"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => void toggleClosedAppPush()}
+                  disabled={!closedAppPushSupported}
+                  className={`yf-btn disabled:opacity-50 ${
+                    closedAppPushEnabled
+                      ? "bg-cyan-100 text-cyan-900"
+                      : "bg-white/10 text-white border border-white/20"
+                  }`}
+                >
+                  {!closedAppPushSupported
+                    ? "📵 Push Unsupported"
+                    : closedAppPushEnabled
+                    ? "📲 Closed-App ON"
+                    : "📴 Closed-App OFF"}
                 </button>
               </div>
 
