@@ -224,31 +224,6 @@ export default function AdminStageChecklistsPage() {
     setSaving(false);
   }
 
-  async function removeItem(item: ChecklistItem) {
-    const confirmed = window.confirm(
-      `"${item.label}" checklist item delete કરવો છે?`
-    );
-    if (!confirmed) return;
-
-    const supabase = createClient();
-    setSaving(true);
-
-    const { error } = await supabase
-      .from("stage_checklist_items")
-      .delete()
-      .eq("id", item.id);
-
-    if (error) {
-      setMessage(`Checklist Delete Error: ${error.message}`);
-      setSaving(false);
-      return;
-    }
-
-    await loadData();
-    setMessage("Checklist Item Deleted ✅");
-    setSaving(false);
-  }
-
   if (loading) {
     return (
       <main className="yf-page flex items-center justify-center">
@@ -387,14 +362,11 @@ export default function AdminStageChecklistsPage() {
                     {item.is_active ? "Deactivate" : "Activate"}
                   </button>
 
-                  <button
-                    type="button"
-                    disabled={saving}
-                    onClick={() => removeItem(item)}
-                    className="yf-btn yf-btn-danger yf-btn-sm"
-                  >
-                    Delete
-                  </button>
+                  {item.is_active && (
+                    <span className="text-[10px] font-bold text-slate-400 self-center">
+                      Deactivate = archive • existing Orders unchanged
+                    </span>
+                  )}
                 </div>
               </div>
             </article>
