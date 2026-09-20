@@ -101,6 +101,10 @@ begin
         )
     );
 
+  -- Explicit audited admin override: Direct Complete is allowed to bypass
+  -- the normal required Stage Checklist guard for this transaction only.
+  perform set_config('yashflow.admin_direct_complete', '1', true);
+
   -- Close every active stage work for the order in this same transaction.
   update public.order_stage_work w
   set
