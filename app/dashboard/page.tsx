@@ -3,6 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import {
+  enqueueOfflineAction,
+  isLikelyNetworkError,
+} from "@/utils/offline-queue";
 import TodaysWork from "./TodaysWork";
 import NotificationBell from "./NotificationBell";
 import ManualPunchRequest from "./ManualPunchRequest";
@@ -855,6 +859,12 @@ export default function EmployeeDashboard() {
         : "GPS Requirement OFF • Check In કરી રહ્યા છીએ..."
     );
 
+    let capturedLocation: {
+      latitude: number;
+      longitude: number;
+      accuracy: number;
+    } | null = null;
+
     try {
       const location = gpsRequired
         ? await getGpsLocation()
@@ -863,6 +873,22 @@ export default function EmployeeDashboard() {
             longitude: gpsSettings?.longitude ?? 0,
             accuracy: 0,
           };
+
+      capturedLocation = location;
+
+      if (!navigator.onLine) {
+        enqueueOfflineAction("attendance_check_in", {
+          latitude: location.latitude,
+          longitude: location.longitude,
+          accuracy: location.accuracy,
+        });
+        setMessage(
+          "Offline • Punch In deviceમાં save થયું ☁️ Internet આવ્યા પછી auto-sync + Admin Review થશે."
+        );
+        setAttendanceLoading(false);
+        return;
+      }
+
       const supabase = createClient();
       const {
         data: { session },
@@ -933,11 +959,22 @@ export default function EmployeeDashboard() {
         );
       }
     } catch (error) {
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : "GPS Location મેળવવામાં problem આવી."
-      );
+      if (capturedLocation && isLikelyNetworkError(error)) {
+        enqueueOfflineAction("attendance_check_in", {
+          latitude: capturedLocation.latitude,
+          longitude: capturedLocation.longitude,
+          accuracy: capturedLocation.accuracy,
+        });
+        setMessage(
+          "Network weak • Punch In Pending Sync ☁️ Internet આવ્યા પછી Admin Review થશે."
+        );
+      } else {
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : "GPS Location મેળવવામાં problem આવી."
+        );
+      }
     }
 
     setAttendanceLoading(false);
@@ -994,6 +1031,12 @@ export default function EmployeeDashboard() {
         : "GPS Requirement OFF • Check Out કરી રહ્યા છીએ..."
     );
 
+    let capturedLocation: {
+      latitude: number;
+      longitude: number;
+      accuracy: number;
+    } | null = null;
+
     try {
       const location = gpsRequired
         ? await getGpsLocation()
@@ -1002,6 +1045,22 @@ export default function EmployeeDashboard() {
             longitude: gpsSettings?.longitude ?? 0,
             accuracy: 0,
           };
+      capturedLocation = location;
+
+      if (!navigator.onLine) {
+        enqueueOfflineAction("attendance_check_out", {
+          latitude: location.latitude,
+          longitude: location.longitude,
+          accuracy: location.accuracy,
+          early_reason: earlyReason,
+        });
+        setMessage(
+          "Offline • Punch Out deviceમાં save થયું ☁️ Internet આવ્યા પછી auto-sync + Admin Review થશે."
+        );
+        setAttendanceLoading(false);
+        return;
+      }
+
       const supabase = createClient();
       const {
         data: { session },
@@ -1074,11 +1133,23 @@ export default function EmployeeDashboard() {
             )}`
       );
     } catch (error) {
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : "GPS Location મેળવવામાં problem આવી."
-      );
+      if (capturedLocation && isLikelyNetworkError(error)) {
+        enqueueOfflineAction("attendance_check_out", {
+          latitude: capturedLocation.latitude,
+          longitude: capturedLocation.longitude,
+          accuracy: capturedLocation.accuracy,
+          early_reason: earlyReason,
+        });
+        setMessage(
+          "Network weak • Punch Out Pending Sync ☁️ Internet આવ્યા પછી Admin Review થશે."
+        );
+      } else {
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : "GPS Location મેળવવામાં problem આવી."
+        );
+      }
     }
 
     setAttendanceLoading(false);
