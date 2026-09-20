@@ -31,6 +31,53 @@ const entityOptions = [
   "task_support",
 ];
 
+function displayValue(value: unknown) {
+  if (value === null || value === undefined || value === "") return "—";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "string") {
+    return value.length > 80 ? `${value.slice(0, 77)}...` : value;
+  }
+
+  try {
+    const text = JSON.stringify(value);
+    return text.length > 80 ? `${text.slice(0, 77)}...` : text;
+  } catch {
+    return String(value);
+  }
+}
+
+function activityLabel(item: Activity) {
+  const data = item.new_data || item.old_data || {};
+
+  if (item.entity_type === "order") {
+    return [data.order_number, data.customer_name]
+      .filter(Boolean)
+      .join(" • ") || "Order";
+  }
+
+  if (item.entity_type === "task") {
+    return String(data.title || "Task");
+  }
+
+  if (item.entity_type === "attendance") {
+    return `Attendance • ${String(data.attendance_date || "")}`;
+  }
+
+  if (item.entity_type === "order_stage") {
+    return `Order Stage • ${String(data.status || "Updated")}`;
+  }
+
+  if (item.entity_type === "order_worker") {
+    return "Order Team Assignment";
+  }
+
+  if (item.entity_type === "task_support") {
+    return "Task Support Assignment";
+  }
+
+  return item.entity_type;
+}
+
 export default function AdminActivityPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -189,16 +236,36 @@ export default function AdminActivityPage() {
                     </span>
                   </div>
 
-                  <p className="mt-2 font-black text-slate-900 break-all">
-                    {item.entity_id}
+                  <p className="mt-2 font-black text-slate-900">
+                    {activityLabel(item)}
+                  </p>
+                  <p className="mt-1 text-[10px] font-semibold text-slate-400 break-all">
+                    ID: {item.entity_id}
                   </p>
 
-                  <p className="mt-2 text-sm font-semibold text-slate-600">
-                    Changed:{" "}
-                    {item.changed_fields?.length
-                      ? item.changed_fields.join(", ")
-                      : "-"}
-                  </p>
+                  <div className="mt-3 space-y-1.5">
+                    {item.changed_fields?.length ? (
+                      item.changed_fields.slice(0, 8).map((field) => (
+                        <div
+                          key={field}
+                          className="rounded-lg bg-slate-50 border border-slate-100 px-3 py-2 text-xs"
+                        >
+                          <span className="font-black text-slate-700">
+                            {field.replaceAll("_", " ")}
+                          </span>
+                          <span className="ml-2 font-semibold text-slate-500">
+                            {displayValue(item.old_data?.[field])}
+                            {" → "}
+                            {displayValue(item.new_data?.[field])}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm font-semibold text-slate-500">
+                        No field details.
+                      </p>
+                    )}
+                  </div>
 
                   <p className="mt-1 text-xs font-semibold text-slate-500">
                     By:{" "}
