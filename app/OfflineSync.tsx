@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import {
   getOfflineActions,
@@ -224,6 +224,7 @@ export default function OfflineSync() {
   const [pending, setPending] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const [lastError, setLastError] = useState("");
+  const syncingRef = useRef(false);
 
   const refreshPending = useCallback(() => {
     setPending(getOfflineActions().length);
@@ -240,11 +241,12 @@ export default function OfflineSync() {
     }
 
     const actions = getOfflineActions();
-    if (!actions.length || syncing) {
+    if (!actions.length || syncingRef.current) {
       refreshPending();
       return;
     }
 
+    syncingRef.current = true;
     setSyncing(true);
     setLastError("");
 
@@ -262,8 +264,9 @@ export default function OfflineSync() {
     }
 
     refreshPending();
+    syncingRef.current = false;
     setSyncing(false);
-  }, [refreshPending, syncing]);
+  }, [refreshPending]);
 
   useEffect(() => {
     setOnline(navigator.onLine);
