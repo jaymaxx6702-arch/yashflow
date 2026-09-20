@@ -263,6 +263,141 @@ export default function TodaysWork({ employeeId }: Props) {
     });
   }, [tasks]);
 
+  const nextWork = useMemo(() => {
+    type NextCandidate = {
+      kind: "order" | "task";
+      id: string;
+      title: string;
+      subtitle: string;
+      priority: string;
+      status: string;
+      dueDate: string | null;
+      score: number;
+      reason: string;
+      href: string;
+    };
+
+    const candidates: NextCandidate[] = [];
+    const now = new Date();
+    const todayStart = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate()
+    ).getTime();
+
+    function dueScore(dueDate: string | null) {
+      if (!dueDate) return { score: 0, reason: "" };
+
+      const due = new Date(`${dueDate}T00:00:00`);
+      if (Number.isNaN(due.getTime())) {
+        return { score: 0, reason: "" };
+      }
+
+      const days = Math.floor(
+        (due.getTime() - todayStart) / 86400000
+      );
+
+      if (days < 0) return { score: 160, reason: "Overdue" };
+      if (days === 0) return { score: 130, reason: "Due Today" };
+      if (days <= 2) return { score: 90, reason: "Due Soon" };
+      if (days <= 7) return { score: 35, reason: "This Week" };
+      return { score: 0, reason: "" };
+    }
+
+    for (const work of works) {
+      if (!["assigned", "in_progress", "rework"].includes(work.status)) {
+        continue;
+      }
+
+      const order = orderMap.get(work.order_id);
+      if (!order) continue;
+
+      const priorityScore =
+        order.priority === "urgent"
+          ? 400
+          : order.priority === "high"
+          ? 300
+          : order.priority === "normal"
+          ? 200
+          : 100;
+
+      const statusScore =
+        work.status === "rework"
+          ? 80
+          : work.status === "in_progress"
+          ? 60
+          : 25;
+
+      const due = dueScore(order.due_date);
+      const reasons = [
+        order.priority === "urgent"
+          ? "Urgent"
+          : order.priority === "high"
+          ? "High Priority"
+          : "",
+        due.reason,
+        work.status === "rework"
+          ? "Rework"
+          : work.status === "in_progress"
+          ? "Already Started"
+          : "",
+      ].filter(Boolean);
+
+      candidates.push({
+        kind: "order",
+        id: work.id,
+        title: order.order_number,
+        subtitle: `${order.product_name} • ${stageMap.get(work.stage_id) || "Stage"}`,
+        priority: order.priority,
+        status: orderStatusLabel(work.status),
+        dueDate: order.due_date,
+        score: priorityScore + statusScore + due.score,
+        reason: reasons.join(" • ") || "Next Assigned Work",
+        href: `/dashboard/orders/${order.id}`,
+      });
+    }
+
+    for (const task of tasks) {
+      if (!["pending", "in_progress"].includes(task.status)) continue;
+
+      const priorityScore =
+        task.priority === "urgent"
+          ? 400
+          : task.priority === "high"
+          ? 300
+          : task.priority === "medium"
+          ? 200
+          : 100;
+
+      const statusScore = task.status === "in_progress" ? 60 : 25;
+      const due = dueScore(task.due_date);
+      const reasons = [
+        task.priority === "urgent"
+          ? "Urgent"
+          : task.priority === "high"
+          ? "High Priority"
+          : "",
+        due.reason,
+        task.status === "in_progress" ? "Already Started" : "",
+      ].filter(Boolean);
+
+      candidates.push({
+        kind: "task",
+        id: task.id,
+        title: task.title,
+        subtitle: task.description || "Task",
+        priority: task.priority,
+        status: taskStatusLabel(task.status),
+        dueDate: task.due_date,
+        score: priorityScore + statusScore + due.score,
+        reason: reasons.join(" • ") || "Next Assigned Work",
+        href: "/dashboard/tasks",
+      });
+    }
+
+    return candidates.sort((a, b) => b.score - a.score)[0] || null;
+  }, [works, tasks, orderMap, stageMap]);
+
   async function loadWork() {
     const supabase = createClient();
 
@@ -550,6 +685,45 @@ export default function TodaysWork({ employeeId }: Props) {
         <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
           {message}
         </div>
+      )}
+
+      {!loading && nextWork && (
+        <button
+          type="button"
+          onClick={() => router.push(nextWork.href)}
+          className="mt-5 w-full rounded-3xl border border-[#d4af37]/50 bg-gradient-to-br from-amber-50 via-white to-blue-50 p-5 text-left shadow-sm transition hover:shadow-md active:scale-[0.995]"
+        >
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="yf-badge bg-slate-900 text-white">
+                  NEXT WORK
+                </span>
+                <span className="yf-badge bg-amber-100 text-amber-800">
+                  {nextWork.kind === "order" ? "ORDER" : "TASK"}
+                </span>
+                <span className="yf-badge bg-blue-100 text-blue-700">
+                  {nextWork.reason}
+                </span>
+              </div>
+
+              <h3 className="mt-3 text-xl font-black text-slate-900">
+                {nextWork.title}
+              </h3>
+              <p className="mt-1 text-sm font-semibold text-slate-600 line-clamp-2">
+                {nextWork.subtitle}
+              </p>
+              <p className="mt-2 text-xs font-bold text-slate-500">
+                {nextWork.status}
+                {nextWork.dueDate ? ` • Due: ${formatDate(nextWork.dueDate)}` : ""}
+              </p>
+            </div>
+
+            <div className="yf-btn yf-btn-primary shrink-0">
+              Open Next Work →
+            </div>
+          </div>
+        </button>
       )}
 
       <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
