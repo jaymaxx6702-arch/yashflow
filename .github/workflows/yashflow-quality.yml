@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   validate:
-    name: TypeScript + Build + ESLint
+    name: TypeScript + SQL + Build + ESLint
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -33,6 +33,27 @@ jobs:
 
       - name: TypeScript check
         run: npx tsc --noEmit
+
+      - name: SQL migration sanity
+        run: |
+          if grep -RInE '^[[:space:]]*\$;[[:space:]]*
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-public-key
+
+      - name: ESLint advisory check
+        continue-on-error: true
+        run: npm run lint
+ sql; then
+            echo "Malformed SQL dollar terminator found."
+            exit 1
+          fi
+          if grep -RInE '^(<<<<<<<|=======|>>>>>>>)' sql; then
+            echo "Merge-conflict marker found in SQL."
+            exit 1
+          fi
+          echo "SQL migration sanity OK"
 
       - name: Next.js production build
         run: npm run build
