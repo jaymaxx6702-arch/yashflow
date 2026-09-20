@@ -731,37 +731,14 @@ export default function EmployeeOrdersPage() {
     );
   }
 
-  async function stageChecklistReady(
-    work: StageWork,
-    order: Order
-  ) {
-    if (!order.workflow_template_id) return true;
-
+  async function stageChecklistReady(work: StageWork) {
     const supabase = createClient();
-
-    const { data: templateStage, error: templateError } =
-      await supabase
-        .from("workflow_template_stages")
-        .select("id")
-        .eq("template_id", order.workflow_template_id)
-        .eq("stage_id", work.stage_id)
-        .order("sequence_no")
-        .limit(1)
-        .maybeSingle();
-
-    if (templateError) {
-      setMessage(`Checklist Check Error: ${templateError.message}`);
-      return false;
-    }
-
-    if (!templateStage?.id) return true;
 
     const { data: requiredItems, error: itemError } =
       await supabase
-        .from("stage_checklist_items")
+        .from("order_stage_checklist_items")
         .select("id")
-        .eq("workflow_template_stage_id", templateStage.id)
-        .eq("is_active", true)
+        .eq("order_stage_work_id", work.id)
         .eq("is_required", true);
 
     if (itemError) {
@@ -774,9 +751,9 @@ export default function EmployeeOrdersPage() {
 
     const { data: checks, error: checkError } = await supabase
       .from("order_stage_checklist_checks")
-      .select("checklist_item_id, is_checked")
+      .select("snapshot_item_id, is_checked")
       .eq("order_stage_work_id", work.id)
-      .in("checklist_item_id", requiredIds)
+      .in("snapshot_item_id", requiredIds)
       .eq("is_checked", true);
 
     if (checkError) {
@@ -785,7 +762,7 @@ export default function EmployeeOrdersPage() {
     }
 
     const checkedIds = new Set(
-      (checks || []).map((item) => item.checklist_item_id)
+      (checks || []).map((item) => item.snapshot_item_id)
     );
 
     if (checkedIds.size < requiredIds.length) {
@@ -1063,7 +1040,7 @@ export default function EmployeeOrdersPage() {
       return;
     }
 
-    const checklistComplete = await stageChecklistReady(work, order);
+    const checklistComplete = await stageChecklistReady(work);
     if (!checklistComplete) return;
 
     let proofWaivedNow = false;
@@ -1596,8 +1573,6 @@ export default function EmployeeOrdersPage() {
                     {employee && (
                       <StageChecklist
                         workId={work.id}
-                        templateId={order.workflow_template_id}
-                        stageId={work.stage_id}
                         employeeId={employee.id}
                         canEdit={canAct && work.status === "in_progress"}
                       />
