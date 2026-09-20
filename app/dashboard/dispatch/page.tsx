@@ -265,6 +265,19 @@ export default function DispatchManagementPage() {
       .replace(/\b\w/g, (c) => c.toUpperCase());
   }
 
+  function allowedDispatchStatuses(current: DispatchStatus) {
+    const allowed: Record<DispatchStatus, DispatchStatus[]> = {
+      ready: ["ready", "packed", "cancelled"],
+      packed: ["packed", "ready", "dispatched", "cancelled"],
+      dispatched: ["dispatched", "delivered", "returned", "cancelled"],
+      delivered: ["delivered", "returned"],
+      returned: ["returned"],
+      cancelled: ["cancelled"],
+    };
+
+    return allowed[current] || [current];
+  }
+
   function openOrder(order: Order) {
     const record = recordMap.get(order.id);
 
@@ -293,11 +306,34 @@ export default function DispatchManagementPage() {
       return;
     }
 
+    const currentStatus =
+      recordMap.get(selectedOrder.id)?.status || "ready";
+
+    if (!allowedDispatchStatuses(currentStatus).includes(form.status)) {
+      setMessage(
+        `Status ${statusLabel(currentStatus)}થી સીધું ${statusLabel(form.status)} કરી શકાય નહીં.`
+      );
+      return;
+    }
+
     if (
       ["dispatched", "delivered"].includes(form.status) &&
       !form.dispatch_method
     ) {
       setMessage("Dispatch Method select કરો.");
+      return;
+    }
+
+    if (
+      ["dispatched", "delivered"].includes(form.status) &&
+      !form.dispatch_date
+    ) {
+      setMessage("Dispatched/Delivered status માટે Dispatch Date જરૂરી છે.");
+      return;
+    }
+
+    if (form.status === "delivered" && !form.delivery_date) {
+      setMessage("Delivered status માટે Delivery Date જરૂરી છે.");
       return;
     }
 
@@ -593,12 +629,13 @@ export default function DispatchManagementPage() {
                     }
                     className="yf-input disabled:bg-slate-100"
                   >
-                    <option value="ready">Ready</option>
-                    <option value="packed">Packed</option>
-                    <option value="dispatched">Dispatched</option>
-                    <option value="delivered">Delivered</option>
-                    <option value="returned">Returned</option>
-                    <option value="cancelled">Cancelled</option>
+                    {allowedDispatchStatuses(
+                      recordMap.get(selectedOrder.id)?.status || "ready"
+                    ).map((status) => (
+                      <option key={status} value={status}>
+                        {statusLabel(status)}
+                      </option>
+                    ))}
                   </select>
 
                   <select
