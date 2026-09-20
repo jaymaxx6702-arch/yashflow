@@ -108,9 +108,9 @@ Smoke tests:
 
 ## 8. Quality gate
 - [x] Stabilization branch has CI on push.
-- [ ] TypeScript check PASS.
-- [ ] Next.js production build PASS.
-- [ ] ESLint advisory reviewed.
+- [x] TypeScript check PASS.
+- [x] Next.js production build PASS.
+- [x] ESLint advisory reviewed.
 - [ ] Required SQL migrations applied in Supabase.
 - [ ] Admin smoke test.
 - [ ] Employee smoke test.
