@@ -15,22 +15,18 @@ type ChecklistItem = {
 };
 
 type ChecklistCheck = {
-  checklist_item_id: string;
+  snapshot_item_id: string;
   is_checked: boolean;
 };
 
 type Props = {
   workId: string;
-  templateId: string | null;
-  stageId: string;
   employeeId: string;
   canEdit: boolean;
 };
 
 export default function StageChecklist({
   workId,
-  templateId,
-  stageId,
   employeeId,
   canEdit,
 }: Props) {
@@ -53,47 +49,17 @@ export default function StageChecklist({
   );
 
   async function loadChecklist() {
-    if (!templateId) {
-      setItems([]);
-      setChecks({});
-      setLoading(false);
-      return;
-    }
-
     const supabase = createClient();
-
-    const { data: templateStage, error: templateError } = await supabase
-      .from("workflow_template_stages")
-      .select("id")
-      .eq("template_id", templateId)
-      .eq("stage_id", stageId)
-      .order("sequence_no")
-      .limit(1)
-      .maybeSingle();
-
-    if (templateError) {
-      setMessage(`Checklist Load Error: ${templateError.message}`);
-      setLoading(false);
-      return;
-    }
-
-    if (!templateStage?.id) {
-      setItems([]);
-      setChecks({});
-      setLoading(false);
-      return;
-    }
 
     const [itemsResult, checksResult] = await Promise.all([
       supabase
-        .from("stage_checklist_items")
+        .from("order_stage_checklist_items")
         .select("id, label, sort_order, is_required")
-        .eq("workflow_template_stage_id", templateStage.id)
-        .eq("is_active", true)
+        .eq("order_stage_work_id", workId)
         .order("sort_order"),
       supabase
         .from("order_stage_checklist_checks")
-        .select("checklist_item_id, is_checked")
+        .select("snapshot_item_id, is_checked")
         .eq("order_stage_work_id", workId),
     ]);
 
@@ -111,7 +77,7 @@ export default function StageChecklist({
     for (const item of itemRows) {
       nextChecks[item.id] = Boolean(
         checkRows.find(
-          (check) => check.checklist_item_id === item.id
+          (check) => check.snapshot_item_id === item.id
         )?.is_checked
       );
     }
@@ -124,7 +90,7 @@ export default function StageChecklist({
   useEffect(() => {
     void loadChecklist();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workId, templateId, stageId]);
+  }, [workId]);
 
   async function toggleItem(item: ChecklistItem) {
     if (!canEdit) return;
@@ -139,7 +105,7 @@ export default function StageChecklist({
 
     const payload = {
       workId,
-      itemId: item.id,
+      snapshotItemId: item.id,
       employeeId,
       checked: nextChecked,
     };
@@ -162,14 +128,14 @@ export default function StageChecklist({
       .upsert(
         {
           order_stage_work_id: workId,
-          checklist_item_id: item.id,
+          snapshot_item_id: item.id,
           employee_id: employeeId,
           is_checked: nextChecked,
           checked_at: now,
           updated_at: now,
         },
         {
-          onConflict: "order_stage_work_id,checklist_item_id",
+          onConflict: "order_stage_work_id,snapshot_item_id",
         }
       );
 
