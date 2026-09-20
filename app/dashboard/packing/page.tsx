@@ -51,8 +51,8 @@ export default function PackingPage() {
     const [ordersResult, recordsResult] = await Promise.all([
       supabase
         .from("orders")
-        .select("id, order_number, customer_name, customer_mobile, product_name, quantity, completed_at")
-        .eq("current_stage", "completed")
+        .select("id, order_number, customer_name, customer_mobile, product_name, quantity, completed_at, current_stage, workflow_status")
+        .or("current_stage.eq.completed,workflow_status.eq.completed")
         .order("completed_at", { ascending: false }),
       supabase
         .from("order_dispatch_records")
