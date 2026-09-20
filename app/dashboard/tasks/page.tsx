@@ -3,6 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import {
+  enqueueOfflineAction,
+  isLikelyNetworkError,
+} from "@/utils/offline-queue";
 
 type Task = {
   id: string;
@@ -159,6 +163,38 @@ export default function EmployeeTasksPage() {
     task: Task,
     newStatus: "pending" | "in_progress" | "completed"
   ) {
+    const now = new Date().toISOString();
+    const payload = {
+      taskId: task.id,
+      status: newStatus,
+    };
+
+    const optimisticUpdate = () => {
+      setTasks((current) =>
+        current.map((item) =>
+          item.id === task.id
+            ? {
+                ...item,
+                status: newStatus,
+                started_at:
+                  newStatus === "in_progress"
+                    ? item.started_at || now
+                    : item.started_at,
+                completed_at:
+                  newStatus === "completed" ? now : null,
+              }
+            : item
+        )
+      );
+    };
+
+    if (!navigator.onLine) {
+      enqueueOfflineAction("task_status", payload);
+      optimisticUpdate();
+      setMessage("Offline • Task update Pending Sync ☁️");
+      return;
+    }
+
     const supabase = createClient();
 
     const updateData: {
@@ -168,15 +204,15 @@ export default function EmployeeTasksPage() {
       updated_at: string;
     } = {
       status: newStatus,
-      updated_at: new Date().toISOString(),
+      updated_at: now,
     };
 
     if (newStatus === "in_progress" && !task.started_at) {
-      updateData.started_at = new Date().toISOString();
+      updateData.started_at = now;
     }
 
     if (newStatus === "completed") {
-      updateData.completed_at = new Date().toISOString();
+      updateData.completed_at = now;
     }
 
     if (newStatus !== "completed") {
@@ -189,33 +225,67 @@ export default function EmployeeTasksPage() {
       .eq("id", task.id);
 
     if (error) {
+      if (isLikelyNetworkError(error.message)) {
+        enqueueOfflineAction("task_status", payload);
+        optimisticUpdate();
+        setMessage("Network weak • Task update Pending Sync ☁️");
+        return;
+      }
+
       setMessage(`Task Update Error: ${error.message}`);
       return;
     }
 
     setMessage("Task status update થયો ✅");
-
     await loadTasks(employeeId || undefined);
   }
 
   async function saveNote(taskId: string) {
+    const note = noteDrafts[taskId]?.trim() || "";
+    const payload = { taskId, note };
+
+    if (!navigator.onLine) {
+      enqueueOfflineAction("task_note", payload);
+      setTasks((current) =>
+        current.map((task) =>
+          task.id === taskId
+            ? { ...task, employee_note: note || null }
+            : task
+        )
+      );
+      setMessage("Offline • Note Pending Sync ☁️");
+      return;
+    }
+
     const supabase = createClient();
 
     const { error } = await supabase
       .from("tasks")
       .update({
-        employee_note: noteDrafts[taskId]?.trim() || null,
+        employee_note: note || null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", taskId);
 
     if (error) {
+      if (isLikelyNetworkError(error.message)) {
+        enqueueOfflineAction("task_note", payload);
+        setTasks((current) =>
+          current.map((task) =>
+            task.id === taskId
+              ? { ...task, employee_note: note || null }
+              : task
+          )
+        );
+        setMessage("Network weak • Note Pending Sync ☁️");
+        return;
+      }
+
       setMessage(`Note Save Error: ${error.message}`);
       return;
     }
 
     setMessage("Employee Note save થઈ ✅");
-
     await loadTasks(employeeId || undefined);
   }
 
@@ -379,7 +449,7 @@ export default function EmployeeTasksPage() {
                 <button
                   type="button"
                   onClick={() => saveNote(task.id)}
-                  className="mt-2 bg-slate-800 text-white px-4 py-2 rounded-xl font-bold"
+                  className="mt-2 yf-btn yf-btn-secondary yf-btn-sm"
                 >
                   Save Note
                 </button>
@@ -393,7 +463,7 @@ export default function EmployeeTasksPage() {
                       onClick={() =>
                         updateTaskStatus(task, "in_progress")
                       }
-                      className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold"
+                      className="yf-btn yf-btn-action"
                     >
                       Start Task
                     </button>
@@ -405,7 +475,7 @@ export default function EmployeeTasksPage() {
                       onClick={() =>
                         updateTaskStatus(task, "completed")
                       }
-                      className="bg-green-600 text-white px-5 py-2.5 rounded-xl font-bold"
+                      className="yf-btn yf-btn-success"
                     >
                       Mark Completed
                     </button>
