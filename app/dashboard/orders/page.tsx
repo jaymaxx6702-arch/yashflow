@@ -3,6 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import StageChecklist from "./StageChecklist";
+import {
+  enqueueOfflineAction,
+  isLikelyNetworkError,
+} from "@/utils/offline-queue";
 
 type WorkflowMode = "auto" | "admin_controlled" | "manual";
 
@@ -726,6 +731,73 @@ export default function EmployeeOrdersPage() {
     );
   }
 
+  async function stageChecklistReady(
+    work: StageWork,
+    order: Order
+  ) {
+    if (!order.workflow_template_id) return true;
+
+    const supabase = createClient();
+
+    const { data: templateStage, error: templateError } =
+      await supabase
+        .from("workflow_template_stages")
+        .select("id")
+        .eq("template_id", order.workflow_template_id)
+        .eq("stage_id", work.stage_id)
+        .order("sequence_no")
+        .limit(1)
+        .maybeSingle();
+
+    if (templateError) {
+      setMessage(`Checklist Check Error: ${templateError.message}`);
+      return false;
+    }
+
+    if (!templateStage?.id) return true;
+
+    const { data: requiredItems, error: itemError } =
+      await supabase
+        .from("stage_checklist_items")
+        .select("id")
+        .eq("workflow_template_stage_id", templateStage.id)
+        .eq("is_active", true)
+        .eq("is_required", true);
+
+    if (itemError) {
+      setMessage(`Checklist Check Error: ${itemError.message}`);
+      return false;
+    }
+
+    const requiredIds = (requiredItems || []).map((item) => item.id);
+    if (!requiredIds.length) return true;
+
+    const { data: checks, error: checkError } = await supabase
+      .from("order_stage_checklist_checks")
+      .select("checklist_item_id, is_checked")
+      .eq("order_stage_work_id", work.id)
+      .in("checklist_item_id", requiredIds)
+      .eq("is_checked", true);
+
+    if (checkError) {
+      setMessage(`Checklist Check Error: ${checkError.message}`);
+      return false;
+    }
+
+    const checkedIds = new Set(
+      (checks || []).map((item) => item.checklist_item_id)
+    );
+
+    if (checkedIds.size < requiredIds.length) {
+      setMessage(
+        `Stage Checklist incomplete છે • ${checkedIds.size}/${requiredIds.length} required complete.`
+      );
+      return false;
+    }
+
+    return true;
+  }
+
   async function startWork(work: StageWork) {
     if (!employee) return;
 
@@ -740,6 +812,31 @@ export default function EmployeeOrdersPage() {
           work.status
         )} statusમાં છે. Start Work કરી શકાતું નથી.`
       );
+      return;
+    }
+
+    const offlinePayload = {
+      workId: work.id,
+      orderId: work.order_id,
+      stageId: work.stage_id,
+      employeeId: employee.id,
+      fromStatus: work.status,
+    };
+
+    if (!navigator.onLine) {
+      enqueueOfflineAction("order_start", offlinePayload);
+      setStageWorks((current) =>
+        current.map((item) =>
+          item.id === work.id
+            ? {
+                ...item,
+                status: "in_progress",
+                started_at: item.started_at || new Date().toISOString(),
+              }
+            : item
+        )
+      );
+      setMessage("Offline • Start Work Pending Sync ☁️");
       return;
     }
 
@@ -762,6 +859,25 @@ export default function EmployeeOrdersPage() {
       .maybeSingle();
 
     if (workError) {
+      if (isLikelyNetworkError(workError.message)) {
+        enqueueOfflineAction("order_start", offlinePayload);
+        setStageWorks((current) =>
+          current.map((item) =>
+            item.id === work.id
+              ? {
+                  ...item,
+                  status: "in_progress",
+                  started_at:
+                    item.started_at || new Date().toISOString(),
+                }
+              : item
+          )
+        );
+        setMessage("Network weak • Start Work Pending Sync ☁️");
+        setActionId(null);
+        return;
+      }
+
       setMessage(`Start Work Error: ${workError.message}`);
       setActionId(null);
       return;
@@ -919,8 +1035,28 @@ export default function EmployeeOrdersPage() {
     const hasPhotoProof = currentProofs.some(
       (proof) => proof.file_type === "photo"
     );
+    const shouldWaiveProof = !hasPhotoProof && hideStageProofUi;
 
-    if (!hasPhotoProof && hideStageProofUi) {
+    if (!navigator.onLine) {
+      enqueueOfflineAction("order_complete", {
+        workId: work.id,
+        orderId: order.id,
+        employeeId: employee.id,
+        waiveProof: shouldWaiveProof,
+      });
+
+      setMessage(
+        "Offline • Complete Stage Pending Sync ☁️ • Checklist server sync પછી verify થશે."
+      );
+      return;
+    }
+
+    const checklistComplete = await stageChecklistReady(work, order);
+    if (!checklistComplete) return;
+
+    let proofWaivedNow = false;
+
+    if (shouldWaiveProof) {
       const supabase = createClient();
       const { error: waiveError } = await supabase.rpc(
         "employee_waive_stage_proof",
@@ -931,9 +1067,22 @@ export default function EmployeeOrdersPage() {
       );
 
       if (waiveError) {
+        if (isLikelyNetworkError(waiveError.message)) {
+          enqueueOfflineAction("order_complete", {
+            workId: work.id,
+            orderId: order.id,
+            employeeId: employee.id,
+            waiveProof: true,
+          });
+          setMessage("Network weak • Complete Stage Pending Sync ☁️");
+          return;
+        }
+
         setMessage(`Complete Stage Error: ${waiveError.message}`);
         return;
       }
+
+      proofWaivedNow = true;
     } else if (!hasPhotoProof) {
       setMessage(
         "Stage complete કરવા ઓછામાં ઓછો 1 Photo Proof ફરજિયાત છે."
@@ -941,10 +1090,8 @@ export default function EmployeeOrdersPage() {
       return;
     }
 
-    const needsApproval = stageNeedsApproval(order, work);
-
     const confirmed = window.confirm(
-      "આ Stageનું કામ પૂર્ણ છે? Complete કરવું છે?"
+      "Checklist complete છે. આ Stage Complete કરવું છે?"
     );
 
     if (!confirmed) return;
@@ -954,11 +1101,26 @@ export default function EmployeeOrdersPage() {
 
     const supabase = createClient();
 
-    const { data, error } = await supabase.rpc("employee_complete_stage_v4", {
-      p_work_id: work.id,
-    });
+    const { data, error } = await supabase.rpc(
+      "employee_complete_stage_v4",
+      {
+        p_work_id: work.id,
+      }
+    );
 
     if (error) {
+      if (isLikelyNetworkError(error.message)) {
+        enqueueOfflineAction("order_complete", {
+          workId: work.id,
+          orderId: order.id,
+          employeeId: employee.id,
+          waiveProof: shouldWaiveProof && !proofWaivedNow,
+        });
+        setMessage("Network weak • Complete Stage Pending Sync ☁️");
+        setActionId(null);
+        return;
+      }
+
       setMessage(`Complete Stage Error: ${error.message}`);
       setActionId(null);
       return;
@@ -1409,6 +1571,16 @@ export default function EmployeeOrdersPage() {
                       )}
                       </div>
                     </details>
+                    )}
+
+                    {employee && (
+                      <StageChecklist
+                        workId={work.id}
+                        templateId={order.workflow_template_id}
+                        stageId={work.stage_id}
+                        employeeId={employee.id}
+                        canEdit={canAct && work.status === "in_progress"}
+                      />
                     )}
                   </div>
 
