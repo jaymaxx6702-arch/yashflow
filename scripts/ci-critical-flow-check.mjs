@@ -165,7 +165,8 @@ if (failures.length) {
 }
 
 console.log("Critical-flow regression checks PASS");
-console.log("- Check In uses the stable employee-session RPC first, with API fallback");\nconsole.log("- Attendance captures GPS before normal Punch requests when required/unknown");
+console.log("- Check In uses the stable employee-session RPC first, with API fallback");
+console.log("- Attendance captures GPS before normal Punch requests when required/unknown");
 console.log("- Server GPS fallback contract remains available");
 console.log("- Attendance API auth guards remain before DB work");
 console.log("- Offline attendance, readiness, manifest and service-worker files are present");
