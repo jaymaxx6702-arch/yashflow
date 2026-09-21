@@ -271,13 +271,30 @@ export default function AdminGpsSettingsPage() {
       setCurrentLocation(location);
 
       if (useAsOffice) {
-        setLatitude(location.latitude.toFixed(8));
-        setLongitude(location.longitude.toFixed(8));
+        const nextLatitude = location.latitude.toFixed(8);
+        const nextLongitude = location.longitude.toFixed(8);
 
+        setLatitude(nextLatitude);
+        setLongitude(nextLongitude);
         setMessage(
-          `Current Location Office Location તરીકે set થયું ✅ GPS Accuracy ±${Math.round(
+          `Office GPS capture થયું ✅ Accuracy ±${Math.round(
             location.accuracy
-          )}m`
+          )}m • Databaseમાં save કરી રહ્યા છીએ...`
+        );
+
+        const saved = await persistGpsSettings({
+          latitude: Number(nextLatitude),
+          longitude: Number(nextLongitude),
+          active: true,
+        });
+
+        if (!saved) return;
+
+        setIsActive(true);
+        setMessage(
+          `Office GPS Saved & Verified ✅ Accuracy ±${Math.round(
+            location.accuracy
+          )}m • Check In હવે આ location સામે verify થશે.`
         );
       } else {
         setMessage(
@@ -292,14 +309,153 @@ export default function AdminGpsSettingsPage() {
           ? error.message
           : "GPS Location મેળવવામાં problem આવી."
       );
+    } finally {
+      setLocating(false);
+    }
+  }
+
+  async function persistGpsSettings(input: {
+    latitude: number;
+    longitude: number;
+    active: boolean;
+  }) {
+    const radius = Number(radiusM);
+    const maxAccuracy = Number(maxAccuracyM);
+
+    if (
+      !Number.isFinite(input.latitude) ||
+      input.latitude < -90 ||
+      input.latitude > 90
+    ) {
+      setMessage("Valid Office Latitude જરૂરી છે.");
+      return false;
     }
 
-    setLocating(false);
+    if (
+      !Number.isFinite(input.longitude) ||
+      input.longitude < -180 ||
+      input.longitude > 180
+    ) {
+      setMessage("Valid Office Longitude જરૂરી છે.");
+      return false;
+    }
+
+    if (
+      input.active &&
+      Math.abs(input.latitude) < 0.000001 &&
+      Math.abs(input.longitude) < 0.000001
+    ) {
+      setMessage("Office GPS 0,0 valid નથી. Office પર ફરી GPS capture કરો.");
+      return false;
+    }
+
+    if (!Number.isInteger(radius) || radius < 25 || radius > 5000) {
+      setMessage("Allowed Radius 25 થી 5000 meter વચ્ચે રાખો.");
+      return false;
+    }
+
+    if (
+      !Number.isInteger(maxAccuracy) ||
+      maxAccuracy < 10 ||
+      maxAccuracy > 2000
+    ) {
+      setMessage("Max GPS Accuracy 10 થી 2000 meter વચ્ચે રાખો.");
+      return false;
+    }
+
+    const supabase = createClient();
+
+    const rpcResult = await supabase.rpc("admin_save_attendance_geofence", {
+      p_office_name: officeName.trim() || "Yash Laser Office",
+      p_latitude: input.latitude,
+      p_longitude: input.longitude,
+      p_radius_m: radius,
+      p_max_accuracy_m: maxAccuracy,
+      p_require_check_in: requireCheckIn,
+      p_require_check_out: requireCheckOut,
+      p_is_active: input.active,
+    });
+
+    // Never trust an RPC "success" blindly. Read the actual row back.
+    let verifyResult = await supabase
+      .from("attendance_geofence_settings")
+      .select(
+        "id, latitude, longitude, radius_m, max_accuracy_m, require_check_in, require_check_out, is_active"
+      )
+      .eq("id", 1)
+      .maybeSingle();
+
+    const rowMatches = () => {
+      const row = verifyResult.data;
+      if (!row) return false;
+
+      const savedLat = Number(row.latitude);
+      const savedLon = Number(row.longitude);
+
+      return (
+        Number.isFinite(savedLat) &&
+        Number.isFinite(savedLon) &&
+        Math.abs(savedLat - input.latitude) < 0.000001 &&
+        Math.abs(savedLon - input.longitude) < 0.000001 &&
+        Boolean(row.is_active) === input.active
+      );
+    };
+
+    if (!rowMatches()) {
+      // Production has had an older admin_save_attendance_geofence RPC that
+      // can return without updating id=1. Use the authenticated Admin RLS path
+      // as a repair fallback, then verify again.
+      const directResult = await supabase
+        .from("attendance_geofence_settings")
+        .update({
+          office_name: officeName.trim() || "Yash Laser Office",
+          latitude: input.latitude,
+          longitude: input.longitude,
+          radius_m: radius,
+          max_accuracy_m: maxAccuracy,
+          require_check_in: requireCheckIn,
+          require_check_out: requireCheckOut,
+          is_active: input.active,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", 1);
+
+      if (directResult.error) {
+        setMessage(
+          `GPS DB Save Error: RPC: ${rpcResult.error?.message || "row update mismatch"} • Direct Update: ${directResult.error.message}`
+        );
+        return false;
+      }
+
+      verifyResult = await supabase
+        .from("attendance_geofence_settings")
+        .select(
+          "id, latitude, longitude, radius_m, max_accuracy_m, require_check_in, require_check_out, is_active"
+        )
+        .eq("id", 1)
+        .maybeSingle();
+    }
+
+    if (verifyResult.error || !rowMatches()) {
+      const row = verifyResult.data;
+      setMessage(
+        `GPS Save Verify Failed: requested ${input.latitude.toFixed(
+          6
+        )}, ${input.longitude.toFixed(6)} • DB has ${String(
+          row?.latitude ?? "null"
+        )}, ${String(row?.longitude ?? "null")}`
+      );
+      return false;
+    }
+
+    await loadSettings();
+    return true;
   }
 
   async function saveSettings(activeOverride?: boolean) {
     const nextActive =
       typeof activeOverride === "boolean" ? activeOverride : isActive;
+
     if (
       currentLocation &&
       currentLocation.accuracy > 250 &&
@@ -316,86 +472,27 @@ export default function AdminGpsSettingsPage() {
 
     const lat = latitude.trim() ? Number(latitude) : 0;
     const lon = longitude.trim() ? Number(longitude) : 0;
-    const radius = Number(radiusM);
-    const maxAccuracy = Number(maxAccuracyM);
-
-    if (
-      nextActive &&
-      (!latitude.trim() || !Number.isFinite(lat) || lat < -90 || lat > 90)
-    ) {
-      setMessage("GPS ON કરવા પહેલાં Valid Office Latitude જરૂરી છે.");
-      return;
-    }
-
-    if (
-      nextActive &&
-      (!longitude.trim() || !Number.isFinite(lon) || lon < -180 || lon > 180)
-    ) {
-      setMessage("GPS ON કરવા પહેલાં Valid Office Longitude જરૂરી છે.");
-      return;
-    }
-
-    if (
-      nextActive &&
-      Math.abs(lat) < 0.000001 &&
-      Math.abs(lon) < 0.000001
-    ) {
-      setMessage(
-        "Office GPS Location 0,0 છે. Office પર Mobile Precise Location ON કરીને ‘Use Current Location as Office’ કરો અને પછી Save કરો."
-      );
-      return;
-    }
-
-    if (
-      !Number.isInteger(radius) ||
-      radius < 25 ||
-      radius > 5000
-    ) {
-      setMessage("Allowed Radius 25 થી 5000 meter વચ્ચે રાખો.");
-      return;
-    }
-
-    if (
-      !Number.isInteger(maxAccuracy) ||
-      maxAccuracy < 10 ||
-      maxAccuracy > 2000
-    ) {
-      setMessage("Max GPS Accuracy 10 થી 2000 meter વચ્ચે રાખો.");
-      return;
-    }
 
     setSaving(true);
     setMessage("");
 
-    const supabase = createClient();
+    const saved = await persistGpsSettings({
+      latitude: lat,
+      longitude: lon,
+      active: nextActive,
+    });
 
-    const { error } = await supabase.rpc(
-      "admin_save_attendance_geofence",
-      {
-        p_office_name: officeName.trim() || "Yash Laser Office",
-        p_latitude: lat,
-        p_longitude: lon,
-        p_radius_m: radius,
-        p_max_accuracy_m: maxAccuracy,
-        p_require_check_in: requireCheckIn,
-        p_require_check_out: requireCheckOut,
-        p_is_active: nextActive,
-      }
-    );
-
-    if (error) {
-      setMessage(`GPS Settings Save Error: ${error.message}`);
-      setSaving(false);
-      return;
+    if (saved) {
+      setIsActive(nextActive);
+      setMessage(
+        nextActive
+          ? `GPS Requirement ON & DB Verified ✅ Office: ${lat.toFixed(
+              6
+            )}, ${lon.toFixed(6)}`
+          : "GPS Requirement OFF & DB Verified ✅"
+      );
     }
 
-    setIsActive(nextActive);
-    setMessage(
-      nextActive
-        ? "GPS Requirement ON ✅ Employee Login + Attendance માટે GPS ફરજિયાત રહેશે."
-        : "GPS Requirement OFF ✅ Employee Login + Attendance GPS વગર ચાલુ રહેશે."
-    );
-    await loadSettings();
     setSaving(false);
   }
 
@@ -509,8 +606,8 @@ export default function AdminGpsSettingsPage() {
             className="yf-btn yf-btn-primary w-full justify-center mt-4 disabled:opacity-50"
           >
             {locating
-              ? "Getting GPS..."
-              : "📍 Use Current Location as Office"}
+              ? "Getting GPS & Saving..."
+              : "📍 Capture & Save Current Office Location"}
           </button>
 
           {currentLocation && (
