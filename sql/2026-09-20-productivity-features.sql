@@ -25,13 +25,41 @@ create table if not exists public.stage_checklist_items (
 
 -- Compatibility repair:
 -- An earlier/partial database can already contain stage_checklist_items with
--- a legacy column name. CREATE TABLE IF NOT EXISTS does not repair that schema,
--- so normalize the foreign-key column without deleting checklist data.
+-- a legacy shape. CREATE TABLE IF NOT EXISTS does not repair that schema.
+-- Normalize the columns used by the current YashFlow UI without deleting rows.
 do $stage_checklist_compat$
 declare
   v_row_count bigint := 0;
   v_null_count bigint := 0;
+  v_id_type text;
 begin
+  select count(*) into v_row_count
+  from public.stage_checklist_items;
+
+  -- The current schema requires a UUID primary identifier because snapshot
+  -- rows reference stage_checklist_items(id).
+  select data_type into v_id_type
+  from information_schema.columns
+  where table_schema = 'public'
+    and table_name = 'stage_checklist_items'
+    and column_name = 'id';
+
+  if v_id_type is null then
+    if v_row_count > 0 then
+      raise exception
+        'stage_checklist_items has % existing row(s) but no id column. Migration stopped to avoid destructive repair.',
+        v_row_count;
+    end if;
+
+    alter table public.stage_checklist_items
+      add column id uuid default gen_random_uuid();
+  elsif v_id_type <> 'uuid' then
+    raise exception
+      'stage_checklist_items.id is %, expected uuid. Migration stopped to avoid unsafe type conversion.',
+      v_id_type;
+  end if;
+
+  -- Normalize the workflow-template-stage foreign key.
   if not exists (
     select 1
     from information_schema.columns
@@ -41,35 +69,29 @@ begin
   ) then
     alter table public.stage_checklist_items
       add column workflow_template_stage_id uuid;
+  end if;
 
-    if exists (
-      select 1
-      from information_schema.columns
-      where table_schema = 'public'
-        and table_name = 'stage_checklist_items'
-        and column_name = 'template_stage_id'
-    ) then
-      execute '
-        update public.stage_checklist_items
-        set workflow_template_stage_id = template_stage_id
-        where workflow_template_stage_id is null
-      ';
-    elsif exists (
-      select 1
-      from information_schema.columns
-      where table_schema = 'public'
-        and table_name = 'stage_checklist_items'
-        and column_name = 'workflow_stage_id'
-    ) then
-      select count(*) into v_row_count
-      from public.stage_checklist_items;
+  -- Copy a known legacy FK name when present. to_jsonb(row) lets this remain
+  -- safe even when those legacy columns do not exist in a particular database.
+  update public.stage_checklist_items t
+  set workflow_template_stage_id =
+    coalesce(
+      t.workflow_template_stage_id,
+      nullif(to_jsonb(t)->>'template_stage_id', '')::uuid
+    )
+  where t.workflow_template_stage_id is null
+    and (to_jsonb(t) ? 'template_stage_id');
 
-      if v_row_count > 0 then
-        raise exception
-          'stage_checklist_items uses legacy workflow_stage_id and contains % row(s). Mapping a generic workflow stage to a template stage is ambiguous; inspect those rows before continuing.',
-          v_row_count;
-      end if;
-    end if;
+  -- A generic workflow_stage_id cannot safely identify one template-stage
+  -- when the same workflow stage is reused by multiple templates.
+  if exists (
+    select 1
+    from public.stage_checklist_items t
+    where t.workflow_template_stage_id is null
+      and (to_jsonb(t) ? 'workflow_stage_id')
+  ) then
+    raise exception
+      'stage_checklist_items contains legacy workflow_stage_id values that cannot be mapped safely to workflow_template_stage_id. Existing rows were not modified.';
   end if;
 
   select count(*) into v_null_count
@@ -82,13 +104,76 @@ begin
       v_null_count;
   end if;
 
+  -- Normalize the display text used by the current Checklist UI.
+  if not exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'stage_checklist_items'
+      and column_name = 'label'
+  ) then
+    alter table public.stage_checklist_items
+      add column label text;
+  end if;
+
+  update public.stage_checklist_items t
+  set label = coalesce(
+    nullif(btrim(t.label), ''),
+    nullif(btrim(to_jsonb(t)->>'name'), ''),
+    nullif(btrim(to_jsonb(t)->>'title'), ''),
+    nullif(btrim(to_jsonb(t)->>'item_name'), ''),
+    nullif(btrim(to_jsonb(t)->>'step_name'), ''),
+    nullif(btrim(to_jsonb(t)->>'checklist_item'), ''),
+    nullif(btrim(to_jsonb(t)->>'description'), ''),
+    'Checklist Item'
+  )
+  where t.label is null
+     or btrim(t.label) = '';
+
+  -- Normalize the remaining fields expected by app/admin/checklists.
   alter table public.stage_checklist_items
-    alter column workflow_template_stage_id set not null;
+    add column if not exists sort_order integer default 10,
+    add column if not exists is_required boolean default true,
+    add column if not exists is_active boolean default true,
+    add column if not exists created_at timestamptz default now(),
+    add column if not exists updated_at timestamptz default now();
+
+  update public.stage_checklist_items
+  set
+    sort_order = coalesce(sort_order, 10),
+    is_required = coalesce(is_required, true),
+    is_active = coalesce(is_active, true),
+    created_at = coalesce(created_at, now()),
+    updated_at = coalesce(updated_at, now());
+
+  alter table public.stage_checklist_items
+    alter column workflow_template_stage_id set not null,
+    alter column label set not null,
+    alter column sort_order set default 10,
+    alter column sort_order set not null,
+    alter column is_required set default true,
+    alter column is_required set not null,
+    alter column is_active set default true,
+    alter column is_active set not null,
+    alter column created_at set default now(),
+    alter column created_at set not null,
+    alter column updated_at set default now(),
+    alter column updated_at set not null;
 end;
 $stage_checklist_compat$;
 
-do $stage_checklist_fk$
+do $stage_checklist_constraints$
 begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conrelid = 'public.stage_checklist_items'::regclass
+      and contype = 'p'
+  ) then
+    alter table public.stage_checklist_items
+      add constraint stage_checklist_items_pkey primary key (id);
+  end if;
+
   if not exists (
     select 1
     from pg_constraint
@@ -102,7 +187,7 @@ begin
       on delete cascade;
   end if;
 end;
-$stage_checklist_fk$;
+$stage_checklist_constraints$;
 
 create index if not exists stage_checklist_items_template_stage_idx
   on public.stage_checklist_items(workflow_template_stage_id, sort_order);
