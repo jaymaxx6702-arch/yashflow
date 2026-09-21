@@ -149,17 +149,24 @@ export async function POST(request: Request) {
     let accuracyM: number | null = null;
 
     if (gpsRequired) {
+      if (!geofence) {
+        return NextResponse.json(
+          { error: "Office GPS settings મળ્યાં નથી." },
+          { status: 500 }
+        );
+      }
+
       const latitude = Number(body.latitude);
       const longitude = Number(body.longitude);
       const accuracy = Number(body.accuracy);
-      if (geofence?.latitude === null || geofence?.longitude === null) {
+      if (geofence.latitude === null || geofence.longitude === null) {
         return NextResponse.json({ error: "Office GPS Location set થયેલું નથી." }, { status: 400 });
       }
 
       const officeLatitude = Number(geofence.latitude);
       const officeLongitude = Number(geofence.longitude);
-      const radiusM = Number(geofence?.radius_m || 200);
-      const maxAccuracyM = Number(geofence?.max_accuracy_m || 150);
+      const radiusM = Number(geofence.radius_m || 200);
+      const maxAccuracyM = Number(geofence.max_accuracy_m || 150);
 
       if (
         !Number.isFinite(latitude) ||

@@ -121,11 +121,18 @@ export async function POST(request: Request) {
     let accuracyM: number | null = null;
 
     if (gpsRequired) {
+      if (!geofence) {
+        return NextResponse.json(
+          { error: "Office GPS settings મળ્યાં નથી." },
+          { status: 500 }
+        );
+      }
+
       const latitude = Number(body.latitude);
       const longitude = Number(body.longitude);
       const accuracy = Number(body.accuracy);
 
-      if (geofence?.latitude === null || geofence?.longitude === null) {
+      if (geofence.latitude === null || geofence.longitude === null) {
         return NextResponse.json(
           { error: "Office GPS Location set થયેલું નથી." },
           { status: 400 }
