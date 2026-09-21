@@ -23,6 +23,87 @@ create table if not exists public.stage_checklist_items (
   updated_at timestamptz not null default now()
 );
 
+-- Compatibility repair:
+-- An earlier/partial database can already contain stage_checklist_items with
+-- a legacy column name. CREATE TABLE IF NOT EXISTS does not repair that schema,
+-- so normalize the foreign-key column without deleting checklist data.
+do $stage_checklist_compat$
+declare
+  v_row_count bigint := 0;
+  v_null_count bigint := 0;
+begin
+  if not exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'stage_checklist_items'
+      and column_name = 'workflow_template_stage_id'
+  ) then
+    alter table public.stage_checklist_items
+      add column workflow_template_stage_id uuid;
+
+    if exists (
+      select 1
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'stage_checklist_items'
+        and column_name = 'template_stage_id'
+    ) then
+      execute '
+        update public.stage_checklist_items
+        set workflow_template_stage_id = template_stage_id
+        where workflow_template_stage_id is null
+      ';
+    elsif exists (
+      select 1
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'stage_checklist_items'
+        and column_name = 'workflow_stage_id'
+    ) then
+      select count(*) into v_row_count
+      from public.stage_checklist_items;
+
+      if v_row_count > 0 then
+        raise exception
+          'stage_checklist_items uses legacy workflow_stage_id and contains % row(s). Mapping a generic workflow stage to a template stage is ambiguous; inspect those rows before continuing.',
+          v_row_count;
+      end if;
+    end if;
+  end if;
+
+  select count(*) into v_null_count
+  from public.stage_checklist_items
+  where workflow_template_stage_id is null;
+
+  if v_null_count > 0 then
+    raise exception
+      'stage_checklist_items has % row(s) without workflow_template_stage_id. Migration stopped to avoid data loss.',
+      v_null_count;
+  end if;
+
+  alter table public.stage_checklist_items
+    alter column workflow_template_stage_id set not null;
+end;
+$stage_checklist_compat$;
+
+do $stage_checklist_fk$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conrelid = 'public.stage_checklist_items'::regclass
+      and conname = 'stage_checklist_items_workflow_template_stage_id_fkey'
+  ) then
+    alter table public.stage_checklist_items
+      add constraint stage_checklist_items_workflow_template_stage_id_fkey
+      foreign key (workflow_template_stage_id)
+      references public.workflow_template_stages(id)
+      on delete cascade;
+  end if;
+end;
+$stage_checklist_fk$;
+
 create index if not exists stage_checklist_items_template_stage_idx
   on public.stage_checklist_items(workflow_template_stage_id, sort_order);
 
