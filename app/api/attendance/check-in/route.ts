@@ -163,9 +163,17 @@ export async function POST(request: Request) {
       const officeLongitude = Number(geofence.longitude);
       const radiusM = Number(geofence.radius_m || 200);
 
-      if (!Number.isFinite(officeLatitude) || !Number.isFinite(officeLongitude)) {
+      if (
+        !Number.isFinite(officeLatitude) ||
+        !Number.isFinite(officeLongitude) ||
+        (Math.abs(officeLatitude) < 0.000001 &&
+          Math.abs(officeLongitude) < 0.000001)
+      ) {
         return NextResponse.json(
-          { error: "Office GPS Location valid નથી." },
+          {
+            error:
+              "Office GPS Location set નથી. Admin → GPS Attendance → Use Current Location as Office → Save કરો.",
+          },
           { status: 400 }
         );
       }
