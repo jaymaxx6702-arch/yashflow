@@ -96,6 +96,7 @@ jobs:
             fi
           done
 
+          node scripts/ci-app-route-smoke.mjs
           echo "Local production runtime smoke PASS"
 
       - name: ESLint regression guard
