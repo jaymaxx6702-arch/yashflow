@@ -14,9 +14,9 @@ concurrency:
 
 jobs:
   validate:
-    name: TypeScript + SQL + Build + ESLint
+    name: TypeScript + Critical + SQL + Build + Runtime + ESLint
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
@@ -33,6 +33,9 @@ jobs:
 
       - name: TypeScript check
         run: npx tsc --noEmit
+
+      - name: Critical flow regression checks
+        run: node scripts/ci-critical-flow-check.mjs
 
       - name: SQL migration sanity
         run: |
@@ -52,6 +55,72 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-public-key
 
-      - name: ESLint advisory check
-        continue-on-error: true
-        run: npm run lint
+      - name: Local production runtime smoke
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-public-key
+        run: |
+          npm run start -- -H 127.0.0.1 -p 3000 > /tmp/yashflow-next.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+
+          ready=0
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3000/ > /dev/null; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+
+          if [ "$ready" -ne 1 ]; then
+            echo "Next.js production server did not become ready."
+            cat /tmp/yashflow-next.log
+            exit 1
+          fi
+
+          curl -fsS http://127.0.0.1:3000/ > /dev/null
+          curl -fsS http://127.0.0.1:3000/manifest.webmanifest > /dev/null
+          curl -fsS http://127.0.0.1:3000/dashboard > /dev/null
+          curl -fsS http://127.0.0.1:3000/admin > /dev/null
+
+          for endpoint in check-in check-out; do
+            body="/tmp/${endpoint}.json"
+            code=$(curl -sS -o "$body" -w '%{http_code}'               -X POST               -H 'Content-Type: application/json'               -d '{}'               "http://127.0.0.1:3000/api/attendance/${endpoint}")
+
+            if [ "$code" != "401" ]; then
+              echo "Attendance ${endpoint} auth smoke failed: expected HTTP 401, got ${code}"
+              cat "$body"
+              cat /tmp/yashflow-next.log
+              exit 1
+            fi
+          done
+
+          echo "Local production runtime smoke PASS"
+
+      - name: ESLint regression guard
+        run: |
+          set +e
+          npx eslint . -f json > /tmp/eslint-report.json
+          eslint_exit=$?
+          set -e
+
+          node <<'NODE'
+          const fs = require("fs");
+          const report = JSON.parse(fs.readFileSync("/tmp/eslint-report.json", "utf8"));
+          const errors = report.reduce((sum, file) => sum + (file.errorCount || 0), 0);
+          const warnings = report.reduce((sum, file) => sum + (file.warningCount || 0), 0);
+          const legacyErrorBaseline = 25;
+
+          console.log(`ESLint: ${errors} error(s), ${warnings} warning(s)`);
+          console.log(`Legacy error baseline: ${legacyErrorBaseline}`);
+
+          if (errors > legacyErrorBaseline) {
+            console.error(
+              `New ESLint regression detected: ${errors} errors exceeds baseline ${legacyErrorBaseline}.`
+            );
+            process.exit(1);
+          }
+          NODE
+
+          echo "ESLint command exit code: $eslint_exit (legacy errors are baseline-tracked)"
