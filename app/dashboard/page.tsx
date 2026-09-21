@@ -930,6 +930,27 @@ export default function EmployeeDashboard() {
   async function handleCheckIn() {
     if (!employee || !officeSettings) return;
 
+    if (
+      gpsSettingsLoaded &&
+      gpsSettings?.is_active &&
+      gpsSettings.require_check_in
+    ) {
+      const officeLatitude = Number(gpsSettings.latitude);
+      const officeLongitude = Number(gpsSettings.longitude);
+      const invalidOfficeGps =
+        !Number.isFinite(officeLatitude) ||
+        !Number.isFinite(officeLongitude) ||
+        (Math.abs(officeLatitude) < 0.000001 &&
+          Math.abs(officeLongitude) < 0.000001);
+
+      if (invalidOfficeGps) {
+        setMessage(
+          "Check In Error: Office GPS Location set નથી. Admin → GPS Attendance → Use Current Location as Office → Save કરો."
+        );
+        return;
+      }
+    }
+
     const gpsRequired =
       !gpsSettingsLoaded ||
       Boolean(gpsSettings?.is_active && gpsSettings.require_check_in);
@@ -1176,6 +1197,27 @@ export default function EmployeeDashboard() {
       !officeSettings
     ) {
       return;
+    }
+
+    if (
+      gpsSettingsLoaded &&
+      gpsSettings?.is_active &&
+      gpsSettings.require_check_out
+    ) {
+      const officeLatitude = Number(gpsSettings.latitude);
+      const officeLongitude = Number(gpsSettings.longitude);
+      const invalidOfficeGps =
+        !Number.isFinite(officeLatitude) ||
+        !Number.isFinite(officeLongitude) ||
+        (Math.abs(officeLatitude) < 0.000001 &&
+          Math.abs(officeLongitude) < 0.000001);
+
+      if (invalidOfficeGps) {
+        setMessage(
+          "Check Out Error: Office GPS Location set નથી. Admin → GPS Attendance → Use Current Location as Office → Save કરો."
+        );
+        return;
+      }
     }
 
     const nowMinutes = getMinutesFromDate(new Date(), officeSettings.timezone);
