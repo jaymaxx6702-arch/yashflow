@@ -57,9 +57,9 @@ const checkOut = blockBetween(
   "Check Out"
 );
 
-for (const [label, source, endpoint, setting] of [
-  ["Check In", checkIn, "/api/attendance/check-in", "require_check_in"],
-  ["Check Out", checkOut, "/api/attendance/check-out", "require_check_out"],
+for (const [label, source, setting] of [
+  ["Check In", checkIn, "require_check_in"],
+  ["Check Out", checkOut, "require_check_out"],
 ]) {
   if (!source.includes("!gpsSettingsLoaded ||")) {
     fail(`${label}: missing conservative GPS fallback while settings load`);
@@ -70,17 +70,52 @@ for (const [label, source, endpoint, setting] of [
 
   const capture = source.indexOf("const location = gpsRequired");
   const gps = source.indexOf("await getGpsLocation()");
-  const request = source.indexOf(`fetch("${endpoint}"`);
 
-  if (capture < 0 || gps < 0 || request < 0) {
-    fail(`${label}: GPS capture/request flow is incomplete`);
-  } else if (capture > request || gps > request) {
-    fail(`${label}: attendance request can run before GPS capture`);
+  if (capture < 0 || gps < 0) {
+    fail(`${label}: GPS capture flow is incomplete`);
   }
+}
 
-  if (!source.includes('result.code === "GPS_REQUIRED"')) {
-    fail(`${label}: missing server-authoritative GPS fallback retry`);
-  }
+const checkInRpc = checkIn.indexOf('"employee_gps_check_in"');
+const checkInApiFallback = checkIn.indexOf('fetch("/api/attendance/check-in"');
+const checkInGpsCapture = checkIn.indexOf("await getGpsLocation()");
+
+if (checkInRpc < 0) {
+  fail("Check In: stable employee_gps_check_in RPC primary path is missing");
+}
+if (checkInApiFallback < 0) {
+  fail("Check In: API fallback path is missing");
+}
+if (
+  checkInRpc >= 0 &&
+  checkInApiFallback >= 0 &&
+  checkInRpc > checkInApiFallback
+) {
+  fail("Check In: API path appears before the stable RPC primary path");
+}
+if (
+  checkInGpsCapture >= 0 &&
+  checkInRpc >= 0 &&
+  checkInGpsCapture > checkInRpc
+) {
+  fail("Check In: RPC can run before GPS capture");
+}
+if (!checkIn.includes("rpcUnavailable")) {
+  fail("Check In: RPC-unavailable fallback guard is missing");
+}
+if (!checkIn.includes('result.code === "GPS_REQUIRED"')) {
+  fail("Check In: API fallback lost server-authoritative GPS retry");
+}
+
+const checkOutRequest = checkOut.indexOf('fetch("/api/attendance/check-out"');
+const checkOutGpsCapture = checkOut.indexOf("await getGpsLocation()");
+if (checkOutRequest < 0 || checkOutGpsCapture < 0) {
+  fail("Check Out: GPS/API flow is incomplete");
+} else if (checkOutGpsCapture > checkOutRequest) {
+  fail("Check Out: attendance request can run before GPS capture");
+}
+if (!checkOut.includes('result.code === "GPS_REQUIRED"')) {
+  fail("Check Out: missing server-authoritative GPS fallback retry");
 }
 
 for (const path of [
@@ -130,7 +165,7 @@ if (failures.length) {
 }
 
 console.log("Critical-flow regression checks PASS");
-console.log("- Attendance captures GPS before normal Punch requests when required/unknown");
+console.log("- Check In uses the stable employee-session RPC first, with API fallback");\nconsole.log("- Attendance captures GPS before normal Punch requests when required/unknown");
 console.log("- Server GPS fallback contract remains available");
 console.log("- Attendance API auth guards remain before DB work");
 console.log("- Offline attendance, readiness, manifest and service-worker files are present");
