@@ -221,7 +221,14 @@ export async function POST(request: Request) {
         !Number.isFinite(longitude) ||
         !Number.isFinite(accuracy)
       ) {
-        return NextResponse.json({ error: "GPS Location જરૂરી છે." }, { status: 400 });
+        return NextResponse.json(
+          {
+            error: "GPS Location જરૂરી છે.",
+            code: "GPS_REQUIRED",
+            gps_required: true,
+          },
+          { status: 428 }
+        );
       }
 
       if (!Number.isFinite(officeLatitude) || !Number.isFinite(officeLongitude)) {
