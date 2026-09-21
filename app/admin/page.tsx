@@ -651,6 +651,37 @@ export default function AdminPage() {
     setDrawer((prev) => ({ ...prev, open: false }));
   }
 
+  async function scanStuckAlerts() {
+    const supabase = createClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session?.access_token) return;
+
+    const response = await fetch("/api/admin/stuck-work-scan", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const result = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      console.warn(
+        "Stuck Alert Scan Error:",
+        result.error || response.statusText
+      );
+    }
+  }
+
+  async function refreshDashboard() {
+    await loadDashboardCounts();
+    await scanStuckAlerts();
+  }
+
   async function loadDashboardCounts() {
     const supabase = createClient();
 
@@ -1118,6 +1149,7 @@ const manualPunchRows = (
       setAdminId(adminProfile.id);
 
       await loadDashboardCounts();
+      void scanStuckAlerts();
       setLoading(false);
     }
 
@@ -1185,7 +1217,7 @@ const manualPunchRows = (
 
               <button
                 type="button"
-                onClick={loadDashboardCounts}
+                onClick={refreshDashboard}
                 disabled={refreshing}
                 className="yf-btn bg-white/15 border-white/20 text-white hover:bg-white/25 disabled:opacity-60"
               >
@@ -1750,7 +1782,42 @@ const manualPunchRows = (
               }
             />
             <ToolButton href="/dashboard/purchase" label="Purchase" icon="🛒" />
+            <ToolButton href="/dashboard/packing" label="Packing" icon="📦" />
             <ToolButton href="/dashboard/dispatch" label="Dispatch" icon="🚚" />
+            <ToolButton href="/admin/accounts" label="Accounts" icon="💰" />
+            <ToolButton href="/admin/task-team" label="Task / Team" icon="👥" />
+            <ToolButton href="/admin/id-cards" label="Bulk ID Cards" icon="🪪" />
+            <ToolButton
+              href="/dashboard/manage/order-details"
+              label="Order Details"
+              icon="🧩"
+            />
+            <ToolButton href="/admin/reports" label="Export" icon="📤" />
+            <ToolButton href="/admin/reorder" label="Reorder" icon="🧾" />
+            <ToolButton href="/admin/escalations" label="Escalations" icon="🚨" />
+            <ToolButton href="/admin/checklists" label="Stage Checklists" icon="☑️" />
+            <ToolButton href="/admin/activity" label="Activity History" icon="🕘" />
+          </div>
+        </section>
+
+        <section className="mt-4 yf-card p-4">
+          <div>
+            <p className="text-[10px] font-black tracking-[0.15em] text-amber-700">
+              ADVANCED TOOLS
+            </p>
+            <h2 className="text-lg font-black text-slate-900 mt-0.5">
+              System & Recovery
+            </h2>
+            <p className="text-xs font-semibold text-slate-500 mt-1">
+              Daily staff work માટે જરૂરી નથી. Admin troubleshooting અને system checks માટે.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3 mt-4">
+            <ToolButton href="/admin/files" label="Files" icon="📁" />
+            <ToolButton href="/admin/system-audit" label="System Audit" icon="🛡️" />
+            <ToolButton href="/admin/recovery" label="Recovery" icon="♻️" />
+            <ToolButton href="/admin/readiness" label="Health Check" icon="✅" />
           </div>
         </section>
 

@@ -169,44 +169,136 @@ export async function POST(request: Request) {
 
   if (stageError || !firstStage) return NextResponse.json({ error: stageError?.message || "First Stage મળ્યો નથી." }, { status: 400 });
 
-  const { data: configuredWorkers } = await db
-    .from("workflow_template_stage_workers")
-    .select("employee_id,is_primary,sort_order")
-    .eq("workflow_template_stage_id", firstTemplateStage.id)
-    .order("sort_order");
+  const templateStageIds = templateStages.map((item) => item.id);
 
-  const candidates = (configuredWorkers || []).map((row) => row.employee_id);
-  let primaryId: string | null = null;
-  let supportIds: string[] = [];
+  const { data: configuredWorkers, error: configuredWorkersError } =
+    await db
+      .from("workflow_template_stage_workers")
+      .select(
+        "workflow_template_stage_id,employee_id,is_primary,sort_order"
+      )
+      .in("workflow_template_stage_id", templateStageIds)
+      .order("sort_order");
 
-  if (firstTemplateStage.assignment_rule === "single_default" && candidates.length) {
-    primaryId = firstTemplateStage.default_employee_id ||
-      configuredWorkers?.find((row) => row.is_primary)?.employee_id ||
-      candidates[0];
-  } else if (firstTemplateStage.assignment_rule === "default_team" && candidates.length) {
-    primaryId = firstTemplateStage.default_employee_id ||
-      configuredWorkers?.find((row) => row.is_primary)?.employee_id ||
-      candidates[0];
-    supportIds = candidates.filter((id) => id !== primaryId);
-  } else if (firstTemplateStage.assignment_rule === "auto_assign" && candidates.length) {
-    if (firstTemplateStage.auto_method === "round_robin") {
-      const index = candidates.indexOf(firstTemplateStage.last_assigned_employee_id || "");
-      primaryId = candidates[(index + 1 + candidates.length) % candidates.length];
-    } else {
-      const { data: activeWorks } = await db
+  if (configuredWorkersError) {
+    return NextResponse.json(
+      { error: configuredWorkersError.message },
+      { status: 500 }
+    );
+  }
+
+  const autoCandidates = new Set<string>();
+  for (const item of configuredWorkers || []) {
+    autoCandidates.add(item.employee_id);
+  }
+
+  const { data: activeWorks } = autoCandidates.size
+    ? await db
         .from("order_stage_work")
         .select("primary_employee_id,status")
-        .in("status", ACTIVE_WORK);
+        .in("status", ACTIVE_WORK)
+    : { data: [] as Array<{ primary_employee_id: string | null; status: string }> };
 
-      const load = new Map(candidates.map((id) => [id, 0]));
-      for (const work of activeWorks || []) {
-        if (work.primary_employee_id && load.has(work.primary_employee_id)) {
-          load.set(work.primary_employee_id, (load.get(work.primary_employee_id) || 0) + 1);
-        }
-      }
-      primaryId = [...candidates].sort((a, b) => (load.get(a) || 0) - (load.get(b) || 0))[0];
+  const workload = new Map<string, number>();
+  for (const candidateId of autoCandidates) {
+    workload.set(candidateId, 0);
+  }
+
+  for (const work of activeWorks || []) {
+    if (
+      work.primary_employee_id &&
+      workload.has(work.primary_employee_id)
+    ) {
+      workload.set(
+        work.primary_employee_id,
+        (workload.get(work.primary_employee_id) || 0) + 1
+      );
     }
   }
+
+  const stageTeamPlans = templateStages.map((templateStage) => {
+    const workers = (configuredWorkers || [])
+      .filter(
+        (row) =>
+          row.workflow_template_stage_id === templateStage.id
+      )
+      .sort((a, b) => a.sort_order - b.sort_order);
+
+    const candidateIds = workers.map((row) => row.employee_id);
+    let primaryId: string | null = null;
+    let supportIds: string[] = [];
+
+    if (
+      templateStage.assignment_rule === "single_default" &&
+      candidateIds.length
+    ) {
+      primaryId =
+        templateStage.default_employee_id ||
+        workers.find((row) => row.is_primary)?.employee_id ||
+        candidateIds[0];
+    } else if (
+      templateStage.assignment_rule === "default_team" &&
+      candidateIds.length
+    ) {
+      primaryId =
+        templateStage.default_employee_id ||
+        workers.find((row) => row.is_primary)?.employee_id ||
+        candidateIds[0];
+
+      supportIds = candidateIds.filter(
+        (id) => id !== primaryId
+      );
+    } else if (
+      templateStage.assignment_rule === "manual" &&
+      candidateIds.length
+    ) {
+      primaryId =
+        templateStage.default_employee_id ||
+        workers.find((row) => row.is_primary)?.employee_id ||
+        candidateIds[0];
+
+      supportIds = candidateIds.filter(
+        (id) => id !== primaryId
+      );
+    } else if (
+      templateStage.assignment_rule === "auto_assign" &&
+      candidateIds.length
+    ) {
+      if (templateStage.auto_method === "round_robin") {
+        const index = candidateIds.indexOf(
+          templateStage.last_assigned_employee_id || ""
+        );
+
+        primaryId =
+          candidateIds[
+            (index + 1 + candidateIds.length) %
+              candidateIds.length
+          ];
+      } else {
+        primaryId = [...candidateIds].sort((a, b) => {
+          const diff =
+            (workload.get(a) || 0) -
+            (workload.get(b) || 0);
+
+          return diff !== 0 ? diff : a.localeCompare(b);
+        })[0];
+      }
+    }
+
+    return {
+      templateStage,
+      primaryId,
+      supportIds,
+      source:
+        templateStage.assignment_rule === "auto_assign"
+          ? "auto"
+          : "default",
+    };
+  });
+
+  const firstPlan = stageTeamPlans[0];
+  const primaryId = firstPlan?.primaryId || null;
+  const supportIds = firstPlan?.supportIds || [];
 
   const workflowStatus = primaryId ? "assigned" : "waiting";
   const { data: newOrder, error: orderError } = await db
@@ -235,6 +327,80 @@ export async function POST(request: Request) {
     .single();
 
   if (orderError || !newOrder) return NextResponse.json({ error: orderError?.message || "Order create failed." }, { status: 500 });
+
+  const { data: savedPlans, error: planError } = await db
+    .from("order_stage_plans")
+    .insert(
+      stageTeamPlans.map((plan) => ({
+        order_id: newOrder.id,
+        workflow_template_stage_id: plan.templateStage.id,
+        stage_id: plan.templateStage.stage_id,
+        sequence_no: plan.templateStage.sequence_no,
+        primary_employee_id: plan.primaryId,
+        source: plan.source,
+      }))
+    )
+    .select("id,workflow_template_stage_id");
+
+  if (planError || !savedPlans) {
+    await db.from("orders").delete().eq("id", newOrder.id);
+
+    return NextResponse.json(
+      { error: planError?.message || "Stage Team Plan save failed." },
+      { status: 500 }
+    );
+  }
+
+  const savedPlanMap = new Map(
+    savedPlans.map((plan) => [
+      plan.workflow_template_stage_id,
+      plan.id,
+    ])
+  );
+
+  const planWorkerRows = stageTeamPlans.flatMap((plan) => {
+    const planId = savedPlanMap.get(plan.templateStage.id);
+    if (!planId) return [];
+
+    const rows: Array<{
+      order_stage_plan_id: string;
+      employee_id: string;
+      worker_role: "primary" | "support";
+    }> = [];
+
+    if (plan.primaryId) {
+      rows.push({
+        order_stage_plan_id: planId,
+        employee_id: plan.primaryId,
+        worker_role: "primary",
+      });
+    }
+
+    for (const employeeId of plan.supportIds) {
+      rows.push({
+        order_stage_plan_id: planId,
+        employee_id: employeeId,
+        worker_role: "support",
+      });
+    }
+
+    return rows;
+  });
+
+  if (planWorkerRows.length) {
+    const { error: workerPlanError } = await db
+      .from("order_stage_plan_workers")
+      .insert(planWorkerRows);
+
+    if (workerPlanError) {
+      await db.from("orders").delete().eq("id", newOrder.id);
+
+      return NextResponse.json(
+        { error: workerPlanError.message },
+        { status: 500 }
+      );
+    }
+  }
 
   await db.from("order_product_configurations").insert({
     order_id: newOrder.id,
@@ -266,10 +432,18 @@ export async function POST(request: Request) {
     ]);
   }
 
-  if (firstTemplateStage.assignment_rule === "auto_assign" && primaryId) {
-    await db.from("workflow_template_stages")
-      .update({ last_assigned_employee_id: primaryId })
-      .eq("id", firstTemplateStage.id);
+  for (const plan of stageTeamPlans) {
+    if (
+      plan.templateStage.assignment_rule === "auto_assign" &&
+      plan.primaryId
+    ) {
+      await db
+        .from("workflow_template_stages")
+        .update({
+          last_assigned_employee_id: plan.primaryId,
+        })
+        .eq("id", plan.templateStage.id);
+    }
   }
 
   await db.from("order_workflow_history").insert({
@@ -283,20 +457,6 @@ export async function POST(request: Request) {
     employee_id: profile.id,
     note: `Workflow: ${workflow.name}`,
   });
-
-  const assignedIds = primaryId ? [primaryId, ...supportIds] : [];
-  if (assignedIds.length) {
-    await db.from("notifications").insert(
-      assignedIds.map((employeeId) => ({
-        employee_id: employeeId,
-        notification_type: "order_assignment",
-        title: "New Order Assigned",
-        message: `${newOrder.order_number} - ${firstStage.name} તમને assign થયું છે.`,
-        related_type: "order",
-        related_id: newOrder.id,
-      }))
-    );
-  }
 
   return NextResponse.json({
     ok: true,

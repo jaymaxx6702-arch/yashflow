@@ -233,6 +233,15 @@ export default function AdminLeavePage() {
     return leave.end_date < getIndiaDate();
   }
 
+  function activeWorkCount(employeeId: string) {
+    const workload = workloadByEmployee[employeeId] || {
+      tasks: 0,
+      orders: 0,
+    };
+
+    return workload.tasks + workload.orders;
+  }
+
   async function approveLeave(leave: LeaveRequest) {
     if (!adminId) return;
 
@@ -313,10 +322,15 @@ export default function AdminLeavePage() {
 
     const workCount = workload.tasks + workload.orders;
 
+    if (workCount > 0 && !primaryId) {
+      setMessage(
+        `આ Employee પાસે ${workload.tasks} Task(s) અને ${workload.orders} Order Stage(s) active છે. Leave approve કરવા Primary Handover Employee ફરજિયાત છે.`
+      );
+      return;
+    }
+
     const confirmText = primaryId
       ? `Leave approve કરીને ${workload.tasks} Task(s) અને ${workload.orders} Order Stage(s) handover કરવા છે?`
-      : workCount > 0
-      ? `આ Employee પાસે ${workload.tasks} Task(s) અને ${workload.orders} Order Stage(s) active છે. Handover વગર Leave approve કરવી છે?`
       : "Leave approve કરવી છે?";
 
     if (!window.confirm(confirmText)) return;
@@ -685,8 +699,13 @@ export default function AdminLeavePage() {
                                     }}
                                     className="w-full border border-blue-200 rounded-lg px-3 py-2 bg-white text-sm font-semibold"
                                   >
-                                    <option value="">
-                                      Approve Only — No Handover
+                                    <option
+                                      value=""
+                                      disabled={activeWorkCount(leave.employee_id) > 0}
+                                    >
+                                      {activeWorkCount(leave.employee_id) > 0
+                                        ? "Primary Handover Required"
+                                        : "Approve Only — No Handover"}
                                     </option>
 
                                     {eligibleEmployees.map((employee) => (
@@ -740,6 +759,12 @@ export default function AdminLeavePage() {
                                 <p className="text-[11px] text-blue-700 mt-2">
                                   Primaryને open Tasks + primary Orders મળશે. Second Employee Task/Order support તરીકે add થશે.
                                 </p>
+                                {activeWorkCount(leave.employee_id) > 0 &&
+                                  !primaryHandover[leave.id] && (
+                                    <p className="mt-2 text-[11px] font-black text-amber-700">
+                                      ⚠ Active work છે — Leave approve કરવા Primary Handover Employee ફરજિયાત છે.
+                                    </p>
+                                  )}
                               </div>
                             );
                           })()}
@@ -760,7 +785,11 @@ export default function AdminLeavePage() {
                           <div className="flex gap-2 mt-3">
                             <button
                               type="button"
-                              disabled={actionId === leave.id}
+                              disabled={
+                                actionId === leave.id ||
+                                (activeWorkCount(leave.employee_id) > 0 &&
+                                  !primaryHandover[leave.id])
+                              }
                               onClick={() =>
                                 approveLeave(leave)
                               }

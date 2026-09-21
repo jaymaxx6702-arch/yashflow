@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import { canonicalAttendanceMap } from "@/utils/business-rules";
 
 type Employee = {
   id: string;
@@ -196,15 +197,14 @@ export default function PermissionAttendanceEditorPage() {
     }
 
     const attendanceRows = (attendanceResult.data || []) as Attendance[];
+    const attendanceByEmployeeDate = canonicalAttendanceMap(attendanceRows);
 
     const finalRows: AttendanceRow[] = (
       (employeeResult.data || []) as Employee[]
     ).map((employee) => ({
       employee,
       attendance:
-        attendanceRows.find(
-          (item) => item.employee_id === employee.id
-        ) || null,
+        attendanceByEmployeeDate.get(`${employee.id}|${date}`) || null,
     }));
 
     setRows(finalRows);

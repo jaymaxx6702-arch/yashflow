@@ -428,6 +428,13 @@ export default function PurchaseManagementPage() {
       return;
     }
 
+    if (qty > remaining) {
+      setMessage(
+        `Receive Quantity Remaining ${remaining} કરતાં વધારે ન હોઈ શકે.`
+      );
+      return;
+    }
+
     const reference = window.prompt(
       "Supplier Invoice / Challan / Reference (optional):"
     );

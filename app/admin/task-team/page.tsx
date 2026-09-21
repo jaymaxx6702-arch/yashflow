@@ -251,14 +251,6 @@ export default function TaskTeamCenterPage() {
         .eq("employee_id", draft.assigned_to)
         .eq("is_active", true);
 
-      await supabase.from("notifications").insert({
-        employee_id: draft.assigned_to,
-        notification_type: "task_assignment",
-        title: "Task Reassigned",
-        message: `${task.title} હવે તમને Primary Employee તરીકે assign થયો છે.`,
-        related_type: "task",
-        related_id: task.id,
-      });
     }
 
     setMessage(`${task.title} update થયો ✅`);
@@ -297,15 +289,6 @@ export default function TaskTeamCenterPage() {
       setSavingId(null);
       return;
     }
-
-    await supabase.from("notifications").insert({
-      employee_id: draft.support_employee_id,
-      notification_type: "task_assignment",
-      title: "Task Support Assigned",
-      message: `${task.title} માં તમને Support Employee તરીકે add કરવામાં આવ્યા છે.`,
-      related_type: "task",
-      related_id: task.id,
-    });
 
     setMessage("Support Employee add થયો ✅");
     await loadData();

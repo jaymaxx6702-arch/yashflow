@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import { canonicalAttendanceMap } from "@/utils/business-rules";
 
 type Employee = {
   id: string;
@@ -60,6 +61,13 @@ type StageWorker = {
   order_stage_work_id: string;
   employee_id: string;
   worker_role: "primary" | "support";
+  left_at: string | null;
+};
+
+type TaskSupportWorker = {
+  task_id: string;
+  employee_id: string;
+  is_active: boolean;
 };
 
 type OrderRow = {
@@ -198,6 +206,7 @@ export default function AdminWorkCalendarPage() {
   const [taskRows, setTaskRows] = useState<TaskRow[]>([]);
   const [stageWorks, setStageWorks] = useState<StageWork[]>([]);
   const [stageWorkers, setStageWorkers] = useState<StageWorker[]>([]);
+  const [taskSupportWorkers, setTaskSupportWorkers] = useState<TaskSupportWorker[]>([]);
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [stages, setStages] = useState<StageRow[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
@@ -234,15 +243,10 @@ export default function AdminWorkCalendarPage() {
     year: "numeric",
   }).format(monthCursor);
 
-  const attendanceByEmployeeDate = useMemo(() => {
-    const map = new Map<string, Attendance>();
-
-    for (const row of attendanceRows) {
-      map.set(`${row.employee_id}|${row.attendance_date}`, row);
-    }
-
-    return map;
-  }, [attendanceRows]);
+  const attendanceByEmployeeDate = useMemo(
+    () => canonicalAttendanceMap(attendanceRows),
+    [attendanceRows]
+  );
 
   const holidayMap = useMemo(
     () =>
@@ -266,6 +270,7 @@ export default function AdminWorkCalendarPage() {
     const map = new Map<string, string[]>();
 
     for (const row of stageWorkers) {
+      if (row.left_at) continue;
       const list = map.get(row.order_stage_work_id) || [];
       list.push(row.employee_id);
       map.set(row.order_stage_work_id, list);
@@ -273,6 +278,19 @@ export default function AdminWorkCalendarPage() {
 
     return map;
   }, [stageWorkers]);
+
+  const supportEmployeesByTask = useMemo(() => {
+    const map = new Map<string, string[]>();
+
+    for (const row of taskSupportWorkers) {
+      if (!row.is_active) continue;
+      const list = map.get(row.task_id) || [];
+      list.push(row.employee_id);
+      map.set(row.task_id, list);
+    }
+
+    return map;
+  }, [taskSupportWorkers]);
 
   const calendarDays = useMemo(() => {
     const firstIndex = new Date(year, month, 1).getDay();
@@ -353,7 +371,10 @@ export default function AdminWorkCalendarPage() {
   function tasksWorkedForEmployee(employeeId: string, dateKey: string) {
     return taskRows.filter(
       (task) =>
-        task.assigned_to === employeeId &&
+        (
+          task.assigned_to === employeeId ||
+          (supportEmployeesByTask.get(task.id) || []).includes(employeeId)
+        ) &&
         (task.started_at || task.completed_at
           ? dateOverlaps(
               dateKey,
@@ -370,7 +391,10 @@ export default function AdminWorkCalendarPage() {
   ) {
     return taskRows.filter(
       (task) =>
-        task.assigned_to === employeeId &&
+        (
+          task.assigned_to === employeeId ||
+          (supportEmployeesByTask.get(task.id) || []).includes(employeeId)
+        ) &&
         task.status === "completed" &&
         isoDateKey(task.completed_at) === dateKey
     );
@@ -596,6 +620,7 @@ export default function AdminWorkCalendarPage() {
       attendanceResult,
       leaveResult,
       taskResult,
+      taskSupportResult,
       stageWorkResult,
       stageWorkersResult,
       holidayResult,
@@ -634,6 +659,11 @@ export default function AdminWorkCalendarPage() {
         ),
 
       supabase
+        .from("task_support_workers")
+        .select("task_id, employee_id, is_active")
+        .eq("is_active", true),
+
+      supabase
         .from("order_stage_work")
         .select(
           "id, order_id, stage_id, status, primary_employee_id, started_at, completed_at, created_at"
@@ -641,7 +671,8 @@ export default function AdminWorkCalendarPage() {
 
       supabase
         .from("order_stage_workers")
-        .select("order_stage_work_id, employee_id, worker_role"),
+        .select("order_stage_work_id, employee_id, worker_role, left_at")
+        .is("left_at", null),
 
       supabase
         .from("company_holidays")
@@ -672,6 +703,7 @@ export default function AdminWorkCalendarPage() {
       attendanceResult.error ||
       leaveResult.error ||
       taskResult.error ||
+      taskSupportResult.error ||
       stageWorkResult.error ||
       stageWorkersResult.error ||
       holidayResult.error ||
@@ -734,11 +766,18 @@ export default function AdminWorkCalendarPage() {
     }
 
     setEmployees(staff);
+
+    const rawAttendance =
+      (attendanceResult.data || []) as Attendance[];
     setAttendanceRows(
-      (attendanceResult.data || []) as Attendance[]
+      Array.from(canonicalAttendanceMap(rawAttendance).values())
     );
+
     setLeaveRows((leaveResult.data || []) as LeaveRequest[]);
     setTaskRows((taskResult.data || []) as TaskRow[]);
+    setTaskSupportWorkers(
+      (taskSupportResult.data || []) as TaskSupportWorker[]
+    );
     setStageWorks(allStageWorks);
     setStageWorkers(
       (stageWorkersResult.data || []) as StageWorker[]
@@ -777,6 +816,7 @@ export default function AdminWorkCalendarPage() {
       taskRows,
       stageWorks,
       stageWorkers,
+      taskSupportWorkers,
       holidays,
       weeklyOffDay,
     ]

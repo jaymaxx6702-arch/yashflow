@@ -3,6 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import {
+  canonicalAttendanceMap,
+  indiaDateKey,
+} from "@/utils/business-rules";
 
 type Employee = {
   id: string;
@@ -29,6 +33,8 @@ type EmployeeDepartment = {
 type AttendanceRow = {
   employee_id: string;
   attendance_date: string;
+  check_in: string | null;
+  check_out: string | null;
   attendance_type: string | null;
   late_minutes: number | null;
   working_minutes: number | null;
@@ -103,17 +109,12 @@ function monthStart(value: string) {
   return `${value.slice(0, 7)}-01`;
 }
 
-function dateOnly(value: string | null | undefined) {
-  if (!value) return null;
-  return value.slice(0, 10);
-}
-
 function inRange(
   value: string | null | undefined,
   startDate: string,
   endDate: string
 ) {
-  const date = dateOnly(value);
+  const date = indiaDateKey(value);
   if (!date) return false;
   return date >= startDate && date <= endDate;
 }
@@ -219,6 +220,8 @@ export default function PerformanceReportPage() {
         .select(`
           employee_id,
           attendance_date,
+          check_in,
+          check_out,
           attendance_type,
           late_minutes,
           working_minutes,
@@ -281,7 +284,10 @@ export default function PerformanceReportPage() {
     setEmployeeDepartments(
       (employeeDepartmentsResult.data || []) as unknown as EmployeeDepartment[]
     );
-    setAttendance((attendanceResult.data || []) as AttendanceRow[]);
+    const attendanceRows = (attendanceResult.data || []) as AttendanceRow[];
+    setAttendance(
+      Array.from(canonicalAttendanceMap(attendanceRows).values())
+    );
     setStageWorks((stageWorksResult.data || []) as StageWork[]);
     setStageWorkers((stageWorkersResult.data || []) as StageWorker[]);
     setTasks((tasksResult.data || []) as TaskRow[]);

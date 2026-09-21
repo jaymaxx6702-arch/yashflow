@@ -3,6 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import StageChecklist from "./StageChecklist";
+import UpcomingOrders from "./UpcomingOrders";
+import {
+  enqueueOfflineAction,
+  isLikelyNetworkError,
+} from "@/utils/offline-queue";
 
 type WorkflowMode = "auto" | "admin_controlled" | "manual";
 
@@ -37,6 +43,8 @@ type Order = {
   priority: "low" | "normal" | "high" | "urgent";
   due_date: string | null;
   product_configuration: Record<string, string> | null;
+  customer_note: string | null;
+  admin_note: string | null;
 };
 
 type Stage = {
@@ -150,6 +158,7 @@ export default function EmployeeOrdersPage() {
   const [templateStageConfigs, setTemplateStageConfigs] = useState<
     TemplateStageConfig[]
   >([]);
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
 
   const [stageProofs, setStageProofs] = useState<StageProof[]>([]);
   const [uploadingWorkId, setUploadingWorkId] = useState<string | null>(null);
@@ -350,7 +359,9 @@ export default function EmployeeOrdersPage() {
           workflow_status,
           priority,
           due_date,
-          product_configuration
+          product_configuration,
+          customer_note,
+          admin_note
         `)
         .in("id", orderIds),
 
@@ -726,6 +737,50 @@ export default function EmployeeOrdersPage() {
     );
   }
 
+  async function stageChecklistReady(work: StageWork) {
+    const supabase = createClient();
+
+    const { data: requiredItems, error: itemError } =
+      await supabase
+        .from("order_stage_checklist_items")
+        .select("id")
+        .eq("order_stage_work_id", work.id)
+        .eq("is_required", true);
+
+    if (itemError) {
+      setMessage(`Checklist Check Error: ${itemError.message}`);
+      return false;
+    }
+
+    const requiredIds = (requiredItems || []).map((item) => item.id);
+    if (!requiredIds.length) return true;
+
+    const { data: checks, error: checkError } = await supabase
+      .from("order_stage_checklist_checks")
+      .select("snapshot_item_id, is_checked")
+      .eq("order_stage_work_id", work.id)
+      .in("snapshot_item_id", requiredIds)
+      .eq("is_checked", true);
+
+    if (checkError) {
+      setMessage(`Checklist Check Error: ${checkError.message}`);
+      return false;
+    }
+
+    const checkedIds = new Set(
+      (checks || []).map((item) => item.snapshot_item_id)
+    );
+
+    if (checkedIds.size < requiredIds.length) {
+      setMessage(
+        `Stage Checklist incomplete છે • ${checkedIds.size}/${requiredIds.length} required complete.`
+      );
+      return false;
+    }
+
+    return true;
+  }
+
   async function startWork(work: StageWork) {
     if (!employee) return;
 
@@ -743,66 +798,79 @@ export default function EmployeeOrdersPage() {
       return;
     }
 
+    const offlinePayload = {
+      workId: work.id,
+      orderId: work.order_id,
+      stageId: work.stage_id,
+      employeeId: employee.id,
+      fromStatus: work.status,
+    };
+
+    if (!navigator.onLine) {
+      enqueueOfflineAction(
+        "order_start",
+        offlinePayload,
+        { ownerEmployeeId: employee.id }
+      );
+      setStageWorks((current) =>
+        current.map((item) =>
+          item.id === work.id
+            ? {
+                ...item,
+                status: "in_progress",
+                started_at:
+                  item.started_at || new Date().toISOString(),
+              }
+            : item
+        )
+      );
+      setMessage("Offline • Start Work Pending Sync ☁️");
+      return;
+    }
+
     setActionId(`start-${work.id}`);
     setMessage("");
 
     const supabase = createClient();
     const now = new Date().toISOString();
 
-    const { data: updatedWork, error: workError } = await supabase
-      .from("order_stage_work")
-      .update({
-        status: "in_progress",
-        started_at: work.started_at || now,
-        updated_at: now,
-      })
-      .eq("id", work.id)
-      .eq("status", work.status)
-      .select("id")
-      .maybeSingle();
+    const { error } = await supabase.rpc(
+      "employee_start_stage_v1",
+      {
+        p_work_id: work.id,
+        p_expected_status: work.status,
+        p_action_at: now,
+        p_action_id: null,
+      }
+    );
 
-    if (workError) {
-      setMessage(`Start Work Error: ${workError.message}`);
+    if (error) {
+      if (isLikelyNetworkError(error.message)) {
+        enqueueOfflineAction(
+          "order_start",
+          offlinePayload,
+          { ownerEmployeeId: employee.id }
+        );
+        setStageWorks((current) =>
+          current.map((item) =>
+            item.id === work.id
+              ? {
+                  ...item,
+                  status: "in_progress",
+                  started_at:
+                    item.started_at || new Date().toISOString(),
+                }
+              : item
+          )
+        );
+        setMessage("Network weak • Start Work Pending Sync ☁️");
+        setActionId(null);
+        return;
+      }
+
+      setMessage(`Start Work Error: ${error.message}`);
       setActionId(null);
       return;
-    }
-
-    if (!updatedWork) {
-      setMessage("Stage update થઈ શક્યો નથી. Page refresh કરીને ફરી try કરો.");
-      setActionId(null);
-      return;
-    }
-
-    const { error: orderSyncError } = await supabase
-      .from("orders")
-      .update({
-        workflow_status: "in_progress",
-        updated_at: now,
-      })
-      .eq("id", work.order_id);
-
-    if (orderSyncError) {
-      console.warn(
-        "Order workflow_status sync failed:",
-        orderSyncError.message
-      );
-    }
-
-    const { error: historyError } = await supabase
-      .from("order_workflow_history")
-      .insert({
-        order_id: work.order_id,
-        order_stage_work_id: work.id,
-        action_type: "employee_started_work",
-        from_stage_id: work.stage_id,
-        to_stage_id: work.stage_id,
-        from_status: work.status,
-        to_status: "in_progress",
-        employee_id: employee.id,
-      });
-
-    if (historyError) {
-      console.warn("Workflow history insert failed:", historyError.message);
     }
 
     setMessage("Work Started ✅");
@@ -919,8 +987,32 @@ export default function EmployeeOrdersPage() {
     const hasPhotoProof = currentProofs.some(
       (proof) => proof.file_type === "photo"
     );
+    const shouldWaiveProof = !hasPhotoProof && hideStageProofUi;
 
-    if (!hasPhotoProof && hideStageProofUi) {
+    if (!navigator.onLine) {
+      enqueueOfflineAction(
+        "order_complete",
+        {
+          workId: work.id,
+          orderId: order.id,
+          employeeId: employee.id,
+          waiveProof: shouldWaiveProof,
+        },
+        { ownerEmployeeId: employee.id }
+      );
+
+      setMessage(
+        "Offline • Complete Stage Pending Sync ☁️ • Checklist server sync પછી verify થશે."
+      );
+      return;
+    }
+
+    const checklistComplete = await stageChecklistReady(work);
+    if (!checklistComplete) return;
+
+    let proofWaivedNow = false;
+
+    if (shouldWaiveProof) {
       const supabase = createClient();
       const { error: waiveError } = await supabase.rpc(
         "employee_waive_stage_proof",
@@ -931,9 +1023,26 @@ export default function EmployeeOrdersPage() {
       );
 
       if (waiveError) {
+        if (isLikelyNetworkError(waiveError.message)) {
+          enqueueOfflineAction(
+            "order_complete",
+            {
+              workId: work.id,
+              orderId: order.id,
+              employeeId: employee.id,
+              waiveProof: true,
+            },
+            { ownerEmployeeId: employee.id }
+          );
+          setMessage("Network weak • Complete Stage Pending Sync ☁️");
+          return;
+        }
+
         setMessage(`Complete Stage Error: ${waiveError.message}`);
         return;
       }
+
+      proofWaivedNow = true;
     } else if (!hasPhotoProof) {
       setMessage(
         "Stage complete કરવા ઓછામાં ઓછો 1 Photo Proof ફરજિયાત છે."
@@ -941,10 +1050,8 @@ export default function EmployeeOrdersPage() {
       return;
     }
 
-    const needsApproval = stageNeedsApproval(order, work);
-
     const confirmed = window.confirm(
-      "આ Stageનું કામ પૂર્ણ છે? Complete કરવું છે?"
+      "Checklist complete છે. આ Stage Complete કરવું છે?"
     );
 
     if (!confirmed) return;
@@ -954,11 +1061,30 @@ export default function EmployeeOrdersPage() {
 
     const supabase = createClient();
 
-    const { data, error } = await supabase.rpc("employee_complete_stage_v4", {
-      p_work_id: work.id,
-    });
+    const { data, error } = await supabase.rpc(
+      "employee_complete_stage_v4",
+      {
+        p_work_id: work.id,
+      }
+    );
 
     if (error) {
+      if (isLikelyNetworkError(error.message)) {
+        enqueueOfflineAction(
+          "order_complete",
+          {
+            workId: work.id,
+            orderId: order.id,
+            employeeId: employee.id,
+            waiveProof: shouldWaiveProof && !proofWaivedNow,
+          },
+          { ownerEmployeeId: employee.id }
+        );
+        setMessage("Network weak • Complete Stage Pending Sync ☁️");
+        setActionId(null);
+        return;
+      }
+
       setMessage(`Complete Stage Error: ${error.message}`);
       setActionId(null);
       return;
@@ -1106,6 +1232,10 @@ export default function EmployeeOrdersPage() {
           </div>
         )}
 
+        {employee && (
+          <UpcomingOrders employeeId={employee.id} />
+        )}
+
         <section className="yf-card p-3 sm:p-4 mb-3">
           <div className="grid grid-cols-4 gap-1.5">
             {[
@@ -1180,10 +1310,17 @@ export default function EmployeeOrdersPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => router.push(`/dashboard/orders/${order.id}`)}
-                        className="text-base sm:text-lg font-black text-blue-700 hover:underline"
+                        onClick={() =>
+                          setExpandedOrderId((current) =>
+                            current === order.id ? null : order.id
+                          )
+                        }
+                        className="text-base sm:text-lg font-black text-blue-700 hover:underline flex items-center gap-1"
                       >
                         {order.order_number}
+                        <span className="text-xs">
+                          {expandedOrderId === order.id ? "▲" : "▼"}
+                        </span>
                       </button>
 
                       <span className={`yf-badge ${priorityClass(order.priority)}`}>
@@ -1264,6 +1401,90 @@ export default function EmployeeOrdersPage() {
                           timeZone: "Asia/Kolkata",
                         })}
                       </p>
+                    )}
+
+                    {expandedOrderId === order.id && (
+                      <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50/40 p-3">
+                        <div className="grid sm:grid-cols-2 gap-3">
+                          <div>
+                            <p className="text-[10px] font-black text-slate-400">
+                              CUSTOMER / CONTACT
+                            </p>
+                            <p className="text-sm font-black text-slate-800 mt-1">
+                              {order.customer_name}
+                            </p>
+                            <p className="text-xs font-semibold text-slate-600">
+                              {order.customer_mobile || "Mobile not added"}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-[10px] font-black text-slate-400">
+                              WORK STATUS
+                            </p>
+                            <p className="text-sm font-black text-slate-800 mt-1">
+                              {stage?.name || order.current_stage} • {statusLabel(work.status)}
+                            </p>
+                            {work.hold_reason && (
+                              <p className="text-xs font-semibold text-amber-700">
+                                Hold: {work.hold_reason}
+                              </p>
+                            )}
+                            {work.rework_reason && (
+                              <p className="text-xs font-semibold text-red-700">
+                                Rework: {work.rework_reason}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {order.product_configuration &&
+                          Object.keys(order.product_configuration).length > 0 && (
+                            <div className="mt-3">
+                              <p className="text-[10px] font-black text-slate-400">
+                                PRODUCT DETAILS
+                              </p>
+                              <div className="mt-1 flex flex-wrap gap-1.5">
+                                {Object.entries(order.product_configuration).map(
+                                  ([key, value]) => (
+                                    <span
+                                      key={key}
+                                      className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700"
+                                    >
+                                      {key}: {value}
+                                    </span>
+                                  )
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                        {(order.customer_note || order.admin_note) && (
+                          <div className="mt-3 grid sm:grid-cols-2 gap-2">
+                            {order.customer_note && (
+                              <div className="rounded-xl border border-cyan-100 bg-white p-3">
+                                <p className="text-[10px] font-black text-cyan-700">
+                                  CUSTOMER NOTE
+                                </p>
+                                <p className="text-xs font-semibold text-slate-700 mt-1 whitespace-pre-wrap">
+                                  {order.customer_note}
+                                </p>
+                              </div>
+                            )}
+
+                            {order.admin_note && (
+                              <div className="rounded-xl border border-amber-100 bg-white p-3">
+                                <p className="text-[10px] font-black text-amber-700">
+                                  ADMIN NOTE
+                                </p>
+                                <p className="text-xs font-semibold text-slate-700 mt-1 whitespace-pre-wrap">
+                                  {order.admin_note}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     )}
 
                     {!hideStageProofUi && (
@@ -1410,6 +1631,14 @@ export default function EmployeeOrdersPage() {
                       </div>
                     </details>
                     )}
+
+                    {employee && (
+                      <StageChecklist
+                        workId={work.id}
+                        employeeId={employee.id}
+                        canEdit={canAct && work.status === "in_progress"}
+                      />
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 lg:flex lg:flex-col gap-2 lg:min-w-[190px]">
@@ -1419,7 +1648,7 @@ export default function EmployeeOrdersPage() {
                           type="button"
                           disabled={actionId === `start-${work.id}`}
                           onClick={() => startWork(work)}
-                          className="yf-btn yf-btn-primary disabled:opacity-50"
+                          className="yf-btn yf-btn-action disabled:opacity-50"
                         >
                           {actionId === `start-${work.id}`
                             ? "Starting..."
@@ -1484,13 +1713,6 @@ export default function EmployeeOrdersPage() {
                       </div>
                     )}
 
-                    <button
-                      type="button"
-                      onClick={() => router.push(`/dashboard/orders/${order.id}`)}
-                      className="yf-btn yf-btn-secondary"
-                    >
-                      View Details
-                    </button>
                   </div>
                 </div>
               </article>

@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import {
+  disableWebPushSubscription,
+  ensureWebPushSubscription,
+} from "@/utils/push-client";
 
 type NotificationRow = {
   id: string;
@@ -34,8 +38,11 @@ function formatNotificationTime(value: string) {
 function notificationIcon(type: string | null) {
   switch (type) {
     case "order_assignment":
+    case "order_update":
       return "📦";
+    case "task":
     case "task_assignment":
+    case "task_update":
       return "📋";
     case "leave":
     case "leave_status":
@@ -56,7 +63,7 @@ export default function NotificationBell({ employeeId }: Props) {
   const [markingAll, setMarkingAll] = useState(false);
   const [message, setMessage] = useState("");
 
-  const [soundEnabled, setSoundEnabled] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
   const [vibrateEnabled, setVibrateEnabled] = useState(false);
   const [vibrationSupported, setVibrationSupported] = useState(false);
   const [systemNotificationsSupported, setSystemNotificationsSupported] = useState(false);
@@ -77,9 +84,34 @@ export default function NotificationBell({ employeeId }: Props) {
     audio.volume = 1;
     audioRef.current = audio;
 
-    const savedSound =
-      window.localStorage.getItem("yashflow-notification-sound-enabled") ===
-      "true";
+    const unlockAudio = () => {
+      const current = audioRef.current;
+      if (!current) return;
+
+      const previousVolume = current.volume;
+      current.volume = 0;
+      current.currentTime = 0;
+
+      void current
+        .play()
+        .then(() => {
+          current.pause();
+          current.currentTime = 0;
+          current.volume = previousVolume || 1;
+        })
+        .catch(() => {
+          current.volume = previousVolume || 1;
+        });
+    };
+
+    window.addEventListener("pointerdown", unlockAudio, { once: true });
+    window.addEventListener("keydown", unlockAudio, { once: true });
+
+    window.localStorage.setItem(
+      "yashflow-notification-sound-enabled",
+      "true"
+    );
+    setSoundEnabled(true);
 
     const canVibrate =
       typeof navigator !== "undefined" &&
@@ -91,7 +123,6 @@ export default function NotificationBell({ employeeId }: Props) {
         "yashflow-notification-vibrate-enabled"
       ) === "true";
 
-    setSoundEnabled(savedSound);
     setVibrationSupported(canVibrate);
     setVibrateEnabled(savedVibrate);
 
@@ -111,6 +142,9 @@ export default function NotificationBell({ employeeId }: Props) {
     }
 
     return () => {
+      window.removeEventListener("pointerdown", unlockAudio);
+      window.removeEventListener("keydown", unlockAudio);
+
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current = null;
@@ -166,36 +200,6 @@ export default function NotificationBell({ employeeId }: Props) {
     }
   }, [playSound, soundEnabled, vibrate, vibrateEnabled]);
 
-  async function toggleSound() {
-    setMessage("");
-
-    if (soundEnabled) {
-      setSoundEnabled(false);
-      window.localStorage.setItem(
-        "yashflow-notification-sound-enabled",
-        "false"
-      );
-
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-      }
-
-      return;
-    }
-
-    // Must play directly inside user click so Chrome can unlock audio.
-    const ok = await playSound();
-
-    if (ok) {
-      setSoundEnabled(true);
-      window.localStorage.setItem(
-        "yashflow-notification-sound-enabled",
-        "true"
-      );
-    }
-  }
-
   function toggleVibrate() {
     setMessage("");
 
@@ -239,19 +243,29 @@ export default function NotificationBell({ employeeId }: Props) {
     if (
       typeof window === "undefined" ||
       !("Notification" in window) ||
-      !("serviceWorker" in navigator)
+      !("serviceWorker" in navigator) ||
+      !("PushManager" in window)
     ) {
-      setMessage("આ browser/device Mobile Notifications support કરતું નથી.");
+      setMessage(
+        "આ browser/device Closed-App Notifications support કરતું નથી."
+      );
       return;
     }
 
-    if (systemNotificationsEnabled && Notification.permission === "granted") {
+    if (
+      systemNotificationsEnabled &&
+      Notification.permission === "granted"
+    ) {
+      await disableWebPushSubscription().catch((error) => {
+        console.warn("Push unsubscribe failed:", error);
+      });
+
       setSystemNotificationsEnabled(false);
       window.localStorage.setItem(
         "yashflow-system-notifications-enabled",
         "false"
       );
-      setMessage("Mobile screen notifications OFF થયા.");
+      setMessage("Mobile + Closed-App Notifications OFF થયા.");
       return;
     }
 
@@ -269,13 +283,29 @@ export default function NotificationBell({ employeeId }: Props) {
       return;
     }
 
-    await navigator.serviceWorker.ready;
-    setSystemNotificationsEnabled(true);
-    window.localStorage.setItem(
-      "yashflow-system-notifications-enabled",
-      "true"
-    );
-    setMessage("Mobile screen notifications ON ✅");
+    try {
+      await ensureWebPushSubscription();
+
+      setSystemNotificationsEnabled(true);
+      window.localStorage.setItem(
+        "yashflow-system-notifications-enabled",
+        "true"
+      );
+      setMessage(
+        "Mobile + Closed-App Notifications ON ✅ System notification sound પણ ON રહેશે."
+      );
+    } catch (error) {
+      setSystemNotificationsEnabled(false);
+      window.localStorage.setItem(
+        "yashflow-system-notifications-enabled",
+        "false"
+      );
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Closed-App Push setup failed."
+      );
+    }
   }
 
   const showSystemNotification = useCallback(
@@ -567,17 +597,12 @@ export default function NotificationBell({ employeeId }: Props) {
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-4">
-                <button
-                  type="button"
-                  onClick={toggleSound}
-                  className={`yf-btn ${
-                    soundEnabled
-                      ? "bg-green-100 text-green-800 hover:bg-green-50"
-                      : "bg-white/10 text-white border border-white/20 hover:bg-white/20"
-                  }`}
+                <div
+                  className="yf-btn yf-btn-success cursor-default"
+                  title="Notification sound is always enabled"
                 >
-                  {soundEnabled ? "🔊 Sound ON" : "🔇 Sound OFF"}
-                </button>
+                  🔊 Sound Always ON
+                </div>
 
                 <button
                   type="button"

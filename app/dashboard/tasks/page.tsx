@@ -3,6 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import {
+  enqueueOfflineAction,
+  isLikelyNetworkError,
+} from "@/utils/offline-queue";
 
 type Task = {
   id: string;
@@ -17,6 +21,7 @@ type Task = {
   started_at: string | null;
   completed_at: string | null;
   created_at: string;
+  updated_at: string;
 };
 
 export default function EmployeeTasksPage() {
@@ -29,37 +34,88 @@ export default function EmployeeTasksPage() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
 
-  async function loadTasks() {
+  async function loadTasks(employeeIdOverride?: string) {
+    const currentEmployeeId = employeeIdOverride || employeeId;
+    if (!currentEmployeeId) return;
+
     const supabase = createClient();
 
-    const { data, error } = await supabase
-      .from("tasks")
-      .select(`
-        id,
-        assigned_to,
-        title,
-        description,
-        priority,
-        status,
-        due_date,
-        employee_note,
-        admin_note,
-        started_at,
-        completed_at,
-        created_at
-      `)
-      .order("created_at", { ascending: false });
+    const taskSelect = `
+      id,
+      assigned_to,
+      title,
+      description,
+      priority,
+      status,
+      due_date,
+      employee_note,
+      admin_note,
+      started_at,
+      completed_at,
+      created_at,
+      updated_at
+    `;
 
-    if (error) {
-      setMessage(`Task Load Error: ${error.message}`);
+    const [directResult, supportResult] = await Promise.all([
+      supabase
+        .from("tasks")
+        .select(taskSelect)
+        .eq("assigned_to", currentEmployeeId),
+      supabase
+        .from("task_support_workers")
+        .select("task_id")
+        .eq("employee_id", currentEmployeeId)
+        .eq("is_active", true),
+    ]);
+
+    const firstError = directResult.error || supportResult.error;
+    if (firstError) {
+      setMessage(`Task Load Error: ${firstError.message}`);
       return;
     }
 
-    setTasks((data || []) as Task[]);
+    const supportIds = Array.from(
+      new Set(
+        (supportResult.data || [])
+          .map((row) => row.task_id)
+          .filter(Boolean)
+      )
+    );
+
+    let supportTasks: Task[] = [];
+
+    if (supportIds.length > 0) {
+      const { data, error } = await supabase
+        .from("tasks")
+        .select(taskSelect)
+        .in("id", supportIds);
+
+      if (error) {
+        setMessage(`Support Task Load Error: ${error.message}`);
+        return;
+      }
+
+      supportTasks = (data || []) as Task[];
+    }
+
+    const merged = new Map<string, Task>();
+    for (const task of [
+      ...((directResult.data || []) as Task[]),
+      ...supportTasks,
+    ]) {
+      merged.set(task.id, task);
+    }
+
+    const rows = Array.from(merged.values()).sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() -
+        new Date(a.created_at).getTime()
+    );
+
+    setTasks(rows);
 
     const drafts: Record<string, string> = {};
-
-    (data || []).forEach((task: Task) => {
+    rows.forEach((task) => {
       drafts[task.id] = task.employee_note || "";
     });
 
@@ -97,7 +153,7 @@ export default function EmployeeTasksPage() {
 
       setEmployeeId(profile.id);
 
-      await loadTasks();
+      await loadTasks(profile.id);
 
       setLoading(false);
     }
@@ -109,6 +165,45 @@ export default function EmployeeTasksPage() {
     task: Task,
     newStatus: "pending" | "in_progress" | "completed"
   ) {
+    const now = new Date().toISOString();
+    const payload = {
+      taskId: task.id,
+      status: newStatus,
+      expectedStatus: task.status,
+      expectedUpdatedAt: task.updated_at,
+    };
+
+    const optimisticUpdate = (syncAt: string) => {
+      setTasks((current) =>
+        current.map((item) =>
+          item.id === task.id
+            ? {
+                ...item,
+                status: newStatus,
+                started_at:
+                  newStatus === "in_progress"
+                    ? item.started_at || syncAt
+                    : item.started_at,
+                completed_at:
+                  newStatus === "completed" ? syncAt : null,
+                updated_at: syncAt,
+              }
+            : item
+        )
+      );
+    };
+
+    if (!navigator.onLine) {
+      const queued = enqueueOfflineAction(
+        "task_status",
+        payload,
+        { ownerEmployeeId: employeeId || "" }
+      );
+      optimisticUpdate(queued.queuedAt);
+      setMessage("Offline • Task update Pending Sync ☁️");
+      return;
+    }
+
     const supabase = createClient();
 
     const updateData: {
@@ -118,55 +213,126 @@ export default function EmployeeTasksPage() {
       updated_at: string;
     } = {
       status: newStatus,
-      updated_at: new Date().toISOString(),
+      updated_at: now,
     };
 
     if (newStatus === "in_progress" && !task.started_at) {
-      updateData.started_at = new Date().toISOString();
+      updateData.started_at = now;
     }
 
     if (newStatus === "completed") {
-      updateData.completed_at = new Date().toISOString();
+      updateData.completed_at = now;
     }
 
     if (newStatus !== "completed") {
       updateData.completed_at = null;
     }
 
-    const { error } = await supabase
+    const { data: updatedTask, error } = await supabase
       .from("tasks")
       .update(updateData)
-      .eq("id", task.id);
+      .eq("id", task.id)
+      .eq("status", task.status)
+      .eq("updated_at", task.updated_at)
+      .select("id")
+      .maybeSingle();
 
     if (error) {
+      if (isLikelyNetworkError(error.message)) {
+        const queued = enqueueOfflineAction(
+          "task_status",
+          payload,
+          { ownerEmployeeId: employeeId || "" }
+        );
+        optimisticUpdate(queued.queuedAt);
+        setMessage("Network weak • Task update Pending Sync ☁️");
+        return;
+      }
+
       setMessage(`Task Update Error: ${error.message}`);
       return;
     }
 
-    setMessage("Task status update થયો ✅");
+    if (!updatedTask) {
+      setMessage(
+        "Task વચ્ચે બદલાઈ ગયો છે. Latest data load કરીને ફરી action કરો."
+      );
+      await loadTasks(employeeId || undefined);
+      return;
+    }
 
-    await loadTasks();
+    setMessage("Task status update થયો ✅");
+    await loadTasks(employeeId || undefined);
   }
 
   async function saveNote(taskId: string) {
+    const note = noteDrafts[taskId]?.trim() || "";
+    const task = tasks.find((item) => item.id === taskId);
+    const payload = {
+      taskId,
+      note,
+      expectedEmployeeNote: task?.employee_note || null,
+    };
+
+    if (!navigator.onLine) {
+      const queued = enqueueOfflineAction(
+        "task_note",
+        payload,
+        { ownerEmployeeId: employeeId || "" }
+      );
+      setTasks((current) =>
+        current.map((task) =>
+          task.id === taskId
+            ? {
+                ...task,
+                employee_note: note || null,
+                updated_at: queued.queuedAt,
+              }
+            : task
+        )
+      );
+      setMessage("Offline • Note Pending Sync ☁️");
+      return;
+    }
+
     const supabase = createClient();
 
     const { error } = await supabase
       .from("tasks")
       .update({
-        employee_note: noteDrafts[taskId]?.trim() || null,
+        employee_note: note || null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", taskId);
 
     if (error) {
+      if (isLikelyNetworkError(error.message)) {
+        const queued = enqueueOfflineAction(
+          "task_note",
+          payload,
+          { ownerEmployeeId: employeeId || "" }
+        );
+        setTasks((current) =>
+          current.map((task) =>
+            task.id === taskId
+              ? {
+                  ...task,
+                  employee_note: note || null,
+                  updated_at: queued.queuedAt,
+                }
+              : task
+          )
+        );
+        setMessage("Network weak • Note Pending Sync ☁️");
+        return;
+      }
+
       setMessage(`Note Save Error: ${error.message}`);
       return;
     }
 
     setMessage("Employee Note save થઈ ✅");
-
-    await loadTasks();
+    await loadTasks(employeeId || undefined);
   }
 
   function getPriorityStyle(priority: string) {
@@ -329,7 +495,7 @@ export default function EmployeeTasksPage() {
                 <button
                   type="button"
                   onClick={() => saveNote(task.id)}
-                  className="mt-2 bg-slate-800 text-white px-4 py-2 rounded-xl font-bold"
+                  className="mt-2 yf-btn yf-btn-secondary yf-btn-sm"
                 >
                   Save Note
                 </button>
@@ -343,7 +509,7 @@ export default function EmployeeTasksPage() {
                       onClick={() =>
                         updateTaskStatus(task, "in_progress")
                       }
-                      className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold"
+                      className="yf-btn yf-btn-action"
                     >
                       Start Task
                     </button>
@@ -355,7 +521,7 @@ export default function EmployeeTasksPage() {
                       onClick={() =>
                         updateTaskStatus(task, "completed")
                       }
-                      className="bg-green-600 text-white px-5 py-2.5 rounded-xl font-bold"
+                      className="yf-btn yf-btn-success"
                     >
                       Mark Completed
                     </button>

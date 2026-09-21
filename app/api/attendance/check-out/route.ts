@@ -61,6 +61,9 @@ export async function POST(request: Request) {
       latitude?: number;
       longitude?: number;
       accuracy?: number;
+      early_reason?: string | null;
+      client_action_at?: string;
+      offline_action_id?: string;
     };
 
     const db = integrationSupabase();
@@ -73,7 +76,7 @@ export async function POST(request: Request) {
 
     const { data: employee, error: employeeError } = await db
       .from("employees")
-      .select("id, approval_status, is_active")
+      .select("id, full_name, approval_status, is_active")
       .eq("auth_user_id", user.id)
       .maybeSingle();
 
@@ -86,13 +89,31 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Active employee profile required." }, { status: 403 });
     }
 
+    const offlineActionId = String(body.offline_action_id || "").trim();
+
+    if (offlineActionId) {
+      const { data: receipt, error: receiptError } = await db
+        .from("offline_action_receipts")
+        .select("response")
+        .eq("action_id", offlineActionId)
+        .maybeSingle();
+
+      if (receiptError) {
+        return NextResponse.json({ error: receiptError.message }, { status: 500 });
+      }
+
+      if (receipt?.response) {
+        return NextResponse.json(receipt.response);
+      }
+    }
+
     const [
       { data: office, error: officeError },
       { data: geofence, error: geofenceError },
     ] = await Promise.all([
       db
         .from("office_settings")
-        .select("timezone, recess_start_time, recess_end_time")
+        .select("timezone, office_end_time, recess_start_time, recess_end_time")
         .eq("is_active", true)
         .maybeSingle(),
       db
@@ -111,22 +132,49 @@ export async function POST(request: Request) {
     }
 
     const timeZone = office.timezone || "Asia/Kolkata";
-    const now = new Date();
+    const serverNow = new Date();
+    let now = serverNow;
+    let offlineSync = false;
+
+    if (offlineActionId && body.client_action_at) {
+      const capturedAt = new Date(body.client_action_at);
+      const ageMs = serverNow.getTime() - capturedAt.getTime();
+
+      if (!Number.isFinite(capturedAt.getTime())) {
+        return NextResponse.json(
+          { error: "Offline Punch timestamp valid નથી." },
+          { status: 400 }
+        );
+      }
+
+      if (ageMs < -5 * 60 * 1000 || ageMs > 12 * 60 * 60 * 1000) {
+        return NextResponse.json(
+          { error: "Offline Punch 12 કલાકની અંદર sync કરવો જરૂરી છે." },
+          { status: 400 }
+        );
+      }
+
+      now = capturedAt;
+      offlineSync = true;
+    }
+
     const today = indiaDate(now, timeZone);
 
     const { data: attendanceRows, error: attendanceError } = await db
       .from("attendance")
-      .select("id, check_in, check_out, working_minutes")
+      .select("id, check_in, check_out, working_minutes, admin_note")
       .eq("employee_id", employee.id)
       .eq("attendance_date", today)
-      .order("check_in", { ascending: false })
-      .limit(1);
+      .order("check_in", { ascending: false, nullsFirst: false });
 
     if (attendanceError) {
       return NextResponse.json({ error: attendanceError.message }, { status: 500 });
     }
 
-    const attendance = attendanceRows?.[0];
+    const attendance =
+      (attendanceRows || []).find((row) => Boolean(row.check_in) && !row.check_out) ||
+      (attendanceRows || []).find((row) => Boolean(row.check_in)) ||
+      null;
 
     if (!attendance?.check_in) {
       return NextResponse.json({ error: "આજે Check In મળ્યું નથી." }, { status: 400 });
@@ -151,8 +199,8 @@ export async function POST(request: Request) {
     if (gpsRequired) {
       if (!geofence) {
         return NextResponse.json(
-          { error: "Office GPS settings મળ્યાં નથી." },
-          { status: 500 }
+          { error: "GPS Settings મળ્યાં નથી." },
+          { status: 400 }
         );
       }
 
@@ -206,6 +254,20 @@ export async function POST(request: Request) {
     const checkInDate = new Date(attendance.check_in);
     const checkInMinutes = minutesOfDay(checkInDate, timeZone);
     const checkOutMinutes = minutesOfDay(now, timeZone);
+    const officeEndMinutes = timeStringToMinutes(office.office_end_time);
+    const earlyCheckout = checkOutMinutes < officeEndMinutes;
+    const earlyReason = String(body.early_reason || "").trim();
+
+    if (earlyCheckout && earlyReason.length < 3) {
+      return NextResponse.json(
+        {
+          error: "સમય પહેલાં Check Out માટે Reason જરૂરી છે.",
+          early_reason_required: true,
+        },
+        { status: 400 }
+      );
+    }
+
     const recessStart = timeStringToMinutes(office.recess_start_time);
     const recessEnd = timeStringToMinutes(office.recess_end_time);
 
@@ -223,12 +285,35 @@ export async function POST(request: Request) {
     const workingMinutes = Math.max(0, grossMinutes - recessOverlap);
     const checkOutIso = now.toISOString();
 
+    const existingNote = String(attendance.admin_note || "").trim();
+    const earlyNote = earlyCheckout
+      ? `Early Punch Out: ${earlyReason}`
+      : "";
+    const offlineNote = offlineSync
+      ? `Offline Punch Out synced • Captured ${now.toISOString()}`
+      : "";
+    const nextAdminNote =
+      [existingNote, earlyNote, offlineNote].filter(Boolean).join(" | ") || null;
+
+    const reviewRequired = earlyCheckout || offlineSync;
+
+    const updatePayload = reviewRequired
+      ? {
+          check_out: checkOutIso,
+          working_minutes: workingMinutes,
+          admin_note: nextAdminNote,
+          approval_required: true,
+          approval_status: "pending",
+          approved_at: null,
+        }
+      : {
+          check_out: checkOutIso,
+          working_minutes: workingMinutes,
+        };
+
     const { data: updated, error: updateError } = await db
       .from("attendance")
-      .update({
-        check_out: checkOutIso,
-        working_minutes: workingMinutes,
-      })
+      .update(updatePayload)
       .eq("id", attendance.id)
       .select("id, check_out, working_minutes")
       .single();
@@ -240,14 +325,52 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({
+    if (reviewRequired) {
+      const { data: admins } = await db
+        .from("employees")
+        .select("id")
+        .eq("role", "admin")
+        .eq("approval_status", "approved")
+        .eq("is_active", true);
+
+      if (admins?.length) {
+        await db.from("notifications").insert(
+          admins.map((admin) => ({
+            employee_id: admin.id,
+            notification_type: "attendance",
+            title: offlineSync ? "Offline Punch Review" : "Early Punch Out",
+            message: offlineSync
+              ? `${employee.full_name} Offline Punch Out sync થયું • Admin review required.`
+              : `${employee.full_name} સમય પહેલાં Punch Out કર્યું • ${earlyReason}`,
+            related_type: "attendance",
+            related_id: attendance.id,
+          }))
+        );
+      }
+    }
+
+    const responsePayload = {
       ok: true,
       check_out: updated.check_out,
       working_minutes: updated.working_minutes || 0,
       distance_m: distanceM,
       accuracy_m: accuracyM,
       gps_required: gpsRequired,
-    });
+      early_checkout: earlyCheckout,
+      approval_required: reviewRequired,
+      offline_sync: offlineSync,
+    };
+
+    if (offlineActionId) {
+      await db.from("offline_action_receipts").upsert({
+        action_id: offlineActionId,
+        employee_id: employee.id,
+        action_type: "attendance_check_out",
+        response: responsePayload,
+      });
+    }
+
+    return NextResponse.json(responsePayload);
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Check Out failed." },

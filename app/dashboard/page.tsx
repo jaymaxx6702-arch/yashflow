@@ -3,7 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import {
+  enqueueOfflineAction,
+  getOfflineActionsForEmployee,
+  isLikelyNetworkError,
+  offlineQueueEventName,
+} from "@/utils/offline-queue";
 import TodaysWork from "./TodaysWork";
+import UpcomingOrders from "./orders/UpcomingOrders";
 import NotificationBell from "./NotificationBell";
 import ManualPunchRequest from "./ManualPunchRequest";
 
@@ -162,6 +169,7 @@ export default function EmployeeDashboard() {
   const [canViewPurchase, setCanViewPurchase] = useState(false);
   const [canViewDispatch, setCanViewDispatch] = useState(false);
   const [canCreateOrders, setCanCreateOrders] = useState(false);
+  const [canUseManagementAccess, setCanUseManagementAccess] = useState(false);
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
 
   const [loading, setLoading] = useState(true);
@@ -169,6 +177,51 @@ export default function EmployeeDashboard() {
   const [message, setMessage] = useState("");
   const [summaryDrawer, setSummaryDrawer] =
     useState<SummaryDrawerKey>(null);
+
+  function setOfflineAttendanceState(
+    kind: "check_in" | "check_out",
+    capturedAt = new Date()
+  ) {
+    if (!officeSettings) return;
+
+    const capturedIso = capturedAt.toISOString();
+
+    setAttendance((current) => {
+      if (kind === "check_in") {
+        return (
+          current || {
+            id: "offline-pending-check-in",
+            attendance_date: getDateInTimeZone(officeSettings.timezone),
+            check_in: capturedIso,
+            check_out: null,
+            status: "present",
+            attendance_type: "offline_pending",
+            late_minutes: 0,
+            working_minutes: 0,
+            approval_required: true,
+            approval_status: "pending",
+            approved_at: null,
+            admin_note: "Offline Punch In • Pending Sync",
+          }
+        );
+      }
+
+      if (!current?.check_in) return current;
+
+      return {
+        ...current,
+        check_out: capturedIso,
+        approval_required: true,
+        approval_status: "pending",
+        admin_note: [
+          current.admin_note,
+          "Offline Punch Out • Pending Sync",
+        ]
+          .filter(Boolean)
+          .join(" | "),
+      };
+    });
+  }
 
   // Stable refs for Android/browser Back handling.
   const summaryDrawerRef = useRef<SummaryDrawerKey>(null);
@@ -527,6 +580,8 @@ export default function EmployeeDashboard() {
       dispatchView,
       dispatchManage,
       orderCreate,
+      ordersManage,
+      attendanceManage,
     ] = await Promise.all([
       supabase.rpc("has_app_permission", {
         p_permission_key: "purchase.view",
@@ -543,6 +598,12 @@ export default function EmployeeDashboard() {
       supabase.rpc("has_app_permission", {
         p_permission_key: "orders.create",
       }),
+      supabase.rpc("has_app_permission", {
+        p_permission_key: "orders.manage",
+      }),
+      supabase.rpc("has_app_permission", {
+        p_permission_key: "attendance.manage",
+      }),
     ]);
 
     const firstError =
@@ -550,7 +611,9 @@ export default function EmployeeDashboard() {
       purchaseManage.error ||
       dispatchView.error ||
       dispatchManage.error ||
-      orderCreate.error;
+      orderCreate.error ||
+      ordersManage.error ||
+      attendanceManage.error;
 
     if (firstError) {
       console.warn("Permission Load Error:", firstError.message);
@@ -566,6 +629,9 @@ export default function EmployeeDashboard() {
     );
 
     setCanCreateOrders(Boolean(orderCreate.data));
+    setCanUseManagementAccess(
+      Boolean(ordersManage.data) || Boolean(attendanceManage.data)
+    );
   }
 
   async function loadLiveSummary(
@@ -827,6 +893,40 @@ export default function EmployeeDashboard() {
     loadDashboard();
   }, [router]);
 
+  useEffect(() => {
+    if (!employee || !officeSettings) return;
+
+    const syncAttendanceAfterQueue = () => {
+      if (!navigator.onLine) return;
+
+      const hasPendingAttendance =
+        getOfflineActionsForEmployee(employee.id).some(
+          (action) =>
+            action.state === "pending" &&
+            (action.type === "attendance_check_in" ||
+              action.type === "attendance_check_out")
+        );
+
+      if (!hasPendingAttendance) {
+        void loadAttendance(employee.id, officeSettings);
+      }
+    };
+
+    window.addEventListener(
+      offlineQueueEventName(),
+      syncAttendanceAfterQueue
+    );
+
+    return () => {
+      window.removeEventListener(
+        offlineQueueEventName(),
+        syncAttendanceAfterQueue
+      );
+    };
+    // loadAttendance is intentionally read from current component scope.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employee, officeSettings]);
+
   async function handleCheckIn() {
     if (!employee || !officeSettings) return;
 
@@ -841,6 +941,12 @@ export default function EmployeeDashboard() {
         : "GPS Requirement OFF • Check In કરી રહ્યા છીએ..."
     );
 
+    let capturedLocation: {
+      latitude: number;
+      longitude: number;
+      accuracy: number;
+    } | null = null;
+
     try {
       const location = gpsRequired
         ? await getGpsLocation()
@@ -849,6 +955,27 @@ export default function EmployeeDashboard() {
             longitude: gpsSettings?.longitude ?? 0,
             accuracy: 0,
           };
+
+      capturedLocation = location;
+
+      if (!navigator.onLine) {
+        enqueueOfflineAction(
+          "attendance_check_in",
+          {
+            latitude: location.latitude,
+            longitude: location.longitude,
+            accuracy: location.accuracy,
+          },
+          { ownerEmployeeId: employee.id }
+        );
+        setOfflineAttendanceState("check_in");
+        setMessage(
+          "Offline • Punch In deviceમાં save થયું ☁️ Internet આવ્યા પછી auto-sync + Admin Review થશે."
+        );
+        setAttendanceLoading(false);
+        return;
+      }
+
       const supabase = createClient();
       const {
         data: { session },
@@ -919,11 +1046,27 @@ export default function EmployeeDashboard() {
         );
       }
     } catch (error) {
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : "GPS Location મેળવવામાં problem આવી."
-      );
+      if (capturedLocation && isLikelyNetworkError(error)) {
+        enqueueOfflineAction(
+          "attendance_check_in",
+          {
+            latitude: capturedLocation.latitude,
+            longitude: capturedLocation.longitude,
+            accuracy: capturedLocation.accuracy,
+          },
+          { ownerEmployeeId: employee.id }
+        );
+        setOfflineAttendanceState("check_in");
+        setMessage(
+          "Network weak • Punch In Pending Sync ☁️ Internet આવ્યા પછી Admin Review થશે."
+        );
+      } else {
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : "GPS Location મેળવવામાં problem આવી."
+        );
+      }
     }
 
     setAttendanceLoading(false);
@@ -939,8 +1082,32 @@ export default function EmployeeDashboard() {
       return;
     }
 
+    const nowMinutes = getMinutesFromDate(new Date(), officeSettings.timezone);
+    const officeEndMinutes = timeStringToMinutes(officeSettings.office_end_time);
+    const isEarlyCheckout = nowMinutes < officeEndMinutes;
+    let earlyReason: string | null = null;
+
+    if (isEarlyCheckout) {
+      const reason = window.prompt(
+        `Office End ${formatOfficeTime(
+          officeSettings.office_end_time
+        )} પહેલાં Punch Out કરી રહ્યા છો. Reason લખો:`
+      );
+
+      if (reason === null) return;
+
+      if (reason.trim().length < 3) {
+        setMessage("Early Punch Out માટે Reason જરૂરી છે.");
+        return;
+      }
+
+      earlyReason = reason.trim();
+    }
+
     const confirmed = window.confirm(
-      "હમણાં Check Out કરવું છે?"
+      isEarlyCheckout
+        ? "Early Punch Out confirm કરવું છે?"
+        : "હમણાં Check Out કરવું છે?"
     );
 
     if (!confirmed) return;
@@ -956,6 +1123,12 @@ export default function EmployeeDashboard() {
         : "GPS Requirement OFF • Check Out કરી રહ્યા છીએ..."
     );
 
+    let capturedLocation: {
+      latitude: number;
+      longitude: number;
+      accuracy: number;
+    } | null = null;
+
     try {
       const location = gpsRequired
         ? await getGpsLocation()
@@ -964,6 +1137,27 @@ export default function EmployeeDashboard() {
             longitude: gpsSettings?.longitude ?? 0,
             accuracy: 0,
           };
+      capturedLocation = location;
+
+      if (!navigator.onLine) {
+        enqueueOfflineAction(
+          "attendance_check_out",
+          {
+            latitude: location.latitude,
+            longitude: location.longitude,
+            accuracy: location.accuracy,
+            early_reason: earlyReason,
+          },
+          { ownerEmployeeId: employee.id }
+        );
+        setOfflineAttendanceState("check_out");
+        setMessage(
+          "Offline • Punch Out deviceમાં save થયું ☁️ Internet આવ્યા પછી auto-sync + Admin Review થશે."
+        );
+        setAttendanceLoading(false);
+        return;
+      }
+
       const supabase = createClient();
       const {
         data: { session },
@@ -985,6 +1179,7 @@ export default function EmployeeDashboard() {
           latitude: location.latitude,
           longitude: location.longitude,
           accuracy: location.accuracy,
+          early_reason: earlyReason,
         }),
       });
 
@@ -995,6 +1190,8 @@ export default function EmployeeDashboard() {
         distance_m?: number | null;
         accuracy_m?: number | null;
         gps_required?: boolean;
+        early_checkout?: boolean;
+        approval_required?: boolean;
       };
 
       if (!response.ok || !result.check_out) {
@@ -1016,7 +1213,11 @@ export default function EmployeeDashboard() {
       await loadAttendance(employee.id, officeSettings);
 
       setMessage(
-        result.gps_required
+        result.early_checkout
+          ? `Early Punch Out સફળ ✅ Reason save થયું • Admin Review Pending • Working Time: ${formatWorkingMinutes(
+              result.working_minutes || 0
+            )}`
+          : result.gps_required
           ? `Check Out સફળ ✅ Working Time: ${formatWorkingMinutes(
               result.working_minutes || 0
             )}${
@@ -1029,11 +1230,28 @@ export default function EmployeeDashboard() {
             )}`
       );
     } catch (error) {
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : "GPS Location મેળવવામાં problem આવી."
-      );
+      if (capturedLocation && isLikelyNetworkError(error)) {
+        enqueueOfflineAction(
+          "attendance_check_out",
+          {
+            latitude: capturedLocation.latitude,
+            longitude: capturedLocation.longitude,
+            accuracy: capturedLocation.accuracy,
+            early_reason: earlyReason,
+          },
+          { ownerEmployeeId: employee.id }
+        );
+        setOfflineAttendanceState("check_out");
+        setMessage(
+          "Network weak • Punch Out Pending Sync ☁️ Internet આવ્યા પછી Admin Review થશે."
+        );
+      } else {
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : "GPS Location મેળવવામાં problem આવી."
+        );
+      }
     }
 
     setAttendanceLoading(false);
@@ -1194,6 +1412,7 @@ export default function EmployeeDashboard() {
           </div>
         )}
 
+        <UpcomingOrders employeeId={employee.id} />
         <TodaysWork employeeId={employee.id} />
 
         <section className="yf-card mt-3 p-4">
@@ -1385,6 +1604,13 @@ export default function EmployeeDashboard() {
                 label="Create Order"
                 icon="➕"
                 onClick={() => router.push("/dashboard/order-create")}
+              />
+            )}
+            {canUseManagementAccess && (
+              <QuickApp
+                label="Admin Access"
+                icon="🛠️"
+                onClick={() => router.push("/dashboard/manage")}
               />
             )}
             <QuickApp

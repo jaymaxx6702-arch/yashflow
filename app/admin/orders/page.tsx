@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import CreateOrderStagePlan, {
+  type CreateStagePlanValue,
+} from "./CreateOrderStagePlan";
 
 type OrderSource =
   | "amazon"
@@ -378,6 +381,8 @@ export default function AdminOrdersPage() {
   const [dueDate, setDueDate] = useState("");
   const [customerNote, setCustomerNote] = useState("");
   const [adminNote, setAdminNote] = useState("");
+  const [createStagePlanOverrides, setCreateStagePlanOverrides] =
+    useState<CreateStagePlanValue>({});
 
   const [editForm, setEditForm] = useState<EditOrderForm>({
     customer_name: "",
@@ -610,6 +615,111 @@ export default function AdminOrdersPage() {
     };
   }
 
+  function getCreateDefaultPlan(
+    item: WorkflowTemplateStage | undefined
+  ) {
+    if (!item) {
+      return {
+        primaryId: null as string | null,
+        supportIds: [] as string[],
+        assignedIds: [] as string[],
+      };
+    }
+
+    if (item.assignment_rule !== "manual") {
+      return getAssignmentPlan(item);
+    }
+
+    const selectedWorkers =
+      configuredWorkersForTemplateStage(item.id);
+
+    if (!selectedWorkers.length) {
+      return {
+        primaryId: null as string | null,
+        supportIds: [] as string[],
+        assignedIds: [] as string[],
+      };
+    }
+
+    const primaryId =
+      item.default_employee_id ||
+      selectedWorkers.find((worker) => worker.is_primary)
+        ?.employee_id ||
+      selectedWorkers[0].employee_id;
+
+    const supportIds = selectedWorkers
+      .map((worker) => worker.employee_id)
+      .filter((id) => id !== primaryId);
+
+    return {
+      primaryId,
+      supportIds,
+      assignedIds: [primaryId, ...supportIds],
+    };
+  }
+
+  function createWorkflowForSelectedProduct() {
+    if (!selectedProductId) return null;
+
+    return (
+      workflowTemplates.find(
+        (template) =>
+          template.product_id === selectedProductId &&
+          template.is_active
+      ) ||
+      workflowTemplates.find(
+        (template) =>
+          template.is_default && template.is_active
+      ) ||
+      null
+    );
+  }
+
+  function createTemplateSequence() {
+    const workflow = createWorkflowForSelectedProduct();
+    if (!workflow) return [];
+
+    return workflowTemplateStages
+      .filter((item) => item.template_id === workflow.id)
+      .sort((a, b) => a.sequence_no - b.sequence_no);
+  }
+
+  function createStagePlannerRows() {
+    return createTemplateSequence()
+      .map((item) => {
+        const stage = stageMap.get(item.stage_id);
+        if (!stage) return null;
+
+        const defaults = getCreateDefaultPlan(item);
+
+        return {
+          templateStageId: item.id,
+          stageId: item.stage_id,
+          stageName: stage.name,
+          departmentName: stage.department_id
+            ? departmentMap.get(stage.department_id) || null
+            : null,
+          sequenceNo: item.sequence_no,
+          defaultPrimaryId: defaults.primaryId,
+          defaultSupportIds: defaults.supportIds,
+        };
+      })
+      .filter(
+        (item): item is NonNullable<typeof item> => Boolean(item)
+      );
+  }
+
+  function createPlannerEmployees() {
+    return employees
+      .filter((employee) => employee.role !== "admin")
+      .map((employee) => ({
+        id: employee.id,
+        full_name: employee.full_name,
+        department: employee.department,
+        departmentNames: employeeDepartmentNames(employee),
+      }));
+  }
+
   async function saveAssignedTeam(
     workId: string,
     primaryId: string | null,
@@ -639,29 +749,6 @@ export default function AdminOrdersPage() {
 
     await supabase.from("order_stage_workers").insert(rows);
   }
-
-  async function notifyAssignedWorkers(
-    employeeIds: string[],
-    title: string,
-    messageText: string,
-    orderId: string
-  ) {
-    if (!employeeIds.length) return;
-
-    const supabase = createClient();
-
-    await supabase.from("notifications").insert(
-      employeeIds.map((employeeId) => ({
-        employee_id: employeeId,
-        notification_type: "order_assignment",
-        title,
-        message: messageText,
-        related_type: "order",
-        related_id: orderId,
-      }))
-    );
-  }
-
 
   function resetFinancialForms() {
     setSelectedPayment(null);
@@ -1434,6 +1521,7 @@ export default function AdminOrdersPage() {
 
   useEffect(() => {
     loadProductConfiguration(selectedProductId);
+    setCreateStagePlanOverrides({});
   }, [selectedProductId]);
 
   function openOrder(order: Order) {
@@ -1530,8 +1618,41 @@ export default function AdminOrdersPage() {
       return;
     }
 
-    const initialAssignment = getAssignmentPlan(firstTemplateStage);
-    const initialDefaultWorkerId = initialAssignment.primaryId;
+    const stageTeamPlans = templateSequence.map((item) => {
+      const defaults = getCreateDefaultPlan(item);
+      const override = createStagePlanOverrides[item.id];
+
+      const primaryId =
+        override?.primaryId !== undefined
+          ? override.primaryId
+          : defaults.primaryId;
+
+      const supportIds = Array.from(
+        new Set(
+          (override?.supportIds ?? defaults.supportIds).filter(
+            (id) => id && id !== primaryId
+          )
+        )
+      );
+
+      return {
+        templateStage: item,
+        primaryId,
+        supportIds,
+        assignedIds: primaryId
+          ? [primaryId, ...supportIds]
+          : supportIds,
+        source: override
+          ? "override"
+          : item.assignment_rule === "auto_assign"
+          ? "auto"
+          : "default",
+      };
+    });
+
+    const initialAssignment = stageTeamPlans[0];
+    const initialDefaultWorkerId =
+      initialAssignment?.primaryId || null;
     const initialWorkflowStatus: WorkflowStatus =
       initialDefaultWorkerId ? "assigned" : "waiting";
 
@@ -1589,6 +1710,80 @@ export default function AdminOrdersPage() {
       return;
     }
 
+    const { data: savedPlans, error: planError } = await supabase
+      .from("order_stage_plans")
+      .insert(
+        stageTeamPlans.map((plan) => ({
+          order_id: newOrder.id,
+          workflow_template_stage_id: plan.templateStage.id,
+          stage_id: plan.templateStage.stage_id,
+          sequence_no: plan.templateStage.sequence_no,
+          primary_employee_id: plan.primaryId,
+          source: plan.source,
+        }))
+      )
+      .select("id, workflow_template_stage_id");
+
+    if (planError || !savedPlans) {
+      await supabase.from("orders").delete().eq("id", newOrder.id);
+      setMessage(
+        `Stage Team Plan Error: ${planError?.message || "Unknown error"}`
+      );
+      setSaving(false);
+      return;
+    }
+
+    const savedPlanMap = new Map(
+      savedPlans.map((plan) => [
+        plan.workflow_template_stage_id,
+        plan.id,
+      ])
+    );
+
+    const planWorkerRows = stageTeamPlans.flatMap((plan) => {
+      const planId = savedPlanMap.get(plan.templateStage.id);
+      if (!planId) return [];
+
+      const rows: Array<{
+        order_stage_plan_id: string;
+        employee_id: string;
+        worker_role: "primary" | "support";
+      }> = [];
+
+      if (plan.primaryId) {
+        rows.push({
+          order_stage_plan_id: planId,
+          employee_id: plan.primaryId,
+          worker_role: "primary",
+        });
+      }
+
+      for (const employeeId of plan.supportIds) {
+        rows.push({
+          order_stage_plan_id: planId,
+          employee_id: employeeId,
+          worker_role: "support",
+        });
+      }
+
+      return rows;
+    });
+
+    if (planWorkerRows.length) {
+      const { error: planWorkerError } = await supabase
+        .from("order_stage_plan_workers")
+        .insert(planWorkerRows);
+
+      if (planWorkerError) {
+        await supabase.from("orders").delete().eq("id", newOrder.id);
+        setMessage(
+          `Stage Team Save Error: ${planWorkerError.message}`
+        );
+        setSaving(false);
+        return;
+      }
+    }
+
     await supabase.from("order_product_configurations").insert({
       order_id: newOrder.id,
       product_id: selectedProduct.id,
@@ -1619,19 +1814,21 @@ export default function AdminOrdersPage() {
     if (workData?.id) {
       await saveAssignedTeam(
         workData.id,
-        initialAssignment.primaryId,
-        initialAssignment.supportIds
+        initialAssignment?.primaryId || null,
+        initialAssignment?.supportIds || []
       );
     }
 
-    if (
-      firstTemplateStage?.assignment_rule === "auto_assign" &&
-      initialAssignment.primaryId
-    ) {
-      await supabase
-        .from("workflow_template_stages")
-        .update({ last_assigned_employee_id: initialAssignment.primaryId })
-        .eq("id", firstTemplateStage.id);
+    for (const plan of stageTeamPlans) {
+      if (
+        plan.templateStage.assignment_rule === "auto_assign" &&
+        plan.primaryId
+      ) {
+        await supabase
+          .from("workflow_template_stages")
+          .update({ last_assigned_employee_id: plan.primaryId })
+          .eq("id", plan.templateStage.id);
+      }
     }
 
     await supabase.from("order_workflow_history").insert({
@@ -1646,13 +1843,6 @@ export default function AdminOrdersPage() {
       note: `Workflow: ${productWorkflow.name}`,
     });
 
-    await notifyAssignedWorkers(
-      initialAssignment.assignedIds,
-      "New Order Assigned",
-      `${newOrder.order_number} - ${firstStage.name} તમને assign થયું છે.`,
-      newOrder.id
-    );
-
     setCustomerName("");
     setCustomerMobile("");
     setSelectedProductId("");
@@ -1666,6 +1856,7 @@ export default function AdminOrdersPage() {
     setDueDate("");
     setCustomerNote("");
     setAdminNote("");
+    setCreateStagePlanOverrides({});
     setShowCreate(false);
 
     setMessage(
@@ -2174,13 +2365,6 @@ export default function AdminOrdersPage() {
       employee_id: adminId,
     });
 
-    await notifyAssignedWorkers(
-      targetAssignment.assignedIds,
-      "Order Stage Assigned",
-      `${order.order_number} - ${targetStage.name} તમને assign થયું છે.`,
-      order.id
-    );
-
     setMessage(
       targetAssignment.assignedIds.length
         ? `${order.order_number} → ${targetStage.name} → ${targetAssignment.assignedIds
@@ -2196,8 +2380,15 @@ export default function AdminOrdersPage() {
   async function completeOrder(order: Order) {
     if (!adminId) return;
 
+    const reason = window.prompt(
+      `${order.order_number} ને Direct Complete કરવો છે. Optional note લખો:`,
+      "Admin direct completed order"
+    );
+
+    if (reason === null) return;
+
     const confirmed = window.confirm(
-      `${order.order_number} ને Completed કરવો છે?`
+      `${order.order_number} ના active stages બંધ કરીને Order Completed કરવો છે?`
     );
 
     if (!confirmed) return;
@@ -2206,74 +2397,32 @@ export default function AdminOrdersPage() {
     setMessage("");
 
     const supabase = createClient();
-    const now = new Date().toISOString();
-    const work = activeWorkByOrder.get(order.id);
-    const currentStage = getOrderStage(order);
 
-    if (!work || work.status !== "ready_for_approval") {
-      setMessage(
-        "Final Stage Ready for Approval થયા પછી જ Order Complete કરી શકાય."
-      );
-      setActionId(null);
-      return;
-    }
-
-    if (work) {
-      const { error: workError } = await supabase
-        .from("order_stage_work")
-        .update({
-          status: "completed",
-          completed_at: now,
-          approved_by: adminId,
-          approved_at: now,
-          updated_at: now,
-        })
-        .eq("id", work.id);
-
-      if (workError) {
-        setMessage(`Complete Work Error: ${workError.message}`);
-        setActionId(null);
-        return;
+    const { data, error } = await supabase.rpc(
+      "admin_complete_order_v1",
+      {
+        p_order_id: order.id,
+        p_note: reason.trim() || null,
       }
-    }
-
-    const { error } = await supabase
-      .from("orders")
-      .update({
-        current_stage: "completed",
-        current_stage_id: null,
-        workflow_status: "completed",
-        completed_at: now,
-        updated_at: now,
-      })
-      .eq("id", order.id);
+    );
 
     if (error) {
-      setMessage(`Complete Order Error: ${error.message}`);
+      setMessage(`Direct Complete Error: ${error.message}`);
       setActionId(null);
       return;
     }
 
-    await supabase.from("order_stage_history").insert({
-      order_id: order.id,
-      from_stage: order.current_stage,
-      to_stage: "completed",
-      changed_by: adminId,
-      note: "Admin Completed Order",
-    });
+    const result = (data || {}) as {
+      ok?: boolean;
+      already_completed?: boolean;
+    };
 
-    await supabase.from("order_workflow_history").insert({
-      order_id: order.id,
-      order_stage_work_id: work?.id || null,
-      action_type: "order_completed",
-      from_stage_id: currentStage?.id || null,
-      to_stage_id: null,
-      from_status: work.status,
-      to_status: "completed",
-      employee_id: adminId,
-    });
+    setMessage(
+      result.already_completed
+        ? `${order.order_number} પહેલેથી Completed છે ✅`
+        : `${order.order_number} Direct Completed ✅`
+    );
 
-    setMessage(`${order.order_number} Completed ✅`);
     setSelectedOrder(null);
     await refreshOrders();
     setActionId(null);
@@ -2724,6 +2873,13 @@ export default function AdminOrdersPage() {
                   </div>
                 );
               })}
+
+              <CreateOrderStagePlan
+                stages={createStagePlannerRows()}
+                employees={createPlannerEmployees()}
+                value={createStagePlanOverrides}
+                onChange={setCreateStagePlanOverrides}
+              />
 
               <div>
                 <label className="block text-sm font-black mb-2">Quantity</label>
