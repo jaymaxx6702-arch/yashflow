@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 
 type Employee = {
@@ -46,6 +47,7 @@ type EmployeePermission = {
 };
 
 export default function EmployeeApprovalPage() {
+  const router = useRouter();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [assignments, setAssignments] = useState<EmployeeDepartment[]>([]);
@@ -185,8 +187,49 @@ export default function EmployeeApprovalPage() {
     });
   }
 
+  async function verifyAdminAccess() {
+    const supabase = createClient();
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      router.replace("/");
+      return false;
+    }
+
+    const { data: adminProfile, error: adminError } = await supabase
+      .from("employees")
+      .select("id, role, approval_status, is_active")
+      .eq("auth_user_id", user.id)
+      .maybeSingle();
+
+    if (
+      adminError ||
+      !adminProfile ||
+      adminProfile.role !== "admin" ||
+      adminProfile.approval_status !== "approved" ||
+      !adminProfile.is_active
+    ) {
+      router.replace("/dashboard");
+      return false;
+    }
+
+    return true;
+  }
+
   async function loadPage() {
     setLoading(true);
+    setMessage("");
+
+    const allowed = await verifyAdminAccess();
+
+    if (!allowed) {
+      setLoading(false);
+      return;
+    }
 
     await ensureCorePermissions();
 
@@ -202,8 +245,10 @@ export default function EmployeeApprovalPage() {
   }
 
   useEffect(() => {
-    loadPage();
-  }, []);
+    void loadPage();
+    // loadPage intentionally runs when router context is ready.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router]);
 
   const departmentMap = useMemo(() => {
     return new Map(departments.map((department) => [department.id, department]));
