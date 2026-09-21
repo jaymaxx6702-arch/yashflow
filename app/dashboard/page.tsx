@@ -993,6 +993,8 @@ export default function EmployeeDashboard() {
         return;
       }
 
+      const accessToken = session.access_token;
+
       async function submitCheckIn(
         location: {
           latitude: number;
@@ -1004,7 +1006,7 @@ export default function EmployeeDashboard() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${session.access_token}`,
+            Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify(
             location
@@ -1234,6 +1236,8 @@ export default function EmployeeDashboard() {
         return;
       }
 
+      const accessToken = session.access_token;
+
       async function submitCheckOut(
         location: {
           latitude: number;
@@ -1245,7 +1249,7 @@ export default function EmployeeDashboard() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${session.access_token}`,
+            Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify({
             ...(location
