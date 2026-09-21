@@ -231,8 +231,19 @@ export async function POST(request: Request) {
         );
       }
 
-      if (!Number.isFinite(officeLatitude) || !Number.isFinite(officeLongitude)) {
-        return NextResponse.json({ error: "Office GPS Location set થયેલું નથી." }, { status: 400 });
+      if (
+        !Number.isFinite(officeLatitude) ||
+        !Number.isFinite(officeLongitude) ||
+        (Math.abs(officeLatitude) < 0.000001 &&
+          Math.abs(officeLongitude) < 0.000001)
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "Office GPS Location set નથી. Admin → GPS Attendance → Use Current Location as Office → Save કરો.",
+          },
+          { status: 400 }
+        );
       }
 
       accuracyM = Math.round(accuracy);
