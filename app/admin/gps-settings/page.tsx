@@ -336,6 +336,17 @@ export default function AdminGpsSettingsPage() {
     }
 
     if (
+      nextActive &&
+      Math.abs(lat) < 0.000001 &&
+      Math.abs(lon) < 0.000001
+    ) {
+      setMessage(
+        "Office GPS Location 0,0 છે. Office પર Mobile Precise Location ON કરીને ‘Use Current Location as Office’ કરો અને પછી Save કરો."
+      );
+      return;
+    }
+
+    if (
       !Number.isInteger(radius) ||
       radius < 25 ||
       radius > 5000
