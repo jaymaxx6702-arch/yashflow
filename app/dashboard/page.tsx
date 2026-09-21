@@ -930,17 +930,17 @@ export default function EmployeeDashboard() {
   async function handleCheckIn() {
     if (!employee || !officeSettings) return;
 
-    const knownGpsRequired = Boolean(
-      gpsSettingsLoaded &&
-      gpsSettings?.is_active &&
-      gpsSettings.require_check_in
-    );
+    // Stable flow: when GPS settings are still loading/unavailable, capture GPS
+    // before the attendance request instead of sending a GPS-less first request.
+    const gpsRequired =
+      !gpsSettingsLoaded ||
+      Boolean(gpsSettings?.is_active && gpsSettings.require_check_in);
 
     setAttendanceLoading(true);
     setMessage(
-      knownGpsRequired
+      gpsRequired
         ? "📍 GPS Location મેળવી રહ્યા છીએ..."
-        : "Check In verify કરી રહ્યા છીએ..."
+        : "GPS Requirement OFF • Check In કરી રહ્યા છીએ..."
     );
 
     let capturedLocation: {
@@ -950,20 +950,17 @@ export default function EmployeeDashboard() {
     } | null = null;
 
     try {
-      // Offline mode cannot ask the server whether GPS is required.
-      // Be conservative when settings could not be loaded and capture GPS.
+      const location = gpsRequired
+        ? await getGpsLocation()
+        : {
+            latitude: gpsSettings?.latitude ?? 0,
+            longitude: gpsSettings?.longitude ?? 0,
+            accuracy: 0,
+          };
+
+      capturedLocation = location;
+
       if (!navigator.onLine) {
-        const offlineGpsRequired = !gpsSettingsLoaded || knownGpsRequired;
-        const location = offlineGpsRequired
-          ? await getGpsLocation()
-          : {
-              latitude: gpsSettings?.latitude ?? 0,
-              longitude: gpsSettings?.longitude ?? 0,
-              accuracy: 0,
-            };
-
-        capturedLocation = location;
-
         enqueueOfflineAction(
           "attendance_check_in",
           {
@@ -995,28 +992,22 @@ export default function EmployeeDashboard() {
 
       const accessToken = session.access_token;
 
-      async function submitCheckIn(
-        location: {
-          latitude: number;
-          longitude: number;
-          accuracy: number;
-        } | null
-      ) {
+      async function submitCheckIn(locationToSubmit: {
+        latitude: number;
+        longitude: number;
+        accuracy: number;
+      }) {
         const response = await fetch("/api/attendance/check-in", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${accessToken}`,
           },
-          body: JSON.stringify(
-            location
-              ? {
-                  latitude: location.latitude,
-                  longitude: location.longitude,
-                  accuracy: location.accuracy,
-                }
-              : {}
-          ),
+          body: JSON.stringify({
+            latitude: locationToSubmit.latitude,
+            longitude: locationToSubmit.longitude,
+            accuracy: locationToSubmit.accuracy,
+          }),
         });
 
         const result = (await response.json().catch(() => ({
@@ -1036,18 +1027,14 @@ export default function EmployeeDashboard() {
         return { response, result };
       }
 
-      // If we already know GPS is required, capture it immediately.
-      if (knownGpsRequired) {
-        capturedLocation = await getGpsLocation();
-      }
+      let { response, result } = await submitCheckIn(location);
 
-      let { response, result } = await submitCheckIn(capturedLocation);
-
-      // When geofence settings were unavailable to the browser, let the
-      // server decide. A 428 GPS_REQUIRED response triggers one GPS retry.
+      // If browser settings were stale and the server now requires GPS,
+      // capture a fresh location once and retry without making this the normal flow.
       if (
         response.status === 428 &&
-        result.code === "GPS_REQUIRED"
+        result.code === "GPS_REQUIRED" &&
+        !gpsRequired
       ) {
         setMessage("📍 Office GPS verification જરૂરી છે...");
         capturedLocation = await getGpsLocation();
@@ -1089,39 +1076,21 @@ export default function EmployeeDashboard() {
         );
       }
     } catch (error) {
-      if (isLikelyNetworkError(error)) {
-        try {
-          const offlineLocation =
-            capturedLocation ||
-            (!gpsSettingsLoaded || knownGpsRequired
-              ? await getGpsLocation()
-              : {
-                  latitude: gpsSettings?.latitude ?? 0,
-                  longitude: gpsSettings?.longitude ?? 0,
-                  accuracy: 0,
-                });
+      if (isLikelyNetworkError(error) && capturedLocation) {
+        enqueueOfflineAction(
+          "attendance_check_in",
+          {
+            latitude: capturedLocation.latitude,
+            longitude: capturedLocation.longitude,
+            accuracy: capturedLocation.accuracy,
+          },
+          { ownerEmployeeId: employee.id }
+        );
 
-          enqueueOfflineAction(
-            "attendance_check_in",
-            {
-              latitude: offlineLocation.latitude,
-              longitude: offlineLocation.longitude,
-              accuracy: offlineLocation.accuracy,
-            },
-            { ownerEmployeeId: employee.id }
-          );
-
-          setOfflineAttendanceState("check_in");
-          setMessage(
-            "Network weak • Punch In Pending Sync ☁️ Internet આવ્યા પછી Admin Review થશે."
-          );
-        } catch (locationError) {
-          setMessage(
-            locationError instanceof Error
-              ? locationError.message
-              : "GPS Location મેળવવામાં problem આવી."
-          );
-        }
+        setOfflineAttendanceState("check_in");
+        setMessage(
+          "Network weak • Punch In Pending Sync ☁️ Internet આવ્યા પછી Admin Review થશે."
+        );
       } else {
         setMessage(
           error instanceof Error
@@ -1174,17 +1143,15 @@ export default function EmployeeDashboard() {
 
     if (!confirmed) return;
 
-    const knownGpsRequired = Boolean(
-      gpsSettingsLoaded &&
-      gpsSettings?.is_active &&
-      gpsSettings.require_check_out
-    );
+    const gpsRequired =
+      !gpsSettingsLoaded ||
+      Boolean(gpsSettings?.is_active && gpsSettings.require_check_out);
 
     setAttendanceLoading(true);
     setMessage(
-      knownGpsRequired
+      gpsRequired
         ? "📍 GPS Location મેળવી રહ્યા છીએ..."
-        : "Check Out verify કરી રહ્યા છીએ..."
+        : "GPS Requirement OFF • Check Out કરી રહ્યા છીએ..."
     );
 
     let capturedLocation: {
@@ -1194,18 +1161,17 @@ export default function EmployeeDashboard() {
     } | null = null;
 
     try {
+      const location = gpsRequired
+        ? await getGpsLocation()
+        : {
+            latitude: gpsSettings?.latitude ?? 0,
+            longitude: gpsSettings?.longitude ?? 0,
+            accuracy: 0,
+          };
+
+      capturedLocation = location;
+
       if (!navigator.onLine) {
-        const offlineGpsRequired = !gpsSettingsLoaded || knownGpsRequired;
-        const location = offlineGpsRequired
-          ? await getGpsLocation()
-          : {
-              latitude: gpsSettings?.latitude ?? 0,
-              longitude: gpsSettings?.longitude ?? 0,
-              accuracy: 0,
-            };
-
-        capturedLocation = location;
-
         enqueueOfflineAction(
           "attendance_check_out",
           {
@@ -1238,13 +1204,11 @@ export default function EmployeeDashboard() {
 
       const accessToken = session.access_token;
 
-      async function submitCheckOut(
-        location: {
-          latitude: number;
-          longitude: number;
-          accuracy: number;
-        } | null
-      ) {
+      async function submitCheckOut(locationToSubmit: {
+        latitude: number;
+        longitude: number;
+        accuracy: number;
+      }) {
         const response = await fetch("/api/attendance/check-out", {
           method: "POST",
           headers: {
@@ -1252,13 +1216,9 @@ export default function EmployeeDashboard() {
             Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify({
-            ...(location
-              ? {
-                  latitude: location.latitude,
-                  longitude: location.longitude,
-                  accuracy: location.accuracy,
-                }
-              : {}),
+            latitude: locationToSubmit.latitude,
+            longitude: locationToSubmit.longitude,
+            accuracy: locationToSubmit.accuracy,
             early_reason: earlyReason,
           }),
         });
@@ -1280,15 +1240,12 @@ export default function EmployeeDashboard() {
         return { response, result };
       }
 
-      if (knownGpsRequired) {
-        capturedLocation = await getGpsLocation();
-      }
-
-      let { response, result } = await submitCheckOut(capturedLocation);
+      let { response, result } = await submitCheckOut(location);
 
       if (
         response.status === 428 &&
-        result.code === "GPS_REQUIRED"
+        result.code === "GPS_REQUIRED" &&
+        !gpsRequired
       ) {
         setMessage("📍 Office GPS verification જરૂરી છે...");
         capturedLocation = await getGpsLocation();
@@ -1337,40 +1294,22 @@ export default function EmployeeDashboard() {
             )}`
       );
     } catch (error) {
-      if (isLikelyNetworkError(error)) {
-        try {
-          const offlineLocation =
-            capturedLocation ||
-            (!gpsSettingsLoaded || knownGpsRequired
-              ? await getGpsLocation()
-              : {
-                  latitude: gpsSettings?.latitude ?? 0,
-                  longitude: gpsSettings?.longitude ?? 0,
-                  accuracy: 0,
-                });
+      if (isLikelyNetworkError(error) && capturedLocation) {
+        enqueueOfflineAction(
+          "attendance_check_out",
+          {
+            latitude: capturedLocation.latitude,
+            longitude: capturedLocation.longitude,
+            accuracy: capturedLocation.accuracy,
+            early_reason: earlyReason,
+          },
+          { ownerEmployeeId: employee.id }
+        );
 
-          enqueueOfflineAction(
-            "attendance_check_out",
-            {
-              latitude: offlineLocation.latitude,
-              longitude: offlineLocation.longitude,
-              accuracy: offlineLocation.accuracy,
-              early_reason: earlyReason,
-            },
-            { ownerEmployeeId: employee.id }
-          );
-
-          setOfflineAttendanceState("check_out");
-          setMessage(
-            "Network weak • Punch Out Pending Sync ☁️ Internet આવ્યા પછી Admin Review થશે."
-          );
-        } catch (locationError) {
-          setMessage(
-            locationError instanceof Error
-              ? locationError.message
-              : "GPS Location મેળવવામાં problem આવી."
-          );
-        }
+        setOfflineAttendanceState("check_out");
+        setMessage(
+          "Network weak • Punch Out Pending Sync ☁️ Internet આવ્યા પછી Admin Review થશે."
+        );
       } else {
         setMessage(
           error instanceof Error
