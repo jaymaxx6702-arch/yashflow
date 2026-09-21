@@ -252,16 +252,31 @@ export default function ProductionReadinessPage() {
         .eq("id", 1)
         .maybeSingle();
 
+      const gpsLatitude = Number(gpsSettingResult.data?.latitude);
+      const gpsLongitude = Number(gpsSettingResult.data?.longitude);
+      const gpsCoordinatesValid =
+        !gpsSettingResult.data?.is_active ||
+        (
+          Number.isFinite(gpsLatitude) &&
+          Number.isFinite(gpsLongitude) &&
+          !(Math.abs(gpsLatitude) < 0.000001 && Math.abs(gpsLongitude) < 0.000001)
+        );
+
       const gpsSettingCheck: Check = {
         key: "gps-setting-row",
         label: "GPS Master Control",
-        ok: !gpsSettingResult.error && Boolean(gpsSettingResult.data),
+        ok:
+          !gpsSettingResult.error &&
+          Boolean(gpsSettingResult.data) &&
+          gpsCoordinatesValid,
         detail: gpsSettingResult.error
           ? gpsSettingResult.error.message
           : !gpsSettingResult.data
           ? "GPS setting row id=1 missing"
+          : !gpsCoordinatesValid
+          ? "GPS ON પરંતુ Office Location 0,0 / invalid છે • GPS Attendanceમાં office location ફરી capture કરો"
           : gpsSettingResult.data.is_active
-          ? "GPS ON • Employee Login + Attendance GPS required"
+          ? "GPS ON • Office coordinates valid • Attendance GPS required"
           : "GPS OFF • Login + Attendance allowed without device GPS",
         required: true,
       };
