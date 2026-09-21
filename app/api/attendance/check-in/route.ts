@@ -176,7 +176,14 @@ export async function POST(request: Request) {
         !Number.isFinite(longitude) ||
         !Number.isFinite(accuracy)
       ) {
-        return NextResponse.json({ error: "GPS Location જરૂરી છે." }, { status: 400 });
+        return NextResponse.json(
+          {
+            error: "GPS Location જરૂરી છે.",
+            code: "GPS_REQUIRED",
+            gps_required: true,
+          },
+          { status: 428 }
+        );
       }
 
       accuracyM = Math.round(accuracy);
