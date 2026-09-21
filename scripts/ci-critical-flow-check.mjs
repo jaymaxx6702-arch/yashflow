@@ -76,35 +76,27 @@ for (const [label, source, setting] of [
   }
 }
 
-const checkInRpc = checkIn.indexOf('"employee_gps_check_in"');
-const checkInApiFallback = checkIn.indexOf('fetch("/api/attendance/check-in"');
+const checkInRequest = checkIn.indexOf('fetch("/api/attendance/check-in"');
 const checkInGpsCapture = checkIn.indexOf("await getGpsLocation()");
 
-if (checkInRpc < 0) {
-  fail("Check In: stable employee_gps_check_in RPC primary path is missing");
+if (checkInRequest < 0) {
+  fail("Check In: authoritative attendance API request is missing");
 }
-if (checkInApiFallback < 0) {
-  fail("Check In: API fallback path is missing");
-}
-if (
-  checkInRpc >= 0 &&
-  checkInApiFallback >= 0 &&
-  checkInRpc > checkInApiFallback
-) {
-  fail("Check In: API path appears before the stable RPC primary path");
+if (checkInGpsCapture < 0) {
+  fail("Check In: GPS capture is missing");
 }
 if (
   checkInGpsCapture >= 0 &&
-  checkInRpc >= 0 &&
-  checkInGpsCapture > checkInRpc
+  checkInRequest >= 0 &&
+  checkInGpsCapture > checkInRequest
 ) {
-  fail("Check In: RPC can run before GPS capture");
+  fail("Check In: API request can run before GPS capture");
 }
-if (!checkIn.includes("rpcUnavailable")) {
-  fail("Check In: RPC-unavailable fallback guard is missing");
+if (checkIn.includes('"employee_gps_check_in"')) {
+  fail("Check In: legacy employee_gps_check_in RPC must not be the client path");
 }
 if (!checkIn.includes('result.code === "GPS_REQUIRED"')) {
-  fail("Check In: API fallback lost server-authoritative GPS retry");
+  fail("Check In: server-authoritative GPS retry is missing");
 }
 
 const checkOutRequest = checkOut.indexOf('fetch("/api/attendance/check-out"');
@@ -165,7 +157,7 @@ if (failures.length) {
 }
 
 console.log("Critical-flow regression checks PASS");
-console.log("- Check In uses the stable employee-session RPC first, with API fallback");
+console.log("- Check In uses the authoritative server attendance API; legacy GPS RPC is not used client-side");
 console.log("- Attendance captures GPS before normal Punch requests when required/unknown");
 console.log("- Server GPS fallback contract remains available");
 console.log("- Attendance API auth guards remain before DB work");
