@@ -244,6 +244,125 @@ create table if not exists public.order_stage_checklist_items (
   unique(order_stage_work_id, source_checklist_item_id)
 );
 
+-- Repair an empty/partial legacy snapshot table before indexes and backfill.
+do $order_stage_checklist_items_compat$
+declare
+  v_rows bigint;
+  v_id_type text;
+begin
+  select count(*) into v_rows from public.order_stage_checklist_items;
+
+  select data_type into v_id_type
+  from information_schema.columns
+  where table_schema = 'public'
+    and table_name = 'order_stage_checklist_items'
+    and column_name = 'id';
+
+  if v_id_type is null then
+    if v_rows > 0 then
+      raise exception
+        'order_stage_checklist_items has % existing row(s) but no id column.',
+        v_rows;
+    end if;
+    alter table public.order_stage_checklist_items
+      add column id uuid default gen_random_uuid();
+  elsif v_id_type <> 'uuid' then
+    raise exception
+      'order_stage_checklist_items.id is %, expected uuid.',
+      v_id_type;
+  end if;
+
+  alter table public.order_stage_checklist_items
+    add column if not exists order_stage_work_id uuid,
+    add column if not exists source_checklist_item_id uuid,
+    add column if not exists label text,
+    add column if not exists sort_order integer default 10,
+    add column if not exists is_required boolean default true,
+    add column if not exists created_at timestamptz default now();
+
+  if v_rows > 0 and exists (
+    select 1
+    from public.order_stage_checklist_items
+    where order_stage_work_id is null
+  ) then
+    raise exception
+      'order_stage_checklist_items contains existing rows without order_stage_work_id.';
+  end if;
+
+  update public.order_stage_checklist_items t
+  set
+    source_checklist_item_id = coalesce(
+      t.source_checklist_item_id,
+      case
+        when to_jsonb(t) ? 'checklist_item_id'
+          then nullif(to_jsonb(t)->>'checklist_item_id', '')::uuid
+        else null
+      end
+    ),
+    label = coalesce(
+      nullif(btrim(t.label), ''),
+      nullif(btrim(to_jsonb(t)->>'name'), ''),
+      nullif(btrim(to_jsonb(t)->>'title'), ''),
+      nullif(btrim(to_jsonb(t)->>'item_name'), ''),
+      nullif(btrim(to_jsonb(t)->>'step_name'), ''),
+      'Checklist Item'
+    ),
+    sort_order = coalesce(t.sort_order, 10),
+    is_required = coalesce(t.is_required, true),
+    created_at = coalesce(t.created_at, now());
+
+  alter table public.order_stage_checklist_items
+    alter column order_stage_work_id set not null,
+    alter column label set not null,
+    alter column sort_order set default 10,
+    alter column sort_order set not null,
+    alter column is_required set default true,
+    alter column is_required set not null,
+    alter column created_at set default now(),
+    alter column created_at set not null;
+end;
+$order_stage_checklist_items_compat$;
+
+do $order_stage_checklist_items_constraints$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.order_stage_checklist_items'::regclass
+      and contype = 'p'
+  ) then
+    alter table public.order_stage_checklist_items
+      add constraint order_stage_checklist_items_pkey primary key (id);
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.order_stage_checklist_items'::regclass
+      and conname = 'order_stage_checklist_items_order_stage_work_id_fkey'
+  ) then
+    alter table public.order_stage_checklist_items
+      add constraint order_stage_checklist_items_order_stage_work_id_fkey
+      foreign key (order_stage_work_id)
+      references public.order_stage_work(id)
+      on delete cascade;
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.order_stage_checklist_items'::regclass
+      and conname = 'order_stage_checklist_items_source_checklist_item_id_fkey'
+  ) then
+    alter table public.order_stage_checklist_items
+      add constraint order_stage_checklist_items_source_checklist_item_id_fkey
+      foreign key (source_checklist_item_id)
+      references public.stage_checklist_items(id)
+      on delete set null;
+  end if;
+end;
+$order_stage_checklist_items_constraints$;
+
+create unique index if not exists order_stage_checklist_items_work_source_uidx
+  on public.order_stage_checklist_items(order_stage_work_id, source_checklist_item_id);
+
 create index if not exists order_stage_checklist_items_work_idx
   on public.order_stage_checklist_items(order_stage_work_id, sort_order);
 
@@ -357,6 +476,130 @@ create table if not exists public.order_stage_checklist_checks (
   updated_at timestamptz not null default now(),
   unique(order_stage_work_id, snapshot_item_id)
 );
+
+-- Repair an empty/partial legacy checklist-check table before policies.
+do $order_stage_checklist_checks_compat$
+declare
+  v_rows bigint;
+  v_id_type text;
+begin
+  select count(*) into v_rows from public.order_stage_checklist_checks;
+
+  select data_type into v_id_type
+  from information_schema.columns
+  where table_schema = 'public'
+    and table_name = 'order_stage_checklist_checks'
+    and column_name = 'id';
+
+  if v_id_type is null then
+    if v_rows > 0 then
+      raise exception
+        'order_stage_checklist_checks has % existing row(s) but no id column.',
+        v_rows;
+    end if;
+    alter table public.order_stage_checklist_checks
+      add column id uuid default gen_random_uuid();
+  elsif v_id_type <> 'uuid' then
+    raise exception
+      'order_stage_checklist_checks.id is %, expected uuid.',
+      v_id_type;
+  end if;
+
+  alter table public.order_stage_checklist_checks
+    add column if not exists order_stage_work_id uuid,
+    add column if not exists snapshot_item_id uuid,
+    add column if not exists employee_id uuid,
+    add column if not exists is_checked boolean default true,
+    add column if not exists checked_at timestamptz default now(),
+    add column if not exists updated_at timestamptz default now();
+
+  update public.order_stage_checklist_checks t
+  set
+    snapshot_item_id = coalesce(
+      t.snapshot_item_id,
+      case
+        when to_jsonb(t) ? 'checklist_item_id'
+          then nullif(to_jsonb(t)->>'checklist_item_id', '')::uuid
+        else null
+      end
+    ),
+    is_checked = coalesce(t.is_checked, true),
+    checked_at = coalesce(t.checked_at, now()),
+    updated_at = coalesce(t.updated_at, now());
+
+  if v_rows > 0 and exists (
+    select 1
+    from public.order_stage_checklist_checks
+    where order_stage_work_id is null
+       or snapshot_item_id is null
+  ) then
+    raise exception
+      'order_stage_checklist_checks contains legacy rows missing order_stage_work_id or snapshot_item_id.';
+  end if;
+
+  alter table public.order_stage_checklist_checks
+    alter column order_stage_work_id set not null,
+    alter column snapshot_item_id set not null,
+    alter column is_checked set default true,
+    alter column is_checked set not null,
+    alter column checked_at set default now(),
+    alter column checked_at set not null,
+    alter column updated_at set default now(),
+    alter column updated_at set not null;
+end;
+$order_stage_checklist_checks_compat$;
+
+do $order_stage_checklist_checks_constraints$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.order_stage_checklist_checks'::regclass
+      and contype = 'p'
+  ) then
+    alter table public.order_stage_checklist_checks
+      add constraint order_stage_checklist_checks_pkey primary key (id);
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.order_stage_checklist_checks'::regclass
+      and conname = 'order_stage_checklist_checks_order_stage_work_id_fkey'
+  ) then
+    alter table public.order_stage_checklist_checks
+      add constraint order_stage_checklist_checks_order_stage_work_id_fkey
+      foreign key (order_stage_work_id)
+      references public.order_stage_work(id)
+      on delete cascade;
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.order_stage_checklist_checks'::regclass
+      and conname = 'order_stage_checklist_checks_snapshot_item_id_fkey'
+  ) then
+    alter table public.order_stage_checklist_checks
+      add constraint order_stage_checklist_checks_snapshot_item_id_fkey
+      foreign key (snapshot_item_id)
+      references public.order_stage_checklist_items(id)
+      on delete cascade;
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.order_stage_checklist_checks'::regclass
+      and conname = 'order_stage_checklist_checks_employee_id_fkey'
+  ) then
+    alter table public.order_stage_checklist_checks
+      add constraint order_stage_checklist_checks_employee_id_fkey
+      foreign key (employee_id)
+      references public.employees(id)
+      on delete set null;
+  end if;
+end;
+$order_stage_checklist_checks_constraints$;
+
+create unique index if not exists order_stage_checklist_checks_work_snapshot_uidx
+  on public.order_stage_checklist_checks(order_stage_work_id, snapshot_item_id);
 
 create index if not exists order_stage_checklist_checks_work_idx
   on public.order_stage_checklist_checks(order_stage_work_id);
