@@ -945,7 +945,7 @@ export default function EmployeeDashboard() {
 
       if (invalidOfficeGps) {
         setMessage(
-          "Check In Error: Office GPS Location set નથી. Admin → GPS Attendance → Use Current Location as Office → Save કરો."
+          "Check In Error: Office GPS Location set નથી. Admin → GPS Attendance → Capture & Save Current Office Location કરો."
         );
         return;
       }
@@ -999,75 +999,6 @@ export default function EmployeeDashboard() {
       }
 
       const supabase = createClient();
-
-      // Primary path: use the original employee-session RPC that was used by
-      // the stable Punch In flow. This avoids depending on a Vercel
-      // service-role/server-secret for a normal employee Punch In.
-      const { data: rpcData, error: rpcError } = await supabase.rpc(
-        "employee_gps_check_in",
-        {
-          p_latitude: location.latitude,
-          p_longitude: location.longitude,
-          p_accuracy_m: location.accuracy,
-        }
-      );
-
-      const rpcUnavailable = Boolean(
-        rpcError &&
-          (rpcError.code === "PGRST202" ||
-            rpcError.code === "42883" ||
-            /employee_gps_check_in.*(?:not found|does not exist)/i.test(
-              rpcError.message || ""
-            ))
-      );
-
-      if (!rpcError) {
-        await loadAttendance(employee.id, officeSettings);
-
-        const result = (rpcData || {}) as {
-          attendance_type?: string;
-          late_minutes?: number;
-          distance_m?: number | null;
-          accuracy_m?: number | null;
-          approval_required?: boolean;
-        };
-
-        const distanceText =
-          result.distance_m === null || result.distance_m === undefined
-            ? ""
-            : ` • Officeથી ${result.distance_m}m`;
-
-        if (result.attendance_type === "half_day") {
-          setMessage(
-            `Check In સફળ ✅ Half Day • Admin Approval Pending${distanceText}`
-          );
-        } else if (result.attendance_type === "late") {
-          setMessage(
-            `Check In સફળ ✅ ${result.late_minutes || 0} min Late • Admin Approval Pending${distanceText}`
-          );
-        } else {
-          setMessage(
-            gpsRequired
-              ? `Check In સફળ ✅ GPS Verified${distanceText}`
-              : "Check In સફળ ✅ GPS Requirement OFF"
-          );
-        }
-
-        setAttendanceLoading(false);
-        return;
-      }
-
-      // A real RPC validation error (outside radius, weak GPS, duplicate etc.)
-      // should be shown directly. Only fall back when the legacy RPC itself is
-      // unavailable in the database schema.
-      if (!rpcUnavailable) {
-        setMessage(`Check In Error: ${rpcError.message}`);
-        setAttendanceLoading(false);
-        return;
-      }
-
-      setMessage("Check In fallback verify કરી રહ્યા છીએ...");
-
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -1080,7 +1011,7 @@ export default function EmployeeDashboard() {
 
       const accessToken = session.access_token;
 
-      async function submitApiCheckIn(locationToSubmit: {
+      async function submitCheckIn(locationToSubmit: {
         latitude: number;
         longitude: number;
         accuracy: number;
@@ -1115,7 +1046,7 @@ export default function EmployeeDashboard() {
         return { response, result };
       }
 
-      let { response, result } = await submitApiCheckIn(location);
+      let { response, result } = await submitCheckIn(location);
 
       if (
         response.status === 428 &&
@@ -1124,7 +1055,7 @@ export default function EmployeeDashboard() {
       ) {
         setMessage("📍 Office GPS verification જરૂરી છે...");
         capturedLocation = await getGpsLocation();
-        ({ response, result } = await submitApiCheckIn(capturedLocation));
+        ({ response, result } = await submitCheckIn(capturedLocation));
       }
 
       if (!response.ok || !result.check_in) {
