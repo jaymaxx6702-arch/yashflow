@@ -20,20 +20,20 @@ export async function pushAuth(request: Request) {
     return { error: "Invalid session.", status: 401 } as const;
   }
 
-  const { data: profile, error: profileError } = await db
+  const { data: profileRows, error: profileError } = await db
     .from("employees")
     .select("id, role, approval_status, is_active")
     .eq("auth_user_id", user.id)
-    .maybeSingle();
+    .eq("approval_status", "approved")
+    .eq("is_active", true)
+    .limit(2);
 
-  if (
-    profileError ||
-    !profile ||
-    profile.approval_status !== "approved" ||
-    !profile.is_active
-  ) {
+  const profile = (profileRows || [])[0] || null;
+
+  if (profileError || !profile) {
     return {
       error: "Active employee profile required.",
+      code: "PUSH_EMPLOYEE_PROFILE_REQUIRED",
       status: 403,
     } as const;
   }
