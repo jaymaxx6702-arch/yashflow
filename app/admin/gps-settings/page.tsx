@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import { getNativeCurrentPosition } from "@/utils/native-app";
 
 type GeofenceSettings = {
   id: number;
@@ -23,7 +24,25 @@ type BrowserLocation = {
   accuracy: number;
 };
 
-function getBestBrowserLocation(): Promise<BrowserLocation> {
+async function getBestBrowserLocation(): Promise<BrowserLocation> {
+  const nativePosition = await getNativeCurrentPosition({
+    enableHighAccuracy: true,
+    timeout: 12000,
+    maximumAge: 0,
+  });
+
+  if (nativePosition) {
+    if (nativePosition.accuracy > 250) {
+      throw new Error(
+        `Office Location set કરી શકાતું નથી. GPS Accuracy ±${Math.round(
+          nativePosition.accuracy
+        )}m છે. Mobileમાં Precise Location ON કરીને office પર ફરી Try કરો.`
+      );
+    }
+
+    return nativePosition;
+  }
+
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
       reject(new Error("આ device/browser GPS Location support કરતું નથી."));
@@ -56,7 +75,6 @@ function getBestBrowserLocation(): Promise<BrowserLocation> {
         return;
       }
 
-      // Do not let a Wi‑Fi/IP estimate become the office geofence.
       if (best.accuracy > 250) {
         reject(
           new Error(
@@ -87,7 +105,6 @@ function getBestBrowserLocation(): Promise<BrowserLocation> {
           best = candidate;
         }
 
-        // Good mobile GPS: stop early.
         if (candidate.accuracy <= 50) {
           window.clearTimeout(timeoutId);
           finish();
@@ -99,7 +116,7 @@ function getBestBrowserLocation(): Promise<BrowserLocation> {
         if (error.code === error.PERMISSION_DENIED) {
           finish(
             new Error(
-              "Location Permission denied છે. Browser Settingsમાં Precise Location Allow કરો."
+              "Location Permission denied છે. Android App Info → Permissions → Location → Allow while using app અને Precise Location ON કરો."
             )
           );
         } else if (error.code === error.TIMEOUT) {
