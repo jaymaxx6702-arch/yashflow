@@ -158,8 +158,23 @@ export default function StageChecklist({
     }
   }
 
-  if (loading || items.length === 0) {
+  if (loading) {
     return null;
+  }
+
+  if (items.length === 0) {
+    if (!message) return null;
+
+    return (
+      <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 p-3">
+        <p className="text-[10px] font-black tracking-[0.12em] text-red-700">
+          STAGE CHECKLIST ERROR
+        </p>
+        <p className="text-xs font-bold text-red-800 mt-1">
+          {message}
+        </p>
+      </div>
+    );
   }
 
   return (
