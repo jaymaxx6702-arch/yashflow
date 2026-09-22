@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "899974959893",
+    "project_id": "yashflow",
+    "storage_bucket": "yashflow.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:899974959893:android:31abf1e35a900505b40f1c",
+        "android_client_info": {
+          "package_name": "in.yashlaser.yashflow"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDB1_DPkiXsmUAKt_gfFExORLQ04RLhpTk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
