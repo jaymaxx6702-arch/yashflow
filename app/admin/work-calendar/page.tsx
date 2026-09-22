@@ -219,6 +219,19 @@ export default function AdminWorkCalendarPage() {
   });
 
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  useEffect(() => {
+    function handleNativeBack(event: Event) {
+      if (!selectedDate) return;
+      event.preventDefault();
+      setSelectedDate(null);
+    }
+
+    window.addEventListener("yashflow:native-back", handleNativeBack as EventListener);
+    return () =>
+      window.removeEventListener("yashflow:native-back", handleNativeBack as EventListener);
+  }, [selectedDate]);
+
   const [expandedEmployeeId, setExpandedEmployeeId] =
     useState<string | null>(null);
 
