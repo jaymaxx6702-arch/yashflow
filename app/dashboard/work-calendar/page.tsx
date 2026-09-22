@@ -219,6 +219,19 @@ export default function EmployeeWorkCalendarPage() {
   const [message, setMessage] = useState("");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
+  useEffect(() => {
+    function handleNativeBack(event: Event) {
+      if (!selectedDate) return;
+      event.preventDefault();
+      setSelectedDate(null);
+      setRequestMode(null);
+    }
+
+    window.addEventListener("yashflow:native-back", handleNativeBack as EventListener);
+    return () =>
+      window.removeEventListener("yashflow:native-back", handleNativeBack as EventListener);
+  }, [selectedDate]);
+
   const [requestMode, setRequestMode] = useState<
     "absent_correction" | "late_regularization" | "leave" | null
   >(null);
