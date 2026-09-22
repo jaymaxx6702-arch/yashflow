@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
 import {
   initialiseNativePermissions,
+  registerNativeBackHandler,
   registerNativeFcmToken,
 } from "@/utils/native-app";
 
@@ -37,6 +38,7 @@ export default function NativeAppBootstrap() {
   useEffect(() => {
     let cancelled = false;
     let removeRegistrationListener: (() => Promise<void>) | undefined;
+    let removeBackListener: (() => Promise<void>) | undefined;
     const supabase = createClient();
 
     async function setupNative() {
@@ -47,6 +49,10 @@ export default function NativeAppBootstrap() {
         "yashflow-native-permissions-v1",
         "done"
       );
+
+      const backRegistration = await registerNativeBackHandler();
+      removeBackListener =
+        "remove" in backRegistration ? backRegistration.remove : undefined;
 
       const registration = await registerNativeFcmToken(async (token) => {
         window.localStorage.setItem("yashflow-native-fcm-token", token);
@@ -67,9 +73,7 @@ export default function NativeAppBootstrap() {
         "remove" in registration ? registration.remove : undefined;
     }
 
-    const timer = window.setTimeout(() => {
-      void setupNative();
-    }, 700);
+    void setupNative();
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
@@ -101,9 +105,9 @@ export default function NativeAppBootstrap() {
 
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
       authListener.subscription.unsubscribe();
       void removeRegistrationListener?.();
+      void removeBackListener?.();
     };
   }, []);
 
