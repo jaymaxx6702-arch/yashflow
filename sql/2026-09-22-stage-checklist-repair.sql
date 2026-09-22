@@ -81,6 +81,40 @@ begin
       alter column stage_id drop not null;
   end if;
 
+  -- Relax legacy-only columns that the current app no longer writes.
+  -- This preserves old data while preventing legacy NOT NULL constraints from
+  -- blocking inserts that use the canonical columns above.
+  declare
+    legacy_col text;
+  begin
+    foreach legacy_col in array array[
+      'item_text',
+      'template_stage_id',
+      'workflow_stage_id',
+      'template_id',
+      'name',
+      'title',
+      'item_name',
+      'step_name',
+      'checklist_item',
+      'description'
+    ]
+    loop
+      if exists (
+        select 1
+        from information_schema.columns
+        where table_schema = 'public'
+          and table_name = 'stage_checklist_items'
+          and column_name = legacy_col
+      ) then
+        execute format(
+          'alter table public.stage_checklist_items alter column %I drop not null',
+          legacy_col
+        );
+      end if;
+    end loop;
+  end;
+
   -- Known legacy name: template_stage_id.
   if exists (
     select 1 from information_schema.columns
@@ -148,6 +182,7 @@ begin
   set
     label = coalesce(
       nullif(btrim(t.label), ''),
+      nullif(btrim(to_jsonb(t)->>'item_text'), ''),
       nullif(btrim(to_jsonb(t)->>'name'), ''),
       nullif(btrim(to_jsonb(t)->>'title'), ''),
       nullif(btrim(to_jsonb(t)->>'item_name'), ''),
