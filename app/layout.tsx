@@ -5,6 +5,7 @@ import "./globals.css";
 import ServiceWorkerRegister from "./sw-register";
 import OfflineSync from "./OfflineSync";
 import PushSubscriptionManager from "./PushSubscriptionManager";
+import NativeAppBootstrap from "./NativeAppBootstrap";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -67,6 +68,7 @@ export default function RootLayout({
         <ServiceWorkerRegister />
         <OfflineSync />
         <PushSubscriptionManager />
+        <NativeAppBootstrap />
         {children}
       </body>
     </html>
