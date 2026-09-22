@@ -53,7 +53,10 @@ export async function POST(request: Request) {
 
     if (error) {
       return NextResponse.json(
-        { error: error.message },
+        {
+          error: error.message,
+          code: "PUSH_SUBSCRIPTION_SAVE_FAILED",
+        },
         { status: 500 }
       );
     }
@@ -81,6 +84,7 @@ export async function POST(request: Request) {
           error instanceof Error
             ? error.message
             : "Push subscribe failed.",
+        code: "PUSH_SUBSCRIBE_FAILED",
       },
       { status: 500 }
     );
