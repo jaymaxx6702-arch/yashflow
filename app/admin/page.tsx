@@ -218,7 +218,7 @@ const toneStyles: Record<
   Tone,
   {
     shell: string;
-    icon: YashFlowIconName;
+    icon: string;
     value: string;
     label: string;
     line: string;
@@ -1324,7 +1324,7 @@ const manualPunchRows = (
                 value={counts.presentToday}
                 subtitle="Checked-in Employees"
                 tone="green"
-                icon="🟢"
+                icon="check"
                 onClick={() =>
                   openDrawer(
                     "Present Today",
@@ -1392,7 +1392,7 @@ const manualPunchRows = (
                 value={counts.completedOrders}
                 subtitle="Completed workflow"
                 tone="green"
-                icon="🏁"
+                icon="check"
                 onClick={() =>
                   openDrawer(
                     "Completed Orders",
@@ -1426,7 +1426,7 @@ const manualPunchRows = (
                 value={counts.pendingLeave}
                 subtitle="Awaiting Admin action"
                 tone="purple"
-                icon="⏳"
+                icon="clock"
                 onClick={() =>
                   openDrawer(
                     "Pending Leave",
