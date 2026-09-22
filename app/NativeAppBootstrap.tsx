@@ -63,7 +63,8 @@ export default function NativeAppBootstrap() {
         }
       });
 
-      removeRegistrationListener = registration.remove;
+      removeRegistrationListener =
+        "remove" in registration ? registration.remove : undefined;
     }
 
     const timer = window.setTimeout(() => {
