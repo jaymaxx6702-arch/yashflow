@@ -1244,7 +1244,26 @@ const manualPunchRows = (
         )}
 
         <section className="yf-card overflow-hidden">
-          <div className="p-4 border-b border-slate-200 yf-brand-panel text-white">
+          <button
+            type="button"
+            onClick={() =>
+              openDrawer(
+                "Today at a Glance",
+                "Today’s live staff, attendance, leave and order summary",
+                [
+                  ...details.totalStaff,
+                  ...details.presentToday,
+                  ...details.leaveToday,
+                  ...details.pendingAttendance,
+                  ...details.openOrders,
+                  ...details.completedOrders,
+                  ...details.pendingEmployees,
+                  ...details.pendingLeave,
+                ]
+              )
+            }
+            className="w-full p-4 border-b border-slate-200 yf-brand-panel text-white text-left"
+          >
             <div className="flex items-end justify-between gap-3">
               <div>
                 <p className="text-[10px] font-black tracking-[0.15em] text-[#d4af37]">
@@ -1254,10 +1273,10 @@ const manualPunchRows = (
               </div>
 
               <span className="text-[10px] font-black rounded-full bg-white/10 border border-white/15 px-3 py-1.5">
-                Click any card
+                View All ›
               </span>
             </div>
-          </div>
+          </button>
 
           <div className="p-4">
             <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
