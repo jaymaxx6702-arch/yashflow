@@ -608,6 +608,9 @@ export default function AdminPage() {
     subtitle: "",
     items: [],
   });
+  const [todayGlanceOpen, setTodayGlanceOpen] = useState(false);
+  const [attentionOpen, setAttentionOpen] = useState(false);
+  const [productionFlowOpen, setProductionFlowOpen] = useState(false);
 
   const today = useMemo(() => getIndiaDate(), []);
   const displayDate = useMemo(() => getIndiaDisplayDate(), []);
@@ -1256,24 +1259,8 @@ const manualPunchRows = (
         <section className="yf-card overflow-hidden">
           <button
             type="button"
-            onClick={() =>
-              openDrawer(
-                "Today at a Glance",
-                "Today’s live staff, attendance, leave and order summary",
-                [
-                  ...details.totalStaff,
-                  ...details.presentToday,
-                  ...details.leaveToday,
-                  ...details.pendingAttendance,
-                  ...details.openOrders,
-                  ...details.completedOrders,
-                  ...details.pendingEmployees,
-                  ...details.pendingLeave,
-                ],
-                "/admin/reports",
-                "View Reports"
-              )
-            }
+            onClick={() => setTodayGlanceOpen((current) => !current)}
+            aria-expanded={todayGlanceOpen}
             className="w-full p-4 border-b border-slate-200 yf-brand-panel text-white text-left"
           >
             <div className="flex items-end justify-between gap-3">
@@ -1285,11 +1272,12 @@ const manualPunchRows = (
               </div>
 
               <span className="text-[10px] font-black rounded-full bg-white/10 border border-white/15 px-3 py-1.5">
-                View All ›
+                {todayGlanceOpen ? "Close ▲" : "Open ▼"}
               </span>
             </div>
           </button>
 
+          {todayGlanceOpen && (
           <div className="p-4">
             <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
               <SummaryCard
@@ -1429,30 +1417,14 @@ const manualPunchRows = (
               />
             </div>
           </div>
+          )}
         </section>
 
         <section className="mt-4 yf-card overflow-hidden">
           <button
             type="button"
-            onClick={() =>
-              openDrawer(
-                "Items Need Your Attention",
-                `${totalAttention} total attention items`,
-                [
-                  ...details.overdueOrders,
-                  ...details.delayedWorkflow,
-                  ...details.overdueTasks,
-                  ...details.pendingAttendance,
-                  ...details.pendingLeave,
-                  ...details.pendingEmployees,
-                  ...details.readyForApproval,
-                  ...details.missingAttendance,
-                  ...details.lowStock,
-                ],
-                "/admin/orders",
-                "View Orders"
-              )
-            }
+            onClick={() => setAttentionOpen((current) => !current)}
+            aria-expanded={attentionOpen}
             className={`w-full text-left p-4 border-b ${
               totalAttention > 0
                 ? "border-red-200 bg-gradient-to-r from-red-700 to-orange-600 text-white"
@@ -1468,16 +1440,17 @@ const manualPunchRows = (
                   {totalAttention > 0 ? "Items Need Your Attention" : "All Clear"}
                 </h2>
                 <p className="text-xs text-white/80 mt-1">
-                  Tap here to open all attention items.
+                  Tap to {attentionOpen ? "close" : "open"} attention items.
                 </p>
               </div>
 
               <span className="shrink-0 rounded-full bg-white/15 border border-white/20 px-3 py-1.5 text-xs font-black">
-                {totalAttention}
+                {totalAttention} {attentionOpen ? "▲" : "▼"}
               </span>
             </div>
           </button>
 
+          {attentionOpen && (
           <div className="p-4">
             <div className="grid grid-cols-2 xl:grid-cols-6 gap-3">
               <AttentionCard
@@ -1588,26 +1561,14 @@ const manualPunchRows = (
               />
             </div>
           </div>
+          )}
         </section>
 
         <section className="mt-4 yf-card overflow-hidden">
           <button
             type="button"
-            onClick={() =>
-              openDrawer(
-                "Production Flow",
-                "All active orders grouped by current stage",
-                [
-                  ...details.design,
-                  ...details.cutting,
-                  ...details.production,
-                  ...details.packing,
-                  ...details.transportation,
-                ],
-                "/admin/orders",
-                "Open Orders"
-              )
-            }
+            onClick={() => setProductionFlowOpen((current) => !current)}
+            aria-expanded={productionFlowOpen}
             className="w-full text-left p-4 border-b border-slate-200 bg-white"
           >
             <div className="flex items-end justify-between gap-3">
@@ -1620,10 +1581,13 @@ const manualPunchRows = (
                 </h2>
               </div>
 
-              <span className="text-xs font-black text-cyan-700">View All ›</span>
+              <span className="text-xs font-black text-cyan-700">
+                {productionFlowOpen ? "Close ▲" : "Open ▼"}
+              </span>
             </div>
           </button>
 
+          {productionFlowOpen && (
           <div className="p-4">
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
               <WorkflowCard
@@ -1712,6 +1676,7 @@ const manualPunchRows = (
               />
             </div>
           </div>
+          )}
         </section>
 
         <section className="mt-4 yf-card p-4">
