@@ -6,6 +6,29 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { ensureWebPushSubscription } from "@/utils/push-client";
 
+function primeNotificationSound() {
+  if (typeof window === "undefined") return;
+
+  try {
+    const audio = new Audio("/sounds/notification.wav");
+    audio.preload = "auto";
+    audio.volume = 0;
+    audio.currentTime = 0;
+
+    void audio
+      .play()
+      .then(() => {
+        audio.pause();
+        audio.currentTime = 0;
+      })
+      .catch(() => {
+        // Sound permission can still be unlocked later from the in-app bell.
+      });
+  } catch {
+    // Login must never fail because notification audio cannot be primed.
+  }
+}
+
 async function showLoginNotification(
   employeeName: string,
   gpsRequired: boolean
