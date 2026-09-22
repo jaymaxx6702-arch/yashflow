@@ -30,7 +30,7 @@ grant select
 on table public.attendance_geofence_settings
 to service_role;
 
-do $
+do $attendance_grants$
 begin
   if to_regclass('public.offline_action_receipts') is not null then
     execute 'grant select, insert, update on table public.offline_action_receipts to service_role';
@@ -40,7 +40,7 @@ begin
     execute 'grant select, insert on table public.notifications to service_role';
   end if;
 end
-$;
+$attendance_grants$;
 
 alter table public.attendance enable row level security;
 
