@@ -63,6 +63,7 @@ export async function POST(request: Request) {
       accuracy?: number;
       client_action_at?: string;
       offline_action_id?: string;
+      employee_id?: string;
     };
 
     const db = integrationSupabase();
@@ -73,20 +74,30 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid session." }, { status: 401 });
     }
 
-    const { data: employee, error: employeeError } = await db
+    const requestedEmployeeId = String(body.employee_id || "").trim();
+
+    let employeeQuery = db
       .from("employees")
       .select("id, full_name, approval_status, is_active")
       .eq("auth_user_id", user.id)
-      .maybeSingle();
+      .eq("approval_status", "approved")
+      .eq("is_active", true);
 
-    if (
-      employeeError ||
-      !employee ||
-      employee.approval_status !== "approved" ||
-      !employee.is_active
-    ) {
+    if (requestedEmployeeId) {
+      employeeQuery = employeeQuery.eq("id", requestedEmployeeId);
+    }
+
+    const { data: employeeRows, error: employeeError } =
+      await employeeQuery.limit(2);
+
+    const employee = (employeeRows || [])[0] || null;
+
+    if (employeeError || !employee) {
       return NextResponse.json(
-        { error: "Active employee profile required." },
+        {
+          error: "Active employee profile required.",
+          code: "EMPLOYEE_PROFILE_REQUIRED",
+        },
         { status: 403 }
       );
     }
