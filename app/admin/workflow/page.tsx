@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
-import StageChecklistEditor from "./StageChecklistEditor";
+import StageChecklistManager from "./StageChecklistManager";
 
-type TabKey = "stages" | "products" | "templates";
+type TabKey = "stages" | "products" | "templates" | "checklists";
 
 type Department = {
   id: number;
@@ -141,6 +141,13 @@ export default function WorkflowSettingsPage() {
   const [adminId, setAdminId] = useState<string | null>(null);
   const [actionId, setActionId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    const requestedTab = new URLSearchParams(window.location.search).get("tab");
+    if (requestedTab === "checklists") {
+      setTab("checklists");
+    }
+  }, []);
 
   const departmentMap = useMemo(
     () => new Map(departments.map((d) => [d.id, d.name])),
@@ -1505,11 +1512,11 @@ async function updateStageApproval(
             </p>
 
             <h1 className="text-2xl sm:text-3xl font-black text-white mt-1">
-              Workflow Settings
+              Work Order Settings
             </h1>
 
             <p className="text-blue-100 text-sm font-semibold mt-1">
-              Stage Master • Product Workflow • Templates
+              Stage Master • Product Workflow • Templates • Stage Checklist
             </p>
           </div>
 
@@ -1535,6 +1542,7 @@ async function updateStageApproval(
             ["products", "Product Workflow"],
             ["stages", "Stage Master"],
             ["templates", "Workflow Templates"],
+            ["checklists", "Stage Checklist"],
           ].map(([key, label]) => (
             <button
               key={key}
@@ -1955,11 +1963,6 @@ async function updateStageApproval(
                               </div>
                             )}
 
-                            <StageChecklistEditor
-                              templateStageId={item.id}
-                              stageName={stage?.name || "Stage"}
-                            />
-
                             {(item.assignment_rule === "default_team" ||
                               item.assignment_rule === "auto_assign") && (
                               <div>
@@ -2200,6 +2203,8 @@ async function updateStageApproval(
             </div>
           </section>
         )}
+
+        {tab === "checklists" && <StageChecklistManager />}
 
         {tab === "templates" && (
           <section className="yf-card p-5 sm:p-6">
