@@ -36,6 +36,9 @@ jobs:
         working-directory: mobile
         run: npx cap add android
 
+      - name: Add Firebase config
+        run: cp mobile/google-services.json mobile/android/app/google-services.json
+
       - name: Add YashFlow notification sound
         run: |
           mkdir -p mobile/android/app/src/main/res/raw
