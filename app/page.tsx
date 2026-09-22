@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { ensureWebPushSubscription } from "@/utils/push-client";
+import { getNativeCurrentPosition } from "@/utils/native-app";
 
 function primeNotificationSound() {
   if (typeof window === "undefined") return;
@@ -72,7 +73,17 @@ async function showLoginNotification(
   }
 }
 
-function verifyEmployeeGpsForLogin(): Promise<void> {
+async function verifyEmployeeGpsForLogin(): Promise<void> {
+  const nativePosition = await getNativeCurrentPosition({
+    enableHighAccuracy: true,
+    timeout: 12000,
+    maximumAge: 0,
+  });
+
+  if (nativePosition) {
+    return;
+  }
+
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
       reject(
