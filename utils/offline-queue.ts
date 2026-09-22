@@ -263,6 +263,22 @@ export function markOfflineActionNeedsReview(
   );
 }
 
+export function discardAttendanceNeedsReviewActions(
+  employeeId: string
+) {
+  saveOfflineActions(
+    getOfflineActions().filter(
+      (action) =>
+        !(
+          action.ownerEmployeeId === employeeId &&
+          action.state === "needs_review" &&
+          (action.type === "attendance_check_in" ||
+            action.type === "attendance_check_out")
+        )
+    )
+  );
+}
+
 export function retryNeedsReviewActions(employeeId: string) {
   saveOfflineActions(
     getOfflineActions().map((action) =>

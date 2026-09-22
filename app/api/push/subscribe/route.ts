@@ -53,23 +53,28 @@ export async function POST(request: Request) {
 
     if (error) {
       return NextResponse.json(
-        { error: error.message },
+        {
+          error: error.message,
+          code: "PUSH_SUBSCRIPTION_SAVE_FAILED",
+        },
         { status: 500 }
       );
     }
 
-    if (auth.profile.role === "admin") {
-      const origin = new URL(request.url).origin;
+    // Any approved active employee subscription should keep the
+    // push processor enabled. Requiring an Admin to subscribe first meant
+    // employees could have a valid device subscription while the outbox
+    // cron still remained disabled.
+    const origin = new URL(request.url).origin;
 
-      await auth.db
-        .from("push_settings")
-        .update({
-          process_url: `${origin}/api/push/process`,
-          cron_enabled: true,
-          updated_at: now,
-        })
-        .eq("id", 1);
-    }
+    await auth.db
+      .from("push_settings")
+      .update({
+        process_url: `${origin}/api/push/process`,
+        cron_enabled: true,
+        updated_at: now,
+      })
+      .eq("id", 1);
 
     return NextResponse.json({ ok: true });
   } catch (error) {
@@ -79,6 +84,7 @@ export async function POST(request: Request) {
           error instanceof Error
             ? error.message
             : "Push subscribe failed.",
+        code: "PUSH_SUBSCRIBE_FAILED",
       },
       { status: 500 }
     );

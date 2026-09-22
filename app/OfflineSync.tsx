@@ -5,6 +5,7 @@ import { createClient } from "@/utils/supabase/client";
 import {
   getOfflineActionsForEmployee,
   getOfflineQueueSummary,
+  discardAttendanceNeedsReviewActions,
   isLikelyNetworkError,
   markOfflineActionError,
   markOfflineActionNeedsReview,
@@ -330,6 +331,7 @@ export default function OfflineSync() {
   const [employeeId, setEmployeeId] = useState("");
   const [pending, setPending] = useState(0);
   const [needsReview, setNeedsReview] = useState(0);
+  const [attendanceNeedsReview, setAttendanceNeedsReview] = useState(0);
   const [lastError, setLastError] = useState("");
   const [syncing, setSyncing] = useState(false);
   const syncingRef = useRef(false);
@@ -338,13 +340,23 @@ export default function OfflineSync() {
     if (!ownerId) {
       setPending(0);
       setNeedsReview(0);
+      setAttendanceNeedsReview(0);
       setLastError("");
       return;
     }
 
     const summary = getOfflineQueueSummary(ownerId);
+    const ownerActions = getOfflineActionsForEmployee(ownerId);
+    const attendanceReviewCount = ownerActions.filter(
+      (action) =>
+        action.state === "needs_review" &&
+        (action.type === "attendance_check_in" ||
+          action.type === "attendance_check_out")
+    ).length;
+
     setPending(summary.pending);
     setNeedsReview(summary.needsReview);
+    setAttendanceNeedsReview(attendanceReviewCount);
     setLastError(summary.latestReviewError);
   }, []);
 
@@ -492,6 +504,19 @@ export default function OfflineSync() {
     void flush();
   }
 
+  function clearAttendanceReview() {
+    if (!employeeId || attendanceNeedsReview === 0) return;
+
+    const confirmed = window.confirm(
+      `${attendanceNeedsReview} stale Attendance review action clear કરવી છે?\n\nઆ ફક્ત deviceની offline queueમાંથી Attendance retry કાઢશે. Server attendance record delete/change નહીં થાય.`
+    );
+
+    if (!confirmed) return;
+
+    discardAttendanceNeedsReviewActions(employeeId);
+    refreshSummary(employeeId);
+  }
+
   if (
     !employeeId ||
     (online && pending === 0 && needsReview === 0 && !syncing)
@@ -540,6 +565,17 @@ export default function OfflineSync() {
               className="yf-btn yf-btn-warning yf-btn-sm"
             >
               Retry Review
+            </button>
+          )}
+
+          {online && attendanceNeedsReview > 0 && (
+            <button
+              type="button"
+              onClick={clearAttendanceReview}
+              disabled={syncing}
+              className="yf-btn bg-red-100 text-red-800 yf-btn-sm"
+            >
+              Clear Attendance Review
             </button>
           )}
         </div>

@@ -4,24 +4,28 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import { ensureWebPushSubscription } from "@/utils/push-client";
 
-function requestLoginNotificationPermission(): Promise<NotificationPermission | "unsupported"> {
-  if (typeof window === "undefined" || !("Notification" in window)) {
-    return Promise.resolve("unsupported");
-  }
-
-  if (Notification.permission === "granted") {
-    return Promise.resolve("granted");
-  }
-
-  if (Notification.permission === "denied") {
-    return Promise.resolve("denied");
-  }
+function primeNotificationSound() {
+  if (typeof window === "undefined") return;
 
   try {
-    return Notification.requestPermission();
+    const audio = new Audio("/sounds/notification.wav");
+    audio.preload = "auto";
+    audio.volume = 0;
+    audio.currentTime = 0;
+
+    void audio
+      .play()
+      .then(() => {
+        audio.pause();
+        audio.currentTime = 0;
+      })
+      .catch(() => {
+        // Sound permission can still be unlocked later from the in-app bell.
+      });
   } catch {
-    return Promise.resolve("denied");
+    // Login must never fail because notification audio cannot be primed.
   }
 }
 
@@ -184,6 +188,9 @@ export default function Home() {
   }, [router]);
 
   async function handleLogin() {
+    // This runs directly from the Login button user gesture and primes
+    // browser audio permission for later real-time notification sounds.
+    primeNotificationSound();
     setMessage("");
 
     if (mobile.length !== 10) {
@@ -195,9 +202,6 @@ export default function Home() {
       setMessage("PIN ચોક્કસ 6 અંકનો હોવો જોઈએ.");
       return;
     }
-
-    const notificationPermissionPromise =
-      requestLoginNotificationPermission();
 
     setLoading(true);
 
@@ -303,11 +307,28 @@ export default function Home() {
       }
     }
 
-    void notificationPermissionPromise.then((permission) => {
-      if (permission === "granted") {
-        void showLoginNotification(employee.full_name, gpsRequired);
-      }
-    });
+    // Never open the browser permission prompt automatically on login.
+    // If permission is already granted, silently keep the device subscribed.
+    // If permission is OFF/default, PushSubscriptionManager shows an explicit
+    // Enable Notifications option after login.
+    if (
+      typeof window !== "undefined" &&
+      "Notification" in window &&
+      Notification.permission === "granted"
+    ) {
+      window.localStorage.setItem(
+        "yashflow-system-notifications-enabled",
+        "true"
+      );
+
+      void ensureWebPushSubscription()
+        .then(() =>
+          showLoginNotification(employee.full_name, gpsRequired)
+        )
+        .catch((error) => {
+          console.warn("Login push subscription setup failed:", error);
+        });
+    }
 
     /*
       IMPORTANT:
