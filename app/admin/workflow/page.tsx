@@ -136,6 +136,18 @@ export default function WorkflowSettingsPage() {
   const [stageForm, setStageForm] = useState<StageForm>(emptyStageForm);
   const [showStageForm, setShowStageForm] = useState(false);
 
+  useEffect(() => {
+    function handleNativeBack(event: Event) {
+      if (!showStageForm) return;
+      event.preventDefault();
+      setShowStageForm(false);
+    }
+
+    window.addEventListener("yashflow:native-back", handleNativeBack as EventListener);
+    return () =>
+      window.removeEventListener("yashflow:native-back", handleNativeBack as EventListener);
+  }, [showStageForm]);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [adminId, setAdminId] = useState<string | null>(null);
