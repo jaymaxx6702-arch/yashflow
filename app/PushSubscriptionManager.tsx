@@ -8,17 +8,24 @@ export default function PushSubscriptionManager() {
     if (
       typeof window === "undefined" ||
       !("Notification" in window) ||
-      Notification.permission !== "granted" ||
-      window.localStorage.getItem(
-        "yashflow-system-notifications-enabled"
-      ) !== "true"
+      Notification.permission !== "granted"
     ) {
       return;
     }
 
-    void ensureWebPushSubscription().catch((error) => {
-      console.warn("Background push subscription refresh failed:", error);
-    });
+    // Permission is the user's consent. Once granted, keep the device
+    // subscribed automatically so closed-app notifications do not depend
+    // on opening the Bell and manually toggling a localStorage flag.
+    void ensureWebPushSubscription()
+      .then(() => {
+        window.localStorage.setItem(
+          "yashflow-system-notifications-enabled",
+          "true"
+        );
+      })
+      .catch((error) => {
+        console.warn("Background push subscription refresh failed:", error);
+      });
   }, []);
 
   return null;
