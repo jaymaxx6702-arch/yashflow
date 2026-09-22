@@ -217,6 +217,33 @@ export default function AdminStageChecklistsPage() {
     setSaving(false);
   }
 
+  async function deleteItem(item: ChecklistItem) {
+    const confirmed = window.confirm(
+      `Delete checklist item "\${item.label}" permanently? Existing Order snapshots will remain unchanged.`
+    );
+
+    if (!confirmed) return;
+
+    const supabase = createClient();
+    setSaving(true);
+    setMessage("");
+
+    const { error } = await supabase
+      .from("stage_checklist_items")
+      .delete()
+      .eq("id", item.id);
+
+    if (error) {
+      setMessage(checklistError("Checklist Delete Error", error.message));
+      setSaving(false);
+      return;
+    }
+
+    await loadData();
+    setMessage("Checklist Item Deleted ✅");
+    setSaving(false);
+  }
+
   async function updateItem(
     item: ChecklistItem,
     patch: Partial<ChecklistItem>
@@ -379,6 +406,15 @@ export default function AdminStageChecklistsPage() {
                     className="yf-btn yf-btn-warning yf-btn-sm"
                   >
                     {item.is_active ? "Deactivate" : "Activate"}
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => deleteItem(item)}
+                    className="yf-btn yf-btn-danger yf-btn-sm"
+                  >
+                    Delete
                   </button>
 
                   {item.is_active && (
