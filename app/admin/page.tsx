@@ -1791,6 +1791,11 @@ const manualPunchRows = (
             />
             <ToolButton href="/admin/products" label="Products" icon="🧩" />
             <ToolButton
+              href="/admin/checklists"
+              label="Stage Checklist"
+              icon="☑️"
+            />
+            <ToolButton
               href="/admin/inventory"
               label="Inventory"
               icon="🏷️"
