@@ -16,6 +16,10 @@ function base64UrlToUint8Array(value: string) {
   return bytes;
 }
 
+function currentNotificationPermission(): NotificationPermission {
+  return Notification.permission;
+}
+
 async function waitForGrantedNotificationPermission() {
   if (
     typeof window === "undefined" ||
@@ -24,7 +28,7 @@ async function waitForGrantedNotificationPermission() {
     return false;
   }
 
-  if (Notification.permission === "granted") {
+  if (currentNotificationPermission() === "granted") {
     return true;
   }
 
@@ -33,7 +37,7 @@ async function waitForGrantedNotificationPermission() {
   for (let attempt = 0; attempt < 10; attempt += 1) {
     await new Promise((resolve) => window.setTimeout(resolve, 150));
 
-    if (Notification.permission === "granted") {
+    if (currentNotificationPermission() === "granted") {
       return true;
     }
   }
