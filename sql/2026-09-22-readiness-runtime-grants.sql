@@ -34,6 +34,13 @@ begin
     execute 'grant select, insert, update on table public.order_operation_details to service_role';
   end if;
 
+  -- Stage Checklist master items are readable by authenticated users and
+  -- writable only when RLS permits it (admin policy).
+  if to_regclass('public.stage_checklist_items') is not null then
+    execute 'grant select, insert, update, delete on table public.stage_checklist_items to authenticated';
+    execute 'grant select, insert, update, delete on table public.stage_checklist_items to service_role';
+  end if;
+
   -- Stage Checklist snapshots are created by DB trigger/security-definer code.
   -- Employees/admin only need direct read access.
   if to_regclass('public.order_stage_checklist_items') is not null then
@@ -69,6 +76,10 @@ with wanted(role_name, table_name, privilege_name) as (
     ('authenticated','id_card_batches','SELECT'),
     ('authenticated','id_card_entries','SELECT'),
     ('authenticated','order_operation_details','SELECT'),
+    ('authenticated','stage_checklist_items','SELECT'),
+    ('authenticated','stage_checklist_items','INSERT'),
+    ('authenticated','stage_checklist_items','UPDATE'),
+    ('authenticated','stage_checklist_items','DELETE'),
     ('authenticated','order_stage_checklist_items','SELECT'),
     ('authenticated','order_stage_checklist_checks','SELECT'),
     ('authenticated','order_stage_checklist_checks','INSERT'),
