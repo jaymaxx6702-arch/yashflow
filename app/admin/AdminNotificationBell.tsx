@@ -68,6 +68,7 @@ export default function AdminNotificationBell({ employeeId }: Props) {
   const [vibrationSupported, setVibrationSupported] = useState(false);
   const [closedAppPushEnabled, setClosedAppPushEnabled] = useState(false);
   const [closedAppPushSupported, setClosedAppPushSupported] = useState(false);
+  const [pushSetupBusy, setPushSetupBusy] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const initializedRef = useRef(false);
@@ -135,12 +136,25 @@ export default function AdminNotificationBell({ employeeId }: Props) {
     setClosedAppPushSupported(canPush);
 
     if (canPush) {
-      setClosedAppPushEnabled(
-        Notification.permission === "granted" &&
-          window.localStorage.getItem(
-            "yashflow-system-notifications-enabled"
-          ) === "true"
-      );
+      void navigator.serviceWorker.ready
+        .then((registration) =>
+          registration.pushManager.getSubscription()
+        )
+        .then((subscription) => {
+          const enabled =
+            Notification.permission === "granted" &&
+            Boolean(subscription);
+
+          setClosedAppPushEnabled(enabled);
+          window.localStorage.setItem(
+            "yashflow-system-notifications-enabled",
+            String(enabled)
+          );
+        })
+        .catch((error) => {
+          console.warn("Push subscription status check failed:", error);
+          setClosedAppPushEnabled(false);
+        });
     }
 
     return () => {
@@ -249,37 +263,54 @@ export default function AdminNotificationBell({ employeeId }: Props) {
       return;
     }
 
-    if (
-      closedAppPushEnabled &&
-      Notification.permission === "granted"
-    ) {
-      await disableWebPushSubscription().catch((error) => {
-        console.warn("Admin push unsubscribe failed:", error);
-      });
-
-      setClosedAppPushEnabled(false);
-      window.localStorage.setItem(
-        "yashflow-system-notifications-enabled",
-        "false"
-      );
-      setMessage("Closed-App Notifications OFF થયા.");
-      return;
-    }
-
-    const permission = await Notification.requestPermission();
-
-    if (permission !== "granted") {
-      setClosedAppPushEnabled(false);
-      setMessage(
-        "Notification permission Allow કરો. Browser/App Settings → Notifications → Allow."
-      );
-      return;
-    }
+    setPushSetupBusy(true);
 
     try {
-      await ensureWebPushSubscription();
+      const registration = await navigator.serviceWorker.ready;
+      const existing =
+        await registration.pushManager.getSubscription();
 
-      setClosedAppPushEnabled(true);
+      if (
+        existing &&
+        Notification.permission === "granted"
+      ) {
+        await disableWebPushSubscription();
+
+        setClosedAppPushEnabled(false);
+        window.localStorage.setItem(
+          "yashflow-system-notifications-enabled",
+          "false"
+        );
+        setMessage("Closed-App Notifications OFF થયા.");
+        return;
+      }
+
+      if (Notification.permission === "denied") {
+        setClosedAppPushEnabled(false);
+        setMessage(
+          "Notifications browser/device settingsમાં Block છે. Site/App Settings → Notifications → Allow કરો."
+        );
+        return;
+      }
+
+      const permission =
+        Notification.permission === "granted"
+          ? "granted"
+          : await Notification.requestPermission();
+
+      if (permission !== "granted") {
+        setClosedAppPushEnabled(false);
+        setMessage(
+          "Notification permission Allow કરો. Browser/App Settings → Notifications → Allow."
+        );
+        return;
+      }
+
+      setMessage("Closed-App Notifications setup થઈ રહ્યું છે...");
+
+      const subscription = await ensureWebPushSubscription();
+
+      setClosedAppPushEnabled(Boolean(subscription));
       window.localStorage.setItem(
         "yashflow-system-notifications-enabled",
         "true"
@@ -289,11 +320,17 @@ export default function AdminNotificationBell({ employeeId }: Props) {
       );
     } catch (error) {
       setClosedAppPushEnabled(false);
+      window.localStorage.setItem(
+        "yashflow-system-notifications-enabled",
+        "false"
+      );
       setMessage(
         error instanceof Error
-          ? error.message
+          ? `Push Setup Error: ${error.message}`
           : "Closed-App Push setup failed."
       );
+    } finally {
+      setPushSetupBusy(false);
     }
   }
 
@@ -564,7 +601,7 @@ export default function AdminNotificationBell({ employeeId }: Props) {
                 <button
                   type="button"
                   onClick={() => void toggleClosedAppPush()}
-                  disabled={!closedAppPushSupported}
+                  disabled={!closedAppPushSupported || pushSetupBusy}
                   className={`yf-btn disabled:opacity-50 ${
                     closedAppPushEnabled
                       ? "bg-cyan-100 text-cyan-900"
@@ -573,6 +610,8 @@ export default function AdminNotificationBell({ employeeId }: Props) {
                 >
                   {!closedAppPushSupported
                     ? "📵 Push Unsupported"
+                    : pushSetupBusy
+                    ? "⏳ Setting up..."
                     : closedAppPushEnabled
                     ? "📲 Closed-App ON"
                     : "📴 Closed-App OFF"}
