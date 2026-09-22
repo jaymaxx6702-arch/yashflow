@@ -80,6 +80,18 @@ export default function ManualPunchRequest({
   timezone = "Asia/Kolkata",
 }: Props) {
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    function handleNativeBack(event: Event) {
+      if (!open) return;
+      event.preventDefault();
+      setOpen(false);
+    }
+
+    window.addEventListener("yashflow:native-back", handleNativeBack as EventListener);
+    return () =>
+      window.removeEventListener("yashflow:native-back", handleNativeBack as EventListener);
+  }, [open]);
   const [requests, setRequests] = useState<ManualPunchRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
