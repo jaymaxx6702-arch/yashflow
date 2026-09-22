@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import YashFlowIcon, { type YashFlowIconName } from "@/components/YashFlowIcon";
 import { createClient } from "@/utils/supabase/client";
 import {
   initialiseNativePermissions,
@@ -40,22 +41,22 @@ function formatNotificationTime(value: string) {
   }).format(new Date(value));
 }
 
-function notificationIcon(type: string | null) {
+function notificationIcon(type: string | null): YashFlowIconName {
   switch (type) {
     case "order_assignment":
     case "order_update":
-      return "📦";
+      return "orders";
     case "task":
     case "task_assignment":
     case "task_update":
-      return "📋";
+      return "task";
     case "leave":
     case "leave_status":
-      return "🗓️";
+      return "calendar";
     case "attendance":
-      return "🕘";
+      return "clock";
     default:
-      return "🔔";
+      return "bell";
   }
 }
 
@@ -617,7 +618,7 @@ export default function AdminNotificationBell({ employeeId }: Props) {
         aria-label="Admin Notifications"
         title="Admin Notifications"
       >
-        <span className="text-xl leading-none">🔔</span>
+        <YashFlowIcon name="bell" size={21} />
 
         {unreadCount > 0 && (
           <span className="absolute -top-2 -right-2 min-w-[22px] h-[22px] px-1.5 rounded-full bg-red-500 border-2 border-blue-700 text-white text-[11px] font-black flex items-center justify-center shadow">
@@ -770,7 +771,10 @@ export default function AdminNotificationBell({ employeeId }: Props) {
                           item.is_read ? "bg-slate-100" : "bg-blue-100"
                         }`}
                       >
-                        {notificationIcon(item.notification_type)}
+                        <YashFlowIcon
+                          name={notificationIcon(item.notification_type)}
+                          size={20}
+                        />
                       </div>
 
                       <div className="min-w-0 flex-1">
