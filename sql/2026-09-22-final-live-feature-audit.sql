@@ -51,6 +51,7 @@ with required(name) as (
     ('audit_activity'),
     ('push_settings'),
     ('push_subscriptions'),
+    ('native_push_tokens'),
     ('push_outbox')
 )
 select
