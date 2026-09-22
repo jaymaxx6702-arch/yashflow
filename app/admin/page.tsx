@@ -1814,7 +1814,6 @@ const manualPunchRows = (
             <ToolButton href="/admin/reports" label="Export" icon="📤" />
             <ToolButton href="/admin/reorder" label="Reorder" icon="🧾" />
             <ToolButton href="/admin/escalations" label="Escalations" icon="🚨" />
-            <ToolButton href="/admin/checklists" label="Stage Checklists" icon="☑️" />
             <ToolButton href="/admin/activity" label="Activity History" icon="🕘" />
           </div>
         </section>
