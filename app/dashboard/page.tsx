@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import { getNativeCurrentPosition } from "@/utils/native-app";
 import {
   enqueueOfflineAction,
   getOfflineActionsForEmployee,
@@ -278,11 +279,21 @@ export default function EmployeeDashboard() {
     )}:00`;
   }
 
-  function getGpsLocation(): Promise<{
+  async function getGpsLocation(): Promise<{
     latitude: number;
     longitude: number;
     accuracy: number;
   }> {
+    const nativePosition = await getNativeCurrentPosition({
+      enableHighAccuracy: true,
+      timeout: 12000,
+      maximumAge: 0,
+    });
+
+    if (nativePosition) {
+      return nativePosition;
+    }
+
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) {
         reject(
@@ -355,7 +366,7 @@ export default function EmployeeDashboard() {
           if (error.code === error.PERMISSION_DENIED) {
             finish(
               new Error(
-                "Location Permission denied છે. Browser Settingsમાં Precise Location Allow કરો."
+                "Location Permission denied છે. Android App Info → Permissions → Location → Allow while using app અને Precise Location ON કરો."
               )
             );
           } else if (error.code === error.TIMEOUT) {
