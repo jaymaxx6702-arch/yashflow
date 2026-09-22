@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import YashFlowIcon from "@/components/YashFlowIcon";
 import { ensureWebPushSubscription } from "@/utils/push-client";
 
 export default function PushSubscriptionManager() {
@@ -120,8 +121,9 @@ export default function PushSubscriptionManager() {
     <div className="fixed top-3 left-3 right-3 z-[130] mx-auto max-w-xl rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 shadow-xl">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-black text-amber-900">
-            🔔 Mobile Notifications OFF
+          <p className="text-sm font-black text-amber-900 flex items-center gap-2">
+            <YashFlowIcon name="bell" size={17} />
+            Mobile Notifications OFF
           </p>
           <p className="text-[11px] font-semibold text-amber-800 mt-1">
             App બંધ હોય ત્યારે પણ Order/Task alerts મેળવવા Notifications Allow કરો.
