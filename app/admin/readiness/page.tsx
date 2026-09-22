@@ -186,6 +186,9 @@ export default function ProductionReadinessPage() {
         ["order_operation_details", "Order Production Details"],
         ["employee_departments", "Employee Department Mapping"],
         ["attendance_geofence_settings", "GPS Requirement Settings"],
+        ["stage_checklist_items", "Stage Checklist Definitions"],
+        ["order_stage_checklist_items", "Stage Checklist Snapshots"],
+        ["order_stage_checklist_checks", "Stage Checklist Checks"],
         ["app_permissions", "Permission Master"],
       ] as const;
 
@@ -246,6 +249,61 @@ export default function ProductionReadinessPage() {
         required: true,
       }));
 
+      const [
+        checklistMasterResult,
+        checklistSnapshotResult,
+        checklistChecksResult,
+      ] = await Promise.all([
+        supabase
+          .from("stage_checklist_items")
+          .select(
+            "id, workflow_template_stage_id, label, sort_order, is_required, is_active",
+            { count: "exact", head: true }
+          ),
+        supabase
+          .from("order_stage_checklist_items")
+          .select(
+            "id, order_stage_work_id, source_checklist_item_id, label, sort_order, is_required",
+            { count: "exact", head: true }
+          ),
+        supabase
+          .from("order_stage_checklist_checks")
+          .select(
+            "id, order_stage_work_id, snapshot_item_id, employee_id, is_checked",
+            { count: "exact", head: true }
+          ),
+      ]);
+
+      const checklistChecks: Check[] = [
+        {
+          key: "checklist-master-schema",
+          label: "Stage Checklist Master Schema",
+          ok: !checklistMasterResult.error,
+          detail: checklistMasterResult.error
+            ? `Repair required • ${checklistMasterResult.error.message}`
+            : `Ready • ${checklistMasterResult.count ?? 0} definition row(s)`,
+          required: true,
+        },
+        {
+          key: "checklist-snapshot-schema",
+          label: "Stage Checklist Snapshot Schema",
+          ok: !checklistSnapshotResult.error,
+          detail: checklistSnapshotResult.error
+            ? `Repair required • ${checklistSnapshotResult.error.message}`
+            : `Ready • ${checklistSnapshotResult.count ?? 0} snapshot row(s)`,
+          required: true,
+        },
+        {
+          key: "checklist-check-schema",
+          label: "Stage Checklist Check Schema",
+          ok: !checklistChecksResult.error,
+          detail: checklistChecksResult.error
+            ? `Repair required • ${checklistChecksResult.error.message}`
+            : `Ready • ${checklistChecksResult.count ?? 0} check row(s)`,
+          required: true,
+        },
+      ];
+
       const gpsSettingResult = await supabase
         .from("attendance_geofence_settings")
         .select("is_active, require_check_in, require_check_out, latitude, longitude")
@@ -281,7 +339,12 @@ export default function ProductionReadinessPage() {
         required: true,
       };
 
-      setDbChecks([...results, ...permissionChecks, gpsSettingCheck]);
+      setDbChecks([
+        ...results,
+        ...permissionChecks,
+        ...checklistChecks,
+        gpsSettingCheck,
+      ]);
       setLoading(false);
     }
 
