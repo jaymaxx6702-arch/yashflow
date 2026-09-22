@@ -929,6 +929,7 @@ export default function EmployeeDashboard() {
 
   async function handleCheckIn() {
     if (!employee || !officeSettings) return;
+    const employeeId = employee.id;
 
     if (
       gpsSettingsLoaded &&
@@ -983,12 +984,12 @@ export default function EmployeeDashboard() {
         enqueueOfflineAction(
           "attendance_check_in",
           {
-            employee_id: employee.id,
+            employee_id: employeeId,
             latitude: location.latitude,
             longitude: location.longitude,
             accuracy: location.accuracy,
           },
-          { ownerEmployeeId: employee.id }
+          { ownerEmployeeId: employeeId }
         );
 
         setOfflineAttendanceState("check_in");
@@ -1024,7 +1025,7 @@ export default function EmployeeDashboard() {
             Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify({
-            employee_id: employee.id,
+            employee_id: employeeId,
             latitude: locationToSubmit.latitude,
             longitude: locationToSubmit.longitude,
             accuracy: locationToSubmit.accuracy,
@@ -1103,7 +1104,7 @@ export default function EmployeeDashboard() {
             longitude: capturedLocation.longitude,
             accuracy: capturedLocation.accuracy,
           },
-          { ownerEmployeeId: employee.id }
+          { ownerEmployeeId: employeeId }
         );
 
         setOfflineAttendanceState("check_in");
@@ -1131,6 +1132,7 @@ export default function EmployeeDashboard() {
     ) {
       return;
     }
+    const employeeId = employee.id;
 
     if (
       gpsSettingsLoaded &&
@@ -1220,7 +1222,7 @@ export default function EmployeeDashboard() {
             accuracy: location.accuracy,
             early_reason: earlyReason,
           },
-          { ownerEmployeeId: employee.id }
+          { ownerEmployeeId: employeeId }
         );
 
         setOfflineAttendanceState("check_out");
@@ -1256,7 +1258,7 @@ export default function EmployeeDashboard() {
             Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify({
-            employee_id: employee.id,
+            employee_id: employeeId,
             latitude: locationToSubmit.latitude,
             longitude: locationToSubmit.longitude,
             accuracy: locationToSubmit.accuracy,
@@ -1339,13 +1341,13 @@ export default function EmployeeDashboard() {
         enqueueOfflineAction(
           "attendance_check_out",
           {
-            employee_id: employee.id,
+            employee_id: employeeId,
             latitude: capturedLocation.latitude,
             longitude: capturedLocation.longitude,
             accuracy: capturedLocation.accuracy,
             early_reason: earlyReason,
           },
-          { ownerEmployeeId: employee.id }
+          { ownerEmployeeId: employeeId }
         );
 
         setOfflineAttendanceState("check_out");
