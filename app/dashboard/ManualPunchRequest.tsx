@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
+import YashFlowIcon from "@/components/YashFlowIcon";
 
 type ManualPunchRequestRow = {
   id: string;
@@ -234,7 +235,7 @@ export default function ManualPunchRequest({
             onClick={openForm}
             className="yf-btn bg-amber-500 text-white hover:bg-amber-600"
           >
-            🕘 Manual Punch Request
+            <YashFlowIcon name="clock" size={18} /> Manual Punch Request
           </button>
         </div>
 
