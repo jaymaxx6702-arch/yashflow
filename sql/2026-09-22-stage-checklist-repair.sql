@@ -46,7 +46,12 @@ begin
       v_id_type;
   end if;
 
+  update public.stage_checklist_items
+  set id = gen_random_uuid()
+  where id is null;
+
   alter table public.stage_checklist_items
+    alter column id set default gen_random_uuid(),
     add column if not exists workflow_template_stage_id uuid,
     add column if not exists label text,
     add column if not exists sort_order integer default 10,
@@ -264,7 +269,12 @@ begin
 end;
 $repair_snapshot_id$;
 
+update public.order_stage_checklist_items
+set id = gen_random_uuid()
+where id is null;
+
 alter table public.order_stage_checklist_items
+  alter column id set default gen_random_uuid(),
   add column if not exists order_stage_work_id uuid,
   add column if not exists source_checklist_item_id uuid,
   add column if not exists label text,
@@ -490,7 +500,12 @@ begin
 end;
 $repair_checks_id$;
 
+update public.order_stage_checklist_checks
+set id = gen_random_uuid()
+where id is null;
+
 alter table public.order_stage_checklist_checks
+  alter column id set default gen_random_uuid(),
   add column if not exists order_stage_work_id uuid,
   add column if not exists snapshot_item_id uuid,
   add column if not exists employee_id uuid,
