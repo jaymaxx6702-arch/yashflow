@@ -358,6 +358,7 @@ export default function AdminOrdersPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showEdit, setShowEdit] = useState(false);
+  const [editMessage, setEditMessage] = useState("");
   const [showStageProof, setShowStageProof] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
   const [showBilling, setShowBilling] = useState(false);
@@ -1531,6 +1532,7 @@ export default function AdminOrdersPage() {
     setWorkerSelection(work?.primary_employee_id || "");
     setStageSelection(getOrderStage(order)?.id || "");
     setShowEdit(false);
+    setEditMessage("");
     setShowStageProof(false);
     setShowPayment(false);
     setShowBilling(false);
@@ -1873,16 +1875,17 @@ export default function AdminOrdersPage() {
     const qty = Number(editForm.quantity);
 
     if (!editForm.customer_name.trim()) {
-      setMessage("Customer Name જરૂરી છે.");
+      setEditMessage("Customer Name જરૂરી છે.");
       return;
     }
 
     if (!Number.isInteger(qty) || qty <= 0) {
-      setMessage("Quantity સાચી નાખો.");
+      setEditMessage("Quantity સાચી નાખો.");
       return;
     }
 
     setActionId(`edit-${selectedOrder.id}`);
+    setEditMessage("");
     setMessage("");
 
     const supabase = createClient();
@@ -1902,7 +1905,7 @@ export default function AdminOrdersPage() {
       .eq("id", selectedOrder.id);
 
     if (error) {
-      setMessage(`Order Edit Error: ${error.message}`);
+      setEditMessage(`Order Edit Error: ${error.message}`);
       setActionId(null);
       return;
     }
@@ -1915,6 +1918,8 @@ export default function AdminOrdersPage() {
     });
 
     setMessage("Order Details Updated ✅");
+    setEditMessage("");
+    setShowEdit(false);
     setSelectedOrder(null);
     await refreshOrders();
     setActionId(null);
@@ -4079,7 +4084,10 @@ export default function AdminOrdersPage() {
               <div className="grid sm:grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowEdit((current) => !current)}
+                  onClick={() => {
+                    setEditMessage("");
+                    setShowEdit(true);
+                  }}
                   className="yf-btn yf-btn-secondary"
                 >
                   ✎ Edit Order Details
@@ -4155,6 +4163,11 @@ export default function AdminOrdersPage() {
                     </div>
 
                     <div className="flex-1 min-h-0 overflow-y-auto p-4">
+                      {editMessage && (
+                        <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">
+                          {editMessage}
+                        </div>
+                      )}
                       <div className="grid sm:grid-cols-2 gap-3">
                         <input
                           value={editForm.customer_name}
