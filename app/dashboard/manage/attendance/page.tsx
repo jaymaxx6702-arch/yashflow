@@ -90,6 +90,18 @@ export default function PermissionAttendanceEditorPage() {
   const [message, setMessage] = useState("");
 
   const [editingRow, setEditingRow] = useState<AttendanceRow | null>(null);
+
+  useEffect(() => {
+    function handleNativeBack(event: Event) {
+      if (!editingRow) return;
+      event.preventDefault();
+      setEditingRow(null);
+    }
+
+    window.addEventListener("yashflow:native-back", handleNativeBack as EventListener);
+    return () =>
+      window.removeEventListener("yashflow:native-back", handleNativeBack as EventListener);
+  }, [editingRow]);
   const [checkIn, setCheckIn] = useState("09:00");
   const [checkOut, setCheckOut] = useState("");
   const [adminNote, setAdminNote] = useState("");
