@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import { showNativeYashFlowNotification } from "@/utils/native-app";
 import {
   disableWebPushSubscription,
   ensureWebPushSubscription,
@@ -373,6 +374,16 @@ export default function AdminNotificationBell({ employeeId }: Props) {
 
         if (hasNewUnread) {
           runAlert();
+          const newest = rows.find(
+            (item) => !item.is_read && !knownIdsRef.current.has(item.id)
+          );
+          if (newest) {
+            void showNativeYashFlowNotification({
+              title: newest.title || "YashFlow",
+              body: newest.message || "New notification",
+              notificationId: newest.id,
+            });
+          }
         }
       }
 
@@ -413,6 +424,11 @@ export default function AdminNotificationBell({ employeeId }: Props) {
           if (newId && !knownIdsRef.current.has(newId)) {
             knownIdsRef.current.add(newId);
             runAlert();
+            void showNativeYashFlowNotification({
+              title: String(newRow.title || "YashFlow"),
+              body: String(newRow.message || "New notification"),
+              notificationId: newId,
+            });
           }
 
           void loadNotifications(false);
