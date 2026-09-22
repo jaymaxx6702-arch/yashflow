@@ -25,6 +25,30 @@ function requestLoginNotificationPermission(): Promise<NotificationPermission | 
   }
 }
 
+function primeNotificationSound() {
+  if (typeof window === "undefined") return;
+
+  try {
+    const audio = new Audio("/sounds/notification.wav");
+    audio.preload = "auto";
+    audio.volume = 0.001;
+    audio.currentTime = 0;
+
+    void audio
+      .play()
+      .then(() => {
+        audio.pause();
+        audio.currentTime = 0;
+      })
+      .catch(() => {
+        // Some browsers still defer audio until the next interaction.
+        // The notification bell keeps a second unlock fallback.
+      });
+  } catch {
+    // Sound support is optional; login must never fail because of audio.
+  }
+}
+
 async function showLoginNotification(
   employeeName: string,
   gpsRequired: boolean
@@ -184,6 +208,9 @@ export default function Home() {
   }, [router]);
 
   async function handleLogin() {
+    // This runs directly from the Login button user gesture and primes
+    // browser audio permission for later real-time notification sounds.
+    primeNotificationSound();
     setMessage("");
 
     if (mobile.length !== 10) {
