@@ -312,20 +312,19 @@ export async function registerNativeBackHandler() {
 
       const path = window.location.pathname;
 
-      // Root screens stay inside YashFlow instead of closing the Android app.
-      if (path === "/" || path === "/admin" || path === "/dashboard") {
-        return;
-      }
-
-      // Prefer browser history only when YashFlow has created an in-app entry.
-      // Otherwise use deterministic parent routes so Back never escapes the
-      // remote WebView to an external/blank screen.
+      // Close YashFlow-managed history overlays (for example the employee
+      // dashboard summary drawer) before applying root-screen protection.
       if (
         window.history.length > 1 &&
         (window.history.state?.yfEmployeeDrawer ||
           window.history.state?.yfYashFlowRoute)
       ) {
         window.history.back();
+        return;
+      }
+
+      // Root screens stay inside YashFlow instead of closing the Android app.
+      if (path === "/" || path === "/admin" || path === "/dashboard") {
         return;
       }
 
