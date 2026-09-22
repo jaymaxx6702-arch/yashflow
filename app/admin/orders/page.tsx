@@ -397,6 +397,36 @@ export default function AdminOrdersPage() {
 
   const [message, setMessage] = useState("");
 
+  useEffect(() => {
+    function handleNativeBack(event: Event) {
+      if (showEdit) {
+        event.preventDefault();
+        setEditMessage("");
+        setShowEdit(false);
+        return;
+      }
+
+      if (selectedOrder) {
+        event.preventDefault();
+        setSelectedOrder(null);
+        setSelectedOrderProofs([]);
+        resetFinancialForms();
+      }
+    }
+
+    window.addEventListener(
+      "yashflow:native-back",
+      handleNativeBack as EventListener
+    );
+
+    return () => {
+      window.removeEventListener(
+        "yashflow:native-back",
+        handleNativeBack as EventListener
+      );
+    };
+  }, [showEdit, selectedOrder]);
+
   const employeeMap = useMemo(
     () => new Map(employees.map((employee) => [employee.id, employee])),
     [employees]
