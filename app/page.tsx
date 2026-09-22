@@ -6,50 +6,6 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { ensureWebPushSubscription } from "@/utils/push-client";
 
-function requestLoginNotificationPermission(): Promise<NotificationPermission | "unsupported"> {
-  if (typeof window === "undefined" || !("Notification" in window)) {
-    return Promise.resolve("unsupported");
-  }
-
-  if (Notification.permission === "granted") {
-    return Promise.resolve("granted");
-  }
-
-  if (Notification.permission === "denied") {
-    return Promise.resolve("denied");
-  }
-
-  try {
-    return Notification.requestPermission();
-  } catch {
-    return Promise.resolve("denied");
-  }
-}
-
-function primeNotificationSound() {
-  if (typeof window === "undefined") return;
-
-  try {
-    const audio = new Audio("/sounds/notification.wav");
-    audio.preload = "auto";
-    audio.volume = 0.001;
-    audio.currentTime = 0;
-
-    void audio
-      .play()
-      .then(() => {
-        audio.pause();
-        audio.currentTime = 0;
-      })
-      .catch(() => {
-        // Some browsers still defer audio until the next interaction.
-        // The notification bell keeps a second unlock fallback.
-      });
-  } catch {
-    // Sound support is optional; login must never fail because of audio.
-  }
-}
-
 async function showLoginNotification(
   employeeName: string,
   gpsRequired: boolean
@@ -224,9 +180,6 @@ export default function Home() {
       return;
     }
 
-    const notificationPermissionPromise =
-      requestLoginNotificationPermission();
-
     setLoading(true);
 
     const supabase = createClient();
@@ -331,20 +284,28 @@ export default function Home() {
       }
     }
 
-    void notificationPermissionPromise.then(async (permission) => {
-      if (permission !== "granted") return;
-
+    // Never open the browser permission prompt automatically on login.
+    // If permission is already granted, silently keep the device subscribed.
+    // If permission is OFF/default, PushSubscriptionManager shows an explicit
+    // Enable Notifications option after login.
+    if (
+      typeof window !== "undefined" &&
+      "Notification" in window &&
+      Notification.permission === "granted"
+    ) {
       window.localStorage.setItem(
         "yashflow-system-notifications-enabled",
         "true"
       );
 
-      await ensureWebPushSubscription().catch((error) => {
-        console.warn("Login push subscription setup failed:", error);
-      });
-
-      await showLoginNotification(employee.full_name, gpsRequired);
-    });
+      void ensureWebPushSubscription()
+        .then(() =>
+          showLoginNotification(employee.full_name, gpsRequired)
+        )
+        .catch((error) => {
+          console.warn("Login push subscription setup failed:", error);
+        });
+    }
 
     /*
       IMPORTANT:
