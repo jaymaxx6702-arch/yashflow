@@ -612,6 +612,26 @@ export default function AdminPage() {
   const [attentionOpen, setAttentionOpen] = useState(false);
   const [productionFlowOpen, setProductionFlowOpen] = useState(false);
 
+  useEffect(() => {
+    function handleNativeBack(event: Event) {
+      if (!drawer.open) return;
+      event.preventDefault();
+      setDrawer((current) => ({ ...current, open: false }));
+    }
+
+    window.addEventListener(
+      "yashflow:native-back",
+      handleNativeBack as EventListener
+    );
+
+    return () => {
+      window.removeEventListener(
+        "yashflow:native-back",
+        handleNativeBack as EventListener
+      );
+    };
+  }, [drawer.open]);
+
   const today = useMemo(() => getIndiaDate(), []);
   const displayDate = useMemo(() => getIndiaDisplayDate(), []);
 
