@@ -1,73 +1,113 @@
 "use client";
 
-type NativePlugins = {
-  Geolocation?: {
-    checkPermissions?: () => Promise<Record<string, string>>;
-    requestPermissions?: () => Promise<Record<string, string>>;
-  };
-  LocalNotifications?: {
-    checkPermissions?: () => Promise<{ display?: string }>;
-    requestPermissions?: () => Promise<{ display?: string }>;
-    createChannel?: (options: Record<string, unknown>) => Promise<void>;
-    schedule?: (options: Record<string, unknown>) => Promise<void>;
-  };
-  PushNotifications?: {
-    checkPermissions?: () => Promise<{ receive?: string }>;
-    requestPermissions?: () => Promise<{ receive?: string }>;
-    register?: () => Promise<void>;
-    addListener?: (
-      eventName: string,
-      listener: (payload: Record<string, unknown>) => void
-    ) => Promise<{ remove?: () => Promise<void> }> | { remove?: () => Promise<void> };
+type CapacitorBridge = {
+  isNativePlatform?: () => boolean;
+  getPlatform?: () => string;
+  isPluginAvailable?: (name: string) => boolean;
+  nativePromise?: (
+    pluginName: string,
+    methodName: string,
+    options?: Record<string, unknown>
+  ) => Promise<unknown>;
+  nativeCallback?: (
+    pluginName: string,
+    methodName: string,
+    options: Record<string, unknown>,
+    callback: (data: unknown, error?: unknown) => void
+  ) => string | null;
+};
+
+type NativePosition = {
+  coords?: {
+    latitude?: number;
+    longitude?: number;
+    accuracy?: number;
   };
 };
 
-function plugins(): NativePlugins | null {
+const CHANNEL_ID = "yashflow_alerts_v2";
+const SOUND_FILE = "yashflow_notification.wav";
+
+function bridge(): CapacitorBridge | null {
   if (typeof window === "undefined") return null;
+
   const cap = (window as unknown as {
-    Capacitor?: {
-      isNativePlatform?: () => boolean;
-      getPlatform?: () => string;
-      Plugins?: NativePlugins;
-    };
+    Capacitor?: CapacitorBridge;
   }).Capacitor;
 
   const native =
     cap?.isNativePlatform?.() === true ||
     (cap?.getPlatform?.() && cap.getPlatform?.() !== "web");
 
-  return native ? cap?.Plugins || null : null;
+  return native && typeof cap?.nativePromise === "function"
+    ? cap
+    : null;
+}
+
+async function nativeCall<T = unknown>(
+  pluginName: string,
+  methodName: string,
+  options: Record<string, unknown> = {}
+): Promise<T> {
+  const cap = bridge();
+  if (!cap?.nativePromise) {
+    throw new Error("YashFlow native bridge is unavailable.");
+  }
+
+  return (await cap.nativePromise(
+    pluginName,
+    methodName,
+    options
+  )) as T;
 }
 
 export function isNativeYashFlow() {
-  return Boolean(plugins());
+  return Boolean(bridge());
 }
 
 export async function initialiseNativePermissions() {
-  const native = plugins();
-  if (!native) return { native: false };
+  const cap = bridge();
+  if (!cap) return { native: false, location: "unavailable" };
+
+  let notificationPermission: unknown = null;
+  let locationPermission: unknown = null;
 
   try {
-    await native.LocalNotifications?.requestPermissions?.();
-    await native.PushNotifications?.requestPermissions?.();
+    notificationPermission = await nativeCall(
+      "LocalNotifications",
+      "requestPermissions"
+    );
   } catch (error) {
-    console.warn("Native notification permission request failed", error);
+    console.warn("Native local notification permission failed", error);
   }
 
   try {
-    await native.Geolocation?.requestPermissions?.();
+    if (cap.isPluginAvailable?.("PushNotifications") !== false) {
+      await nativeCall("PushNotifications", "requestPermissions");
+    }
+  } catch (error) {
+    console.warn("Native push notification permission failed", error);
+  }
+
+  try {
+    locationPermission = await nativeCall(
+      "Geolocation",
+      "requestPermissions"
+    );
   } catch (error) {
     console.warn("Native location permission request failed", error);
   }
 
   try {
-    await native.LocalNotifications?.createChannel?.({
-      id: "yashflow_alerts",
+    // Android notification-channel sound is effectively immutable.
+    // v2 guarantees a fresh channel after older silent test builds.
+    await nativeCall("LocalNotifications", "createChannel", {
+      id: CHANNEL_ID,
       name: "YashFlow Alerts",
       description: "Orders, tasks, attendance and workflow alerts",
       importance: 5,
       visibility: 1,
-      sound: "yashflow_notification.wav",
+      sound: SOUND_FILE,
       vibration: true,
       lights: true,
     });
@@ -75,7 +115,81 @@ export async function initialiseNativePermissions() {
     console.warn("Native notification channel setup failed", error);
   }
 
-  return { native: true };
+  return {
+    native: true,
+    notificationPermission,
+    locationPermission,
+  };
+}
+
+export async function getNativeCurrentPosition(options?: {
+  timeout?: number;
+  maximumAge?: number;
+  enableHighAccuracy?: boolean;
+}) {
+  if (!bridge()) return null;
+
+  try {
+    const permission = await nativeCall<Record<string, string>>(
+      "Geolocation",
+      "checkPermissions"
+    );
+
+    const allowed =
+      permission.location === "granted" ||
+      permission.coarseLocation === "granted";
+
+    if (!allowed) {
+      const requested = await nativeCall<Record<string, string>>(
+        "Geolocation",
+        "requestPermissions"
+      );
+
+      const granted =
+        requested.location === "granted" ||
+        requested.coarseLocation === "granted";
+
+      if (!granted) {
+        throw new Error(
+          "Location Permission denied છે. Android App Info → Permissions → Location → Allow while using app અને Precise Location ON કરો."
+        );
+      }
+    }
+
+    const position = await nativeCall<NativePosition>(
+      "Geolocation",
+      "getCurrentPosition",
+      {
+        enableHighAccuracy: options?.enableHighAccuracy ?? true,
+        timeout: options?.timeout ?? 12000,
+        maximumAge: options?.maximumAge ?? 0,
+      }
+    );
+
+    const latitude = Number(position.coords?.latitude);
+    const longitude = Number(position.coords?.longitude);
+    const accuracy = Number(position.coords?.accuracy);
+
+    if (
+      !Number.isFinite(latitude) ||
+      !Number.isFinite(longitude)
+    ) {
+      throw new Error(
+        "GPS Location મળ્યું નથી. Phone Location ON છે કે નહીં ચેક કરીને ફરી Try કરો."
+      );
+    }
+
+    return {
+      latitude,
+      longitude,
+      accuracy: Number.isFinite(accuracy) ? accuracy : 9999,
+    };
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error(
+      "GPS Location મળ્યું નથી. Phone Location ON છે કે નહીં ચેક કરીને ફરી Try કરો."
+    );
+  }
 }
 
 export async function showNativeYashFlowNotification(options: {
@@ -83,8 +197,7 @@ export async function showNativeYashFlowNotification(options: {
   body: string;
   notificationId?: string;
 }) {
-  const native = plugins();
-  if (!native?.LocalNotifications?.schedule) return false;
+  if (!bridge()) return false;
 
   const idSource = options.notificationId || String(Date.now());
   let numericId = 0;
@@ -94,15 +207,15 @@ export async function showNativeYashFlowNotification(options: {
   numericId = (numericId % 2147483000) + 1;
 
   try {
-    await native.LocalNotifications.schedule({
+    await nativeCall("LocalNotifications", "schedule", {
       notifications: [
         {
           id: numericId,
           title: options.title || "YashFlow",
           body: options.body || "New notification",
-          channelId: "yashflow_alerts",
-          schedule: { at: new Date(Date.now() + 150) },
-          sound: "yashflow_notification.wav",
+          channelId: CHANNEL_ID,
+          schedule: { at: new Date(Date.now() + 150).toISOString() },
+          sound: SOUND_FILE,
         },
       ],
     });
@@ -116,40 +229,68 @@ export async function showNativeYashFlowNotification(options: {
 export async function registerNativeFcmToken(
   onToken: (token: string) => void | Promise<void>
 ) {
-  const native = plugins();
-  const push = native?.PushNotifications;
-
-  if (!push?.register || !push.addListener) {
-    return { native: Boolean(native), registered: false };
+  const cap = bridge();
+  if (!cap?.nativeCallback || !cap.nativePromise) {
+    return { native: Boolean(cap), registered: false };
   }
 
-  let registrationHandle:
-    | { remove?: () => Promise<void> }
-    | undefined;
-
-  const listener = (payload: Record<string, unknown>) => {
-    const value = payload.value;
-    if (typeof value === "string" && value.trim()) {
-      void onToken(value.trim());
-    }
-  };
+  if (cap.isPluginAvailable?.("PushNotifications") === false) {
+    return { native: true, registered: false };
+  }
 
   try {
-    const maybeHandle = await push.addListener("registration", listener);
-    registrationHandle = maybeHandle || undefined;
+    const permission = await nativeCall<Record<string, string>>(
+      "PushNotifications",
+      "requestPermissions"
+    );
 
-    await push.register();
+    if (permission.receive !== "granted") {
+      return { native: true, registered: false };
+    }
+
+    const callbackId = cap.nativeCallback(
+      "PushNotifications",
+      "addListener",
+      { eventName: "registration" },
+      (payload, error) => {
+        if (error) {
+          console.warn("Native FCM registration listener failed", error);
+          return;
+        }
+
+        const token =
+          payload &&
+          typeof payload === "object" &&
+          "value" in payload &&
+          typeof (payload as { value?: unknown }).value === "string"
+            ? (payload as { value: string }).value.trim()
+            : "";
+
+        if (token) {
+          void onToken(token);
+        }
+      }
+    );
+
+    await nativeCall("PushNotifications", "register");
 
     return {
       native: true,
       registered: true,
       remove: async () => {
-        await registrationHandle?.remove?.();
+        if (!callbackId) return;
+        try {
+          await nativeCall("PushNotifications", "removeListener", {
+            eventName: "registration",
+            callbackId,
+          });
+        } catch {
+          // Listener cleanup is best-effort only.
+        }
       },
     };
   } catch (error) {
     console.warn("Native FCM registration failed", error);
-    await registrationHandle?.remove?.();
     return { native: true, registered: false };
   }
 }
