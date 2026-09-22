@@ -2380,15 +2380,8 @@ export default function AdminOrdersPage() {
   async function completeOrder(order: Order) {
     if (!adminId) return;
 
-    const reason = window.prompt(
-      `${order.order_number} ને Direct Complete કરવો છે. Optional note લખો:`,
-      "Admin direct completed order"
-    );
-
-    if (reason === null) return;
-
     const confirmed = window.confirm(
-      `${order.order_number} ના active stages બંધ કરીને Order Completed કરવો છે?`
+      `${order.order_number} ને Direct Complete કરવો છે?\n\nCurrent stage સહિત બધા active stages બંધ થશે અને Order Completed થશે. આ action આગળના normal workflow steps bypass કરશે.\n\nContinue?`
     );
 
     if (!confirmed) return;
@@ -2402,7 +2395,7 @@ export default function AdminOrdersPage() {
       "admin_complete_order_v1",
       {
         p_order_id: order.id,
-        p_note: reason.trim() || null,
+        p_note: "Admin direct completed order",
       }
     );
 
@@ -2555,6 +2548,15 @@ export default function AdminOrdersPage() {
 
   function isReadyToComplete(order: Order) {
     return effectiveWorkflowStatus(order) === "ready_for_approval";
+  }
+
+  function canDirectComplete(order: Order) {
+    return (
+      order.current_stage !== "completed" &&
+      order.workflow_status !== "completed" &&
+      order.current_stage !== "cancelled" &&
+      order.workflow_status !== "cancelled"
+    );
   }
 
   function isProductionOrder(order: Order) {
@@ -3061,12 +3063,13 @@ export default function AdminOrdersPage() {
                     </div>
 
                     <div className="shrink-0 flex items-center gap-2">
-                      {isReadyToComplete(order) && (
+                      {canDirectComplete(order) && (
                         <button
                           type="button"
                           onClick={() => void completeOrder(order)}
                           disabled={actionId === `complete-${order.id}`}
                           className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-[10px] font-black text-green-700 hover:bg-green-100 disabled:opacity-50"
+                          title="Admin can directly complete this order from its current stage"
                         >
                           {actionId === `complete-${order.id}`
                             ? "Completing..."
