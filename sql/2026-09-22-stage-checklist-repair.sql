@@ -60,6 +60,27 @@ begin
     add column if not exists created_at timestamptz default now(),
     add column if not exists updated_at timestamptz default now();
 
+  -- Legacy schemas may also carry a direct stage_id column that was
+  -- previously NOT NULL. The canonical key is workflow_template_stage_id,
+  -- so keep stage_id only as an optional compatibility column.
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'stage_checklist_items'
+      and column_name = 'stage_id'
+  ) then
+    execute $sql$
+      update public.stage_checklist_items sci
+      set stage_id = wts.stage_id
+      from public.workflow_template_stages wts
+      where sci.workflow_template_stage_id = wts.id
+        and sci.stage_id is null
+    $sql$;
+
+    alter table public.stage_checklist_items
+      alter column stage_id drop not null;
+  end if;
+
   -- Known legacy name: template_stage_id.
   if exists (
     select 1 from information_schema.columns
