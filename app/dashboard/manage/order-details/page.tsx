@@ -63,6 +63,27 @@ export default function OrderOperationDetailsPage() {
   const [details, setDetails] = useState<OperationDetails[]>([]);
   const [search, setSearch] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+
+  useEffect(() => {
+    function handleNativeBack(event: Event) {
+      if (!selectedOrder) return;
+      event.preventDefault();
+      setSelectedOrder(null);
+    }
+
+    window.addEventListener(
+      "yashflow:native-back",
+      handleNativeBack as EventListener
+    );
+
+    return () => {
+      window.removeEventListener(
+        "yashflow:native-back",
+        handleNativeBack as EventListener
+      );
+    };
+  }, [selectedOrder]);
+
   const [editorEmployeeId, setEditorEmployeeId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
 
