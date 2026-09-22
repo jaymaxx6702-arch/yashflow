@@ -58,6 +58,7 @@ async function executeAction(
       },
       body: JSON.stringify({
         ...action.payload,
+        employee_id: currentEmployeeId,
         client_action_at: action.queuedAt,
         offline_action_id: action.id,
         business_date: action.businessDate,
