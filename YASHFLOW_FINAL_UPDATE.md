@@ -184,3 +184,4 @@ Productivity smoke tests:
 13. Verify Vercel production deployment is Success.
 14. Run final live smoke test.
 15. Only then mark Final Update LIVE.
+<!-- Vercel redeploy trigger: 2026-09-22 -->
