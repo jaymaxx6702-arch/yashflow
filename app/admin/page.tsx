@@ -6,6 +6,7 @@ import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import AdminNotificationBell from "./AdminNotificationBell";
+import YashFlowIcon, { type YashFlowIconName } from "@/components/YashFlowIcon";
 
 type AnyRow = Record<string, any>;
 
@@ -217,7 +218,7 @@ const toneStyles: Record<
   Tone,
   {
     shell: string;
-    icon: string;
+    icon: YashFlowIconName;
     value: string;
     label: string;
     line: string;
@@ -279,7 +280,7 @@ function SummaryCard({
   value: number;
   subtitle: string;
   tone: Tone;
-  icon: string;
+  icon: YashFlowIconName;
   onClick: () => void;
 }) {
   const styles = toneStyles[tone];
@@ -306,7 +307,7 @@ function SummaryCard({
         <div
           className={`w-10 h-10 rounded-2xl flex items-center justify-center text-lg ${styles.icon}`}
         >
-          {icon}
+          <YashFlowIcon name={icon} size={20} />
         </div>
       </div>
 
@@ -331,7 +332,7 @@ function WorkflowCard({
   title: string;
   value: number;
   tone: Tone;
-  icon: string;
+  icon: YashFlowIconName;
   subtitle: string;
   onClick: () => void;
 }) {
@@ -347,7 +348,7 @@ function WorkflowCard({
         <div
           className={`w-9 h-9 rounded-xl flex items-center justify-center text-base ${styles.icon}`}
         >
-          {icon}
+          <YashFlowIcon name={icon} size={20} />
         </div>
 
         <span className={`text-2xl font-black ${styles.value}`}>
@@ -378,7 +379,7 @@ function AttentionCard({
   title: string;
   value: number;
   description: string;
-  icon: string;
+  icon: YashFlowIconName;
   tone: Tone;
   onClick: () => void;
 }) {
@@ -410,7 +411,7 @@ function AttentionCard({
         <div
           className={`w-10 h-10 shrink-0 rounded-2xl flex items-center justify-center text-lg ${styles.icon}`}
         >
-          {icon}
+          <YashFlowIcon name={icon} size={20} />
         </div>
       </div>
 
@@ -432,22 +433,23 @@ function ToolButton({
 }: {
   href: Route;
   label: string;
-  icon: string;
+  icon: YashFlowIconName;
   badge?: string;
 }) {
   return (
     <Link
       href={href}
-      className="relative flex flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition min-h-[92px]"
+      className="group relative flex flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/70 p-3 shadow-sm hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition duration-200 min-h-[92px] overflow-hidden"
     >
+      <span className="pointer-events-none absolute inset-x-3 top-0 h-px bg-gradient-to-r from-transparent via-[#d4af37]/55 to-transparent opacity-0 group-hover:opacity-100 transition" />
       {badge && (
         <span className="absolute right-2 top-2 min-w-5 h-5 px-1 rounded-full bg-red-600 text-white text-[10px] font-black flex items-center justify-center">
           {badge}
         </span>
       )}
 
-      <div className="w-11 h-11 rounded-2xl bg-slate-100 flex items-center justify-center text-xl">
-        {icon}
+      <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 text-slate-700 flex items-center justify-center shadow-sm transition duration-200 group-hover:-translate-y-0.5 group-hover:shadow-md group-hover:text-blue-700">
+        <YashFlowIcon name={icon} size={22} />
       </div>
 
       <span className="text-[11px] sm:text-xs font-black text-slate-700 text-center leading-tight">
@@ -1305,7 +1307,7 @@ const manualPunchRows = (
                 value={counts.totalStaff}
                 subtitle={`${counts.pendingEmployees} approval pending`}
                 tone="blue"
-                icon="👥"
+                icon="users"
                 onClick={() =>
                   openDrawer(
                     "Total Staff",
@@ -1339,7 +1341,7 @@ const manualPunchRows = (
                 value={counts.leaveToday}
                 subtitle={`${counts.pendingLeave} pending`}
                 tone="purple"
-                icon="🗓️"
+                icon="calendar"
                 onClick={() =>
                   openDrawer(
                     "Leave Today",
@@ -1356,7 +1358,7 @@ const manualPunchRows = (
                 value={counts.pendingAttendance}
                 subtitle="Attendance / Manual Punch"
                 tone="orange"
-                icon="✅"
+                icon="check"
                 onClick={() =>
                   openDrawer(
                     "Pending Attendance Approval",
@@ -1373,7 +1375,7 @@ const manualPunchRows = (
                 value={counts.openOrders}
                 subtitle="Current production work"
                 tone="cyan"
-                icon="📦"
+                icon="orders"
                 onClick={() =>
                   openDrawer(
                     "Open Orders",
@@ -1407,7 +1409,7 @@ const manualPunchRows = (
                 value={counts.pendingEmployees}
                 subtitle="Registration approval"
                 tone="blue"
-                icon="🪪"
+                icon="id-card"
                 onClick={() =>
                   openDrawer(
                     "Pending Employees",
@@ -1477,7 +1479,7 @@ const manualPunchRows = (
                 title="Overdue Orders"
                 value={attentionCounts.overdueOrders}
                 description="Due date passed."
-                icon="🚨"
+                icon="alert"
                 tone={attentionCounts.overdueOrders > 0 ? "orange" : "slate"}
                 onClick={() =>
                   openDrawer(
@@ -1494,7 +1496,7 @@ const manualPunchRows = (
                 title="Delayed Workflow"
                 value={attentionCounts.delayedWorkflow}
                 description="Stage delay limit passed."
-                icon="⏱️"
+                icon="clock"
                 tone={attentionCounts.delayedWorkflow > 0 ? "orange" : "slate"}
                 onClick={() =>
                   openDrawer(
@@ -1511,7 +1513,7 @@ const manualPunchRows = (
                 title="Overdue Tasks"
                 value={attentionCounts.overdueTasks}
                 description="Pending / In Progress."
-                icon="📋"
+                icon="task"
                 tone={attentionCounts.overdueTasks > 0 ? "purple" : "slate"}
                 onClick={() =>
                   openDrawer(
@@ -1528,7 +1530,7 @@ const manualPunchRows = (
                 title="All Approvals"
                 value={totalApprovals}
                 description={`Attendance ${counts.pendingAttendance} • Leave ${counts.pendingLeave} • Employee ${counts.pendingEmployees} • Workflow ${attentionCounts.readyForApproval}`}
-                icon="✅"
+                icon="check"
                 tone={totalApprovals > 0 ? "blue" : "slate"}
                 onClick={() =>
                   openDrawer(
@@ -1550,7 +1552,7 @@ const manualPunchRows = (
                 title="Missing Attendance"
                 value={attentionCounts.missingAttendance}
                 description="No attendance / approved leave."
-                icon="🕘"
+                icon="clock"
                 tone={attentionCounts.missingAttendance > 0 ? "orange" : "slate"}
                 onClick={() =>
                   openDrawer(
@@ -1567,7 +1569,7 @@ const manualPunchRows = (
                 title="Low Stock"
                 value={attentionCounts.lowStock}
                 description="At/below minimum stock."
-                icon="📦"
+                icon="orders"
                 tone={attentionCounts.lowStock > 0 ? "orange" : "slate"}
                 onClick={() =>
                   openDrawer(
@@ -1614,7 +1616,7 @@ const manualPunchRows = (
                 title="Design"
                 value={counts.design}
                 tone="blue"
-                icon="🎨"
+                icon="design"
                 subtitle="Current stage"
                 onClick={() =>
                   openDrawer(
@@ -1631,7 +1633,7 @@ const manualPunchRows = (
                 title="Cutting"
                 value={counts.cutting}
                 tone="orange"
-                icon="✂️"
+                icon="cutting"
                 subtitle="Current stage"
                 onClick={() =>
                   openDrawer(
@@ -1648,7 +1650,7 @@ const manualPunchRows = (
                 title="Production"
                 value={counts.production}
                 tone="purple"
-                icon="🏭"
+                icon="production"
                 subtitle="Current stage"
                 onClick={() =>
                   openDrawer(
@@ -1665,7 +1667,7 @@ const manualPunchRows = (
                 title="Packing"
                 value={counts.packing}
                 tone="slate"
-                icon="📦"
+                icon="orders"
                 subtitle="Current stage"
                 onClick={() =>
                   openDrawer(
@@ -1682,7 +1684,7 @@ const manualPunchRows = (
                 title="Transportation"
                 value={counts.transportation}
                 tone="cyan"
-                icon="🚚"
+                icon="dispatch"
                 subtitle="Dispatch stage"
                 onClick={() =>
                   openDrawer(
@@ -1712,25 +1714,25 @@ const manualPunchRows = (
             <ToolButton
               href="/admin/orders"
               label="Orders"
-              icon="📦"
+              icon="orders"
               badge={counts.openOrders > 0 ? String(counts.openOrders) : undefined}
             />
             <ToolButton
               href="/admin/completed-orders"
               label="Completed"
-              icon="✅"
+              icon="check"
               badge={counts.completedOrders > 0 ? String(counts.completedOrders) : undefined}
             />
-            <ToolButton href="/admin/products" label="Products" icon="🧩" />
-            <ToolButton href="/admin/workflow" label="Work Order Settings" icon="⚙️" />
+            <ToolButton href="/admin/products" label="Products" icon="products" />
+            <ToolButton href="/admin/workflow" label="Work Order Settings" icon="settings" />
             <ToolButton
               href="/dashboard/manage/order-details"
               label="Order Details"
-              icon="🧩"
+              icon="products"
             />
-            <ToolButton href="/admin/task-team" label="Task / Team" icon="👥" />
-            <ToolButton href="/admin/id-cards" label="Bulk ID Cards" icon="🪪" />
-            <ToolButton href="/completed-tasks" label="Completed Tasks" icon="✅" />
+            <ToolButton href="/admin/task-team" label="Task / Team" icon="users" />
+            <ToolButton href="/admin/id-cards" label="Bulk ID Cards" icon="id-card" />
+            <ToolButton href="/completed-tasks" label="Completed Tasks" icon="check" />
           </div>
         </section>
 
@@ -1747,26 +1749,26 @@ const manualPunchRows = (
             <ToolButton
               href="/admin/employees"
               label="Employees"
-              icon="👥"
+              icon="users"
               badge={counts.pendingEmployees > 0 ? String(counts.pendingEmployees) : undefined}
             />
-            <ToolButton href="/admin/attendance" label="Attendance" icon="🕘" />
+            <ToolButton href="/admin/attendance" label="Attendance" icon="clock" />
             <ToolButton
               href="/admin/attendance-approval"
               label="Approval"
-              icon="✅"
+              icon="check"
               badge={counts.pendingAttendance > 0 ? String(counts.pendingAttendance) : undefined}
             />
             <ToolButton
               href="/admin/leave"
               label="Leave"
-              icon="🌴"
+              icon="leave"
               badge={counts.pendingLeave > 0 ? String(counts.pendingLeave) : undefined}
             />
-            <ToolButton href="/admin/holidays" label="Holidays" icon="📅" />
-            <ToolButton href="/admin/gps-settings" label="GPS" icon="📍" />
-            <ToolButton href="/admin/work-calendar" label="Calendar" icon="🗓️" />
-            <ToolButton href="/admin/performance" label="Performance" icon="🏆" />
+            <ToolButton href="/admin/holidays" label="Holidays" icon="calendar" />
+            <ToolButton href="/admin/gps-settings" label="GPS" icon="gps" />
+            <ToolButton href="/admin/work-calendar" label="Calendar" icon="calendar" />
+            <ToolButton href="/admin/performance" label="Performance" icon="performance" />
           </div>
         </section>
 
@@ -1780,14 +1782,14 @@ const manualPunchRows = (
             </h2>
           </div>
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-3 mt-4">
-            <ToolButton href="/dashboard/purchase" label="Purchase" icon="🛒" />
+            <ToolButton href="/dashboard/purchase" label="Purchase" icon="purchase" />
             <ToolButton
               href="/admin/inventory"
               label="Inventory"
-              icon="🏷️"
+              icon="inventory"
               badge={attentionCounts.lowStock > 0 ? String(attentionCounts.lowStock) : undefined}
             />
-            <ToolButton href="/admin/reorder" label="Reorder" icon="🧾" />
+            <ToolButton href="/admin/reorder" label="Reorder" icon="reorder" />
           </div>
         </section>
 
@@ -1801,8 +1803,8 @@ const manualPunchRows = (
             </h2>
           </div>
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-3 mt-4">
-            <ToolButton href="/dashboard/packing" label="Packing" icon="📦" />
-            <ToolButton href="/dashboard/dispatch" label="Dispatch" icon="🚚" />
+            <ToolButton href="/dashboard/packing" label="Packing" icon="orders" />
+            <ToolButton href="/dashboard/dispatch" label="Dispatch" icon="dispatch" />
           </div>
         </section>
 
@@ -1816,9 +1818,9 @@ const manualPunchRows = (
             </h2>
           </div>
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-3 mt-4">
-            <ToolButton href="/admin/accounts" label="Accounts" icon="💰" />
-            <ToolButton href="/admin/attendance-report" label="Attendance Report" icon="📊" />
-            <ToolButton href="/admin/reports" label="Export / Reports" icon="📤" />
+            <ToolButton href="/admin/accounts" label="Accounts" icon="accounts" />
+            <ToolButton href="/admin/attendance-report" label="Attendance Report" icon="report" />
+            <ToolButton href="/admin/reports" label="Export / Reports" icon="export" />
           </div>
         </section>
 
@@ -1832,9 +1834,9 @@ const manualPunchRows = (
             </h2>
           </div>
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-3 mt-4">
-            <ToolButton href="/admin/tasks" label="Tasks" icon="📋" />
-            <ToolButton href="/admin/escalations" label="Escalations" icon="🚨" />
-            <ToolButton href="/admin/activity" label="Activity History" icon="🕘" />
+            <ToolButton href="/admin/tasks" label="Tasks" icon="task" />
+            <ToolButton href="/admin/escalations" label="Escalations" icon="alert" />
+            <ToolButton href="/admin/activity" label="Activity History" icon="clock" />
           </div>
         </section>
 
@@ -1852,10 +1854,10 @@ const manualPunchRows = (
           </div>
 
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3 mt-4">
-            <ToolButton href="/admin/files" label="Files" icon="📁" />
-            <ToolButton href="/admin/system-audit" label="System Audit" icon="🛡️" />
-            <ToolButton href="/admin/recovery" label="Recovery" icon="♻️" />
-            <ToolButton href="/admin/readiness" label="Health Check" icon="✅" />
+            <ToolButton href="/admin/files" label="Files" icon="files" />
+            <ToolButton href="/admin/system-audit" label="System Audit" icon="shield" />
+            <ToolButton href="/admin/recovery" label="Recovery" icon="recovery" />
+            <ToolButton href="/admin/readiness" label="Health Check" icon="check" />
           </div>
         </section>
 
