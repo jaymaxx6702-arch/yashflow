@@ -72,6 +72,27 @@ export default function DispatchManagementPage() {
   const [statusFilter, setStatusFilter] = useState("all");
 
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+
+  useEffect(() => {
+    function handleNativeBack(event: Event) {
+      if (!selectedOrder) return;
+      event.preventDefault();
+      setSelectedOrder(null);
+    }
+
+    window.addEventListener(
+      "yashflow:native-back",
+      handleNativeBack as EventListener
+    );
+
+    return () => {
+      window.removeEventListener(
+        "yashflow:native-back",
+        handleNativeBack as EventListener
+      );
+    };
+  }, [selectedOrder]);
+
   const [saving, setSaving] = useState(false);
 
   const [form, setForm] = useState<DispatchForm>({
