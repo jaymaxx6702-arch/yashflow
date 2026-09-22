@@ -8,6 +8,8 @@
 --   order_operation_details
 --   order_stage_checklist_items
 --   order_stage_checklist_checks
+--   order_stage_plans
+--   order_stage_plan_workers
 
 begin;
 
@@ -44,6 +46,18 @@ begin
     execute 'grant select, insert, update, delete on table public.order_stage_checklist_checks to authenticated';
     execute 'grant select, insert, update, delete on table public.order_stage_checklist_checks to service_role';
   end if;
+
+  -- Stage Team Plan is read by assigned employees and managed by admin.
+  -- RLS remains the authority for which rows/actions are allowed.
+  if to_regclass('public.order_stage_plans') is not null then
+    execute 'grant select, insert, update, delete on table public.order_stage_plans to authenticated';
+    execute 'grant select, insert, update, delete on table public.order_stage_plans to service_role';
+  end if;
+
+  if to_regclass('public.order_stage_plan_workers') is not null then
+    execute 'grant select, insert, update, delete on table public.order_stage_plan_workers to authenticated';
+    execute 'grant select, insert, update, delete on table public.order_stage_plan_workers to service_role';
+  end if;
 end
 $runtime_grants$;
 
@@ -58,7 +72,11 @@ with wanted(role_name, table_name, privilege_name) as (
     ('authenticated','order_stage_checklist_items','SELECT'),
     ('authenticated','order_stage_checklist_checks','SELECT'),
     ('authenticated','order_stage_checklist_checks','INSERT'),
-    ('authenticated','order_stage_checklist_checks','UPDATE')
+    ('authenticated','order_stage_checklist_checks','UPDATE'),
+    ('authenticated','order_stage_plans','SELECT'),
+    ('authenticated','order_stage_plans','INSERT'),
+    ('authenticated','order_stage_plan_workers','SELECT'),
+    ('authenticated','order_stage_plan_workers','INSERT')
 )
 select
   role_name,
