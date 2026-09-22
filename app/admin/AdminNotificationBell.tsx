@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
-import { showNativeYashFlowNotification } from "@/utils/native-app";
+import {
+  initialiseNativePermissions,
+  isNativeYashFlow,
+  showNativeYashFlowNotification,
+} from "@/utils/native-app";
 import {
   disableWebPushSubscription,
   ensureWebPushSubscription,
@@ -128,15 +132,23 @@ export default function AdminNotificationBell({ employeeId }: Props) {
     setVibrationSupported(canVibrate);
     setVibrateEnabled(savedVibrate);
 
+    const nativeApp = isNativeYashFlow();
     const canPush =
-      typeof window !== "undefined" &&
-      "Notification" in window &&
-      "serviceWorker" in navigator &&
-      "PushManager" in window;
+      nativeApp ||
+      (typeof window !== "undefined" &&
+        "Notification" in window &&
+        "serviceWorker" in navigator &&
+        "PushManager" in window);
 
     setClosedAppPushSupported(canPush);
 
-    if (canPush) {
+    if (nativeApp) {
+      setClosedAppPushEnabled(true);
+      window.localStorage.setItem(
+        "yashflow-system-notifications-enabled",
+        "true"
+      );
+    } else if (canPush) {
       void navigator.serviceWorker.ready
         .then((registration) =>
           registration.pushManager.getSubscription()
@@ -208,6 +220,13 @@ export default function AdminNotificationBell({ employeeId }: Props) {
   }, []);
 
   const runAlert = useCallback(() => {
+    if (isNativeYashFlow()) {
+      if (vibrateEnabled) {
+        vibrate();
+      }
+      return;
+    }
+
     if (soundEnabled) {
       void playSound();
     }
@@ -243,8 +262,25 @@ export default function AdminNotificationBell({ employeeId }: Props) {
     }
   }
 
-  function testAlert() {
+  async function testAlert() {
     setMessage("");
+
+    if (isNativeYashFlow()) {
+      await initialiseNativePermissions();
+
+      const sent = await showNativeYashFlowNotification({
+        title: "YashFlow Test Alert",
+        body: "Native notification sound test ✅",
+        notificationId: `test-${Date.now()}`,
+      });
+
+      setMessage(
+        sent
+          ? "Native Test Alert મોકલ્યો ✅ Notification + sound હવે આવવો જોઈએ."
+          : "Native Test Alert failed. App notification permission/settings ચેક કરો."
+      );
+      return;
+    }
 
     if (!soundEnabled && !vibrateEnabled) {
       setMessage("Sound અથવા Vibrateમાંથી ઓછામાં ઓછું એક ON કરો.");
@@ -256,6 +292,22 @@ export default function AdminNotificationBell({ employeeId }: Props) {
 
   async function toggleClosedAppPush() {
     setMessage("");
+
+    if (isNativeYashFlow()) {
+      setPushSetupBusy(true);
+      try {
+        await initialiseNativePermissions();
+        setClosedAppPushEnabled(true);
+        window.localStorage.setItem(
+          "yashflow-system-notifications-enabled",
+          "true"
+        );
+        setMessage("Native Android Notifications ready ✅");
+      } finally {
+        setPushSetupBusy(false);
+      }
+      return;
+    }
 
     if (!closedAppPushSupported) {
       setMessage(
