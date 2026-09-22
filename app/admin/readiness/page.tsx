@@ -191,6 +191,7 @@ export default function ProductionReadinessPage() {
         ["order_stage_checklist_checks", "Stage Checklist Checks"],
         ["order_stage_plans", "Stage Team Plans"],
         ["order_stage_plan_workers", "Stage Team Plan Workers"],
+        ["native_push_tokens", "Native Push Tokens"],
         ["app_permissions", "Permission Master"],
       ] as const;
 
