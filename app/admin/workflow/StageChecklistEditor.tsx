@@ -3,6 +3,25 @@
 import { useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 
+function checklistError(prefix: string, value: unknown) {
+  const message =
+    value instanceof Error
+      ? value.message
+      : typeof value === "string"
+      ? value
+      : "Unknown checklist error.";
+
+  if (
+    /workflow_template_stage_id|stage_checklist_items|snapshot_item_id|order_stage_checklist|PGRST204|42703/i.test(
+      message
+    )
+  ) {
+    return `${prefix}: Stage Checklist database repair required. Admin SQL repair run કર્યા પછી ફરી try કરો. (${message})`;
+  }
+
+  return `${prefix}: ${message}`;
+}
+
 type ChecklistItem = {
   id: string;
   workflow_template_stage_id: string;
@@ -42,7 +61,7 @@ export default function StageChecklistEditor({
       .order("sort_order");
 
     if (error) {
-      setMessage(`Checklist Load Error: ${error.message}`);
+      setMessage(checklistError("Checklist Load Error", error.message));
       setLoading(false);
       return;
     }
@@ -86,7 +105,7 @@ export default function StageChecklistEditor({
     });
 
     if (error) {
-      setMessage(`Checklist Add Error: ${error.message}`);
+      setMessage(checklistError("Checklist Add Error", error.message));
       setSaving(false);
       return;
     }
@@ -115,7 +134,7 @@ export default function StageChecklistEditor({
       .eq("id", item.id);
 
     if (error) {
-      setMessage(`Checklist Update Error: ${error.message}`);
+      setMessage(checklistError("Checklist Update Error", error.message));
       setSaving(false);
       return;
     }
