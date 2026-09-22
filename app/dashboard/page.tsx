@@ -1588,7 +1588,7 @@ export default function EmployeeDashboard() {
             <CompactTile
               label="STATUS"
               value={attendanceStatus}
-              icon="🟢"
+              icon="check"
             />
             <CompactTile
               label="CHECK IN"
@@ -1742,12 +1742,12 @@ export default function EmployeeDashboard() {
             />
             <QuickApp
               label="Calendar"
-              icon="📅"
+              icon="calendar"
               onClick={() => router.push("/dashboard/work-calendar")}
             />
             <QuickApp
               label="Policy"
-              icon="📖"
+              icon="details"
               onClick={() => openDrawer("attendance_policy")}
             />
 
@@ -1872,7 +1872,7 @@ export default function EmployeeDashboard() {
                     <CompactTile
                       label="STATUS"
                       value={attendanceStatus}
-                      icon="🟢"
+                      icon="check"
                     />
                     <CompactTile
                       label="APPROVAL"
@@ -1906,7 +1906,7 @@ export default function EmployeeDashboard() {
                           ? `${formatLateMinutes(attendance.late_minutes)} Min`
                           : "-"
                       }
-                      icon="⏳"
+                      icon="clock"
                     />
                     <CompactTile
                       label="WORKING"
@@ -2051,26 +2051,26 @@ export default function EmployeeDashboard() {
                       value={formatOfficeTime(
                         officeSettings.office_start_time
                       )}
-                      icon="🏢"
+                      icon="admin"
                     />
                     <CompactTile
                       label="ON TIME UP TO"
                       value={formatOfficeTime(graceEndTime)}
-                      icon="✓"
+                      icon="check"
                     />
                     <CompactTile
                       label="HALF DAY FROM"
                       value={formatOfficeTime(
                         officeSettings.half_day_checkin_time
                       )}
-                      icon="½"
+                      icon="clock"
                     />
                     <CompactTile
                       label="OFFICE END"
                       value={formatOfficeTime(
                         officeSettings.office_end_time
                       )}
-                      icon="🏁"
+                      icon="check"
                     />
                   </div>
 
