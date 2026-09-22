@@ -16,6 +16,31 @@ function base64UrlToUint8Array(value: string) {
   return bytes;
 }
 
+async function waitForGrantedNotificationPermission() {
+  if (
+    typeof window === "undefined" ||
+    !("Notification" in window)
+  ) {
+    return false;
+  }
+
+  if (Notification.permission === "granted") {
+    return true;
+  }
+
+  // Chromium/PWA can resolve requestPermission("granted") a fraction
+  // before Notification.permission reflects the new value.
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    await new Promise((resolve) => window.setTimeout(resolve, 150));
+
+    if (Notification.permission === "granted") {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 async function accessToken() {
   const supabase = createClient();
   const {
@@ -39,8 +64,13 @@ export async function ensureWebPushSubscription() {
     throw new Error("આ browser/device Closed-App Push support કરતું નથી.");
   }
 
-  if (Notification.permission !== "granted") {
-    throw new Error("Notification permission Allow કરો.");
+  const permissionReady =
+    await waitForGrantedNotificationPermission();
+
+  if (!permissionReady) {
+    throw new Error(
+      `Notification permission હજી ${Notification.permission} છે. Browser/App Settings → Notifications → Allow કરો અને app ફરી open કરો.`
+    );
   }
 
   const token = await accessToken();
