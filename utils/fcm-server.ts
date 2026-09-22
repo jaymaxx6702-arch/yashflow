@@ -152,7 +152,7 @@ export async function sendNativeFcm(options: {
           android: {
             priority: "high",
             notification: {
-              channel_id: "yashflow_alerts",
+              channel_id: "yashflow_alerts_v2",
               sound: "yashflow_notification",
               default_vibrate_timings: true,
             },
