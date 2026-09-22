@@ -11,6 +11,15 @@ type NativePlugins = {
     createChannel?: (options: Record<string, unknown>) => Promise<void>;
     schedule?: (options: Record<string, unknown>) => Promise<void>;
   };
+  PushNotifications?: {
+    checkPermissions?: () => Promise<{ receive?: string }>;
+    requestPermissions?: () => Promise<{ receive?: string }>;
+    register?: () => Promise<void>;
+    addListener?: (
+      eventName: string,
+      listener: (payload: Record<string, unknown>) => void
+    ) => Promise<{ remove?: () => Promise<void> }> | { remove?: () => Promise<void> };
+  };
 };
 
 function plugins(): NativePlugins | null {
@@ -40,6 +49,7 @@ export async function initialiseNativePermissions() {
 
   try {
     await native.LocalNotifications?.requestPermissions?.();
+    await native.PushNotifications?.requestPermissions?.();
   } catch (error) {
     console.warn("Native notification permission request failed", error);
   }
@@ -100,5 +110,46 @@ export async function showNativeYashFlowNotification(options: {
   } catch (error) {
     console.warn("Native local notification failed", error);
     return false;
+  }
+}
+
+export async function registerNativeFcmToken(
+  onToken: (token: string) => void | Promise<void>
+) {
+  const native = plugins();
+  const push = native?.PushNotifications;
+
+  if (!push?.register || !push.addListener) {
+    return { native: Boolean(native), registered: false };
+  }
+
+  let registrationHandle:
+    | { remove?: () => Promise<void> }
+    | undefined;
+
+  const listener = (payload: Record<string, unknown>) => {
+    const value = payload.value;
+    if (typeof value === "string" && value.trim()) {
+      void onToken(value.trim());
+    }
+  };
+
+  try {
+    const maybeHandle = await push.addListener("registration", listener);
+    registrationHandle = maybeHandle || undefined;
+
+    await push.register();
+
+    return {
+      native: true,
+      registered: true,
+      remove: async () => {
+        await registrationHandle?.remove?.();
+      },
+    };
+  } catch (error) {
+    console.warn("Native FCM registration failed", error);
+    await registrationHandle?.remove?.();
+    return { native: true, registered: false };
   }
 }
