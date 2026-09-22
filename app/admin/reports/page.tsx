@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import YashFlowIcon from "@/components/YashFlowIcon";
 import { canonicalAttendanceMap } from "@/utils/business-rules";
 
 type AnyRow = Record<string, any>;
@@ -404,7 +405,7 @@ export default function AdminReportsPage() {
 
         <section className="grid gap-5 mt-5 lg:grid-cols-3">
           <div className="yf-card p-5">
-            <div className="text-3xl">📦</div>
+            <div className="w-11 h-11 rounded-2xl bg-blue-50 text-blue-700 border border-blue-100 flex items-center justify-center"><YashFlowIcon name="orders" size={22} /></div>
             <h2 className="text-xl font-black mt-3">Orders Report</h2>
             <p className="text-sm text-slate-500 mt-1">Selected date rangeના orders export કરો.</p>
             <button
@@ -420,7 +421,7 @@ export default function AdminReportsPage() {
           </div>
 
           <div className="yf-card p-5">
-            <div className="text-3xl">🕘</div>
+            <div className="w-11 h-11 rounded-2xl bg-cyan-50 text-cyan-700 border border-cyan-100 flex items-center justify-center"><YashFlowIcon name="clock" size={22} /></div>
             <h2 className="text-xl font-black mt-3">Attendance Report</h2>
             <p className="text-sm text-slate-500 mt-1">Employee name, check-in/out, late અને working minutes.</p>
             <button
