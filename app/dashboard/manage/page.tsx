@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import YashFlowIcon from "@/components/YashFlowIcon";
 
 export default function ManagementHubPage() {
   const router = useRouter();
@@ -131,7 +132,7 @@ export default function ManagementHubPage() {
               onClick={() => router.push("/dashboard/manage/orders")}
               className="yf-card p-6 text-left hover:shadow-md transition"
             >
-              <div className="text-3xl">📦</div>
+              <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-700 border border-blue-100 flex items-center justify-center"><YashFlowIcon name="orders" size={24} /></div>
               <h2 className="text-xl font-black text-slate-900 mt-3">
                 Order Edit Access
               </h2>
@@ -150,7 +151,7 @@ export default function ManagementHubPage() {
               onClick={() => router.push("/dashboard/manage/attendance")}
               className="yf-card p-6 text-left hover:shadow-md transition"
             >
-              <div className="text-3xl">🕘</div>
+              <div className="w-12 h-12 rounded-2xl bg-cyan-50 text-cyan-700 border border-cyan-100 flex items-center justify-center"><YashFlowIcon name="clock" size={24} /></div>
               <h2 className="text-xl font-black text-slate-900 mt-3">
                 Attendance Edit Access
               </h2>
