@@ -478,23 +478,25 @@ function DetailDrawer({
   if (!state.open) return null;
 
   return (
-    <div className="fixed inset-0 z-[100]">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-5">
       <button
         type="button"
-        aria-label="Close drawer"
+        aria-label="Close details"
         onClick={onClose}
-        className="absolute inset-0 bg-slate-950/45 backdrop-blur-[1px]"
+        className="absolute inset-0 bg-slate-950/50 backdrop-blur-[1px]"
       />
 
-      <aside className="absolute right-0 top-0 h-full w-full sm:max-w-lg bg-slate-50 shadow-2xl flex flex-col">
-        <div className="yf-brand-panel text-white px-5 py-4">
+      <section className="relative z-10 w-full max-w-xl max-h-[86dvh] rounded-3xl overflow-hidden bg-slate-50 shadow-2xl border border-white/30 flex flex-col">
+        <div className="yf-brand-panel text-white px-4 py-3 shrink-0">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[10px] font-black tracking-[0.16em] text-[#d4af37]">
+              <p className="text-[9px] font-black tracking-[0.16em] text-[#d4af37]">
                 QUICK DETAILS
               </p>
-              <h2 className="text-xl font-black mt-1">{state.title}</h2>
-              <p className="text-xs text-slate-300 mt-1">
+              <h2 className="text-lg font-black mt-0.5 leading-tight">
+                {state.title}
+              </h2>
+              <p className="text-[11px] text-slate-300 mt-0.5 line-clamp-1">
                 {state.subtitle}
               </p>
             </div>
@@ -502,50 +504,50 @@ function DetailDrawer({
             <button
               type="button"
               onClick={onClose}
-              className="w-10 h-10 rounded-xl bg-white/10 border border-white/15 text-xl font-black"
+              className="w-9 h-9 rounded-xl bg-white/10 border border-white/15 text-lg font-black shrink-0"
             >
               ×
             </button>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 min-h-0 overflow-y-auto p-3">
           {state.items.length === 0 ? (
-            <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-              <div className="text-3xl">✅</div>
-              <p className="font-black text-slate-800 mt-3">No records found</p>
-              <p className="text-xs text-slate-500 mt-1">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 text-center shadow-sm">
+              <div className="text-2xl">✅</div>
+              <p className="font-black text-slate-800 mt-2">No records found</p>
+              <p className="text-[11px] text-slate-500 mt-1">
                 આ count માટે હાલમાં કોઈ matching record નથી.
               </p>
             </div>
           ) : (
-            <div className="space-y-2.5">
+            <div className="space-y-2">
               {state.items.map((item) => (
                 <div
                   key={item.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm"
                 >
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="font-black text-sm text-slate-900 break-words">
+                      <p className="font-black text-xs text-slate-900 break-words">
                         {item.title}
                       </p>
 
                       {item.subtitle && (
-                        <p className="text-xs font-semibold text-slate-600 mt-1 break-words">
+                        <p className="text-[11px] font-semibold text-slate-600 mt-0.5 break-words">
                           {item.subtitle}
                         </p>
                       )}
 
                       {item.meta && (
-                        <p className="text-[11px] text-slate-500 mt-2 break-words">
+                        <p className="text-[10px] text-slate-500 mt-1 break-words line-clamp-2">
                           {item.meta}
                         </p>
                       )}
                     </div>
 
                     {item.badge && (
-                      <span className="shrink-0 rounded-full bg-blue-50 border border-blue-100 text-blue-700 px-2.5 py-1 text-[10px] font-black">
+                      <span className="shrink-0 rounded-full bg-blue-50 border border-blue-100 text-blue-700 px-2 py-0.5 text-[9px] font-black">
                         {item.badge}
                       </span>
                     )}
@@ -556,26 +558,34 @@ function DetailDrawer({
           )}
         </div>
 
-        <div className="border-t border-slate-200 bg-white p-4 flex gap-2">
+        <div className="shrink-0 border-t border-slate-200 bg-white p-3 grid grid-cols-2 gap-2">
           <button
             type="button"
             onClick={onClose}
-            className="yf-btn yf-btn-secondary flex-1 justify-center"
+            className="yf-btn yf-btn-secondary justify-center"
           >
             Close
           </button>
 
-          {state.href && (
+          {state.href ? (
             <Link
               href={state.href}
               onClick={onClose}
-              className="yf-btn yf-btn-primary flex-1 justify-center"
+              className="yf-btn yf-btn-primary justify-center"
             >
-              {state.hrefLabel || "Open Module"} →
+              {state.hrefLabel || "View"} →
             </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={onClose}
+              className="yf-btn yf-btn-primary justify-center"
+            >
+              View ✓
+            </button>
           )}
         </div>
-      </aside>
+      </section>
     </div>
   );
 }
@@ -1259,7 +1269,9 @@ const manualPunchRows = (
                   ...details.completedOrders,
                   ...details.pendingEmployees,
                   ...details.pendingLeave,
-                ]
+                ],
+                "/admin/reports",
+                "View Reports"
               )
             }
             className="w-full p-4 border-b border-slate-200 yf-brand-panel text-white text-left"
@@ -1436,7 +1448,9 @@ const manualPunchRows = (
                   ...details.readyForApproval,
                   ...details.missingAttendance,
                   ...details.lowStock,
-                ]
+                ],
+                "/admin/orders",
+                "View Orders"
               )
             }
             className={`w-full text-left p-4 border-b ${
@@ -1701,21 +1715,14 @@ const manualPunchRows = (
         </section>
 
         <section className="mt-4 yf-card p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-[10px] font-black tracking-[0.15em] text-blue-700">
-                ADMIN TOOLS
-              </p>
-              <h2 className="text-lg font-black text-slate-900 mt-0.5">
-                Quick Apps
-              </h2>
-            </div>
-
-            <span className="text-[10px] font-black rounded-full bg-blue-50 text-blue-700 px-3 py-1.5">
-              Compact View
-            </span>
+          <div>
+            <p className="text-[10px] font-black tracking-[0.15em] text-cyan-700">
+              WORK ORDER & PRODUCTION
+            </p>
+            <h2 className="text-lg font-black text-slate-900 mt-0.5">
+              Production Tools
+            </h2>
           </div>
-
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-3 mt-4">
             <ToolButton
               href="/admin/orders"
@@ -1727,99 +1734,122 @@ const manualPunchRows = (
               href="/admin/completed-orders"
               label="Completed"
               icon="✅"
-              badge={
-                counts.completedOrders > 0
-                  ? String(counts.completedOrders)
-                  : undefined
-              }
-            />
-            <ToolButton href="/admin/tasks" label="Tasks" icon="📋" />
-            <ToolButton href="/completed-tasks" label="Completed Tasks" icon="✅" />
-            <ToolButton
-              href="/admin/employees"
-              label="Employees"
-              icon="👥"
-              badge={
-                counts.pendingEmployees > 0
-                  ? String(counts.pendingEmployees)
-                  : undefined
-              }
-            />
-            <ToolButton
-              href="/admin/attendance"
-              label="Attendance"
-              icon="🕘"
-            />
-            <ToolButton
-              href="/admin/gps-settings"
-              label="GPS"
-              icon="📍"
-            />
-            <ToolButton
-              href="/admin/work-calendar"
-              label="Calendar"
-              icon="🗓️"
-            />
-            <ToolButton
-              href="/admin/attendance-approval"
-              label="Approval"
-              icon="✅"
-              badge={
-                counts.pendingAttendance > 0
-                  ? String(counts.pendingAttendance)
-                  : undefined
-              }
-            />
-            <ToolButton
-              href="/admin/leave"
-              label="Leave"
-              icon="🌴"
-              badge={
-                counts.pendingLeave > 0 ? String(counts.pendingLeave) : undefined
-              }
-            />
-            <ToolButton href="/admin/holidays" label="Holidays" icon="📅" />
-            <ToolButton
-              href="/admin/attendance-report"
-              label="Reports"
-              icon="📊"
-            />
-            <ToolButton
-              href="/admin/performance"
-              label="Performance"
-              icon="🏆"
+              badge={counts.completedOrders > 0 ? String(counts.completedOrders) : undefined}
             />
             <ToolButton href="/admin/products" label="Products" icon="🧩" />
-            <ToolButton
-              href="/admin/checklists"
-              label="Stage Checklist"
-              icon="☑️"
-            />
-            <ToolButton
-              href="/admin/inventory"
-              label="Inventory"
-              icon="🏷️"
-              badge={
-                attentionCounts.lowStock > 0
-                  ? String(attentionCounts.lowStock)
-                  : undefined
-              }
-            />
-            <ToolButton href="/dashboard/purchase" label="Purchase" icon="🛒" />
-            <ToolButton href="/dashboard/packing" label="Packing" icon="📦" />
-            <ToolButton href="/dashboard/dispatch" label="Dispatch" icon="🚚" />
-            <ToolButton href="/admin/accounts" label="Accounts" icon="💰" />
-            <ToolButton href="/admin/task-team" label="Task / Team" icon="👥" />
-            <ToolButton href="/admin/id-cards" label="Bulk ID Cards" icon="🪪" />
+            <ToolButton href="/admin/workflow" label="Work Order Settings" icon="⚙️" />
             <ToolButton
               href="/dashboard/manage/order-details"
               label="Order Details"
               icon="🧩"
             />
-            <ToolButton href="/admin/reports" label="Export" icon="📤" />
+            <ToolButton href="/admin/task-team" label="Task / Team" icon="👥" />
+            <ToolButton href="/completed-tasks" label="Completed Tasks" icon="✅" />
+          </div>
+        </section>
+
+        <section className="mt-4 yf-card p-4">
+          <div>
+            <p className="text-[10px] font-black tracking-[0.15em] text-blue-700">
+              STAFF & ATTENDANCE
+            </p>
+            <h2 className="text-lg font-black text-slate-900 mt-0.5">
+              Employee Tools
+            </h2>
+          </div>
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-3 mt-4">
+            <ToolButton
+              href="/admin/employees"
+              label="Employees"
+              icon="👥"
+              badge={counts.pendingEmployees > 0 ? String(counts.pendingEmployees) : undefined}
+            />
+            <ToolButton href="/admin/attendance" label="Attendance" icon="🕘" />
+            <ToolButton
+              href="/admin/attendance-approval"
+              label="Approval"
+              icon="✅"
+              badge={counts.pendingAttendance > 0 ? String(counts.pendingAttendance) : undefined}
+            />
+            <ToolButton
+              href="/admin/leave"
+              label="Leave"
+              icon="🌴"
+              badge={counts.pendingLeave > 0 ? String(counts.pendingLeave) : undefined}
+            />
+            <ToolButton href="/admin/holidays" label="Holidays" icon="📅" />
+            <ToolButton href="/admin/gps-settings" label="GPS" icon="📍" />
+            <ToolButton href="/admin/work-calendar" label="Calendar" icon="🗓️" />
+            <ToolButton href="/admin/performance" label="Performance" icon="🏆" />
+          </div>
+        </section>
+
+        <section className="mt-4 yf-card p-4">
+          <div>
+            <p className="text-[10px] font-black tracking-[0.15em] text-orange-700">
+              PURCHASE & INVENTORY
+            </p>
+            <h2 className="text-lg font-black text-slate-900 mt-0.5">
+              Material Control
+            </h2>
+          </div>
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-3 mt-4">
+            <ToolButton href="/dashboard/purchase" label="Purchase" icon="🛒" />
+            <ToolButton
+              href="/admin/inventory"
+              label="Inventory"
+              icon="🏷️"
+              badge={attentionCounts.lowStock > 0 ? String(attentionCounts.lowStock) : undefined}
+            />
             <ToolButton href="/admin/reorder" label="Reorder" icon="🧾" />
+          </div>
+        </section>
+
+        <section className="mt-4 yf-card p-4">
+          <div>
+            <p className="text-[10px] font-black tracking-[0.15em] text-purple-700">
+              PACKING & DISPATCH
+            </p>
+            <h2 className="text-lg font-black text-slate-900 mt-0.5">
+              Delivery Flow
+            </h2>
+          </div>
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-3 mt-4">
+            <ToolButton href="/dashboard/packing" label="Packing" icon="📦" />
+            <ToolButton href="/dashboard/dispatch" label="Dispatch" icon="🚚" />
+          </div>
+        </section>
+
+        <section className="mt-4 yf-card p-4">
+          <div>
+            <p className="text-[10px] font-black tracking-[0.15em] text-green-700">
+              ACCOUNTS & REPORTS
+            </p>
+            <h2 className="text-lg font-black text-slate-900 mt-0.5">
+              Reports & Finance
+            </h2>
+          </div>
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-3 mt-4">
+            <ToolButton href="/admin/accounts" label="Accounts" icon="💰" />
+            <ToolButton href="/admin/attendance-report" label="Attendance Report" icon="📊" />
+            <ToolButton href="/admin/reports" label="Export / Reports" icon="📤" />
+          </div>
+        </section>
+
+        <section className="mt-4 yf-card p-4">
+          <div>
+            <p className="text-[10px] font-black tracking-[0.15em] text-rose-700">
+              ADMIN CONTROL
+            </p>
+            <h2 className="text-lg font-black text-slate-900 mt-0.5">
+              Control & History
+            </h2>
+          </div>
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-3 mt-4">
+            <ToolButton href="/admin/tasks" label="Tasks" icon="📋" />
             <ToolButton href="/admin/escalations" label="Escalations" icon="🚨" />
             <ToolButton href="/admin/activity" label="Activity History" icon="🕘" />
+            <ToolButton href="/admin/id-cards" label="Bulk ID Cards" icon="🪪" />
           </div>
         </section>
 
