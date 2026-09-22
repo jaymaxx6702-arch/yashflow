@@ -72,6 +72,23 @@ export async function initialiseNativePermissions() {
   let locationPermission: unknown = null;
 
   try {
+    // Create the Android channel first so YashFlow Alerts + sound already exist
+    // in App Notification Settings as soon as the app opens for the first time.
+    await nativeCall("LocalNotifications", "createChannel", {
+      id: CHANNEL_ID,
+      name: "YashFlow Alerts",
+      description: "Orders, tasks, attendance and workflow alerts",
+      importance: 5,
+      visibility: 1,
+      sound: SOUND_FILE,
+      vibration: true,
+      lights: true,
+    });
+  } catch (error) {
+    console.warn("Native notification channel setup failed", error);
+  }
+
+  try {
     notificationPermission = await nativeCall(
       "LocalNotifications",
       "requestPermissions"
@@ -93,23 +110,6 @@ export async function initialiseNativePermissions() {
     );
   } catch (error) {
     console.warn("Native location permission request failed", error);
-  }
-
-  try {
-    // Android notification-channel sound is effectively immutable.
-    // v2 guarantees a fresh channel after older silent test builds.
-    await nativeCall("LocalNotifications", "createChannel", {
-      id: CHANNEL_ID,
-      name: "YashFlow Alerts",
-      description: "Orders, tasks, attendance and workflow alerts",
-      importance: 5,
-      visibility: 1,
-      sound: SOUND_FILE,
-      vibration: true,
-      lights: true,
-    });
-  } catch (error) {
-    console.warn("Native notification channel setup failed", error);
   }
 
   return {
@@ -287,4 +287,64 @@ export async function registerNativeFcmToken(
     console.warn("Native FCM registration failed", error);
     return { native: true, registered: false };
   }
+}
+
+
+export async function registerNativeBackHandler() {
+  const cap = bridge();
+  if (!cap?.nativeCallback || !cap.nativePromise) {
+    return { native: Boolean(cap), registered: false };
+  }
+
+  const callbackId = cap.nativeCallback(
+    "App",
+    "addListener",
+    { eventName: "backButton" },
+    () => {
+      const path = window.location.pathname;
+
+      // Root screens stay inside YashFlow instead of closing the Android app.
+      if (path === "/" || path === "/admin" || path === "/dashboard") {
+        return;
+      }
+
+      // Use predictable in-app parent routes so hardware Back never jumps
+      // outside the remote WebView/browser history.
+      let target = "/";
+
+      if (/^\/admin\/orders\/[^/]+/.test(path)) {
+        target = "/admin/orders";
+      } else if (/^\/dashboard\/orders\/[^/]+/.test(path)) {
+        target = "/dashboard/orders";
+      } else if (path.startsWith("/admin/")) {
+        target = "/admin";
+      } else if (path.startsWith("/dashboard/manage/")) {
+        target = "/dashboard/manage";
+      } else if (path.startsWith("/dashboard/")) {
+        target = "/dashboard";
+      } else if (path === "/completed-tasks") {
+        target = "/admin";
+      } else if (path === "/register" || path === "/install") {
+        target = "/";
+      }
+
+      window.location.assign(target);
+    }
+  );
+
+  return {
+    native: true,
+    registered: true,
+    remove: async () => {
+      if (!callbackId) return;
+      try {
+        await nativeCall("App", "removeListener", {
+          eventName: "backButton",
+          callbackId,
+        });
+      } catch {
+        // Best-effort cleanup.
+      }
+    },
+  };
 }
