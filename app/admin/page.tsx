@@ -1709,6 +1709,7 @@ const manualPunchRows = (
               icon="🧩"
             />
             <ToolButton href="/admin/task-team" label="Task / Team" icon="👥" />
+            <ToolButton href="/admin/id-cards" label="Bulk ID Cards" icon="🪪" />
             <ToolButton href="/completed-tasks" label="Completed Tasks" icon="✅" />
           </div>
         </section>
@@ -1814,7 +1815,6 @@ const manualPunchRows = (
             <ToolButton href="/admin/tasks" label="Tasks" icon="📋" />
             <ToolButton href="/admin/escalations" label="Escalations" icon="🚨" />
             <ToolButton href="/admin/activity" label="Activity History" icon="🕘" />
-            <ToolButton href="/admin/id-cards" label="Bulk ID Cards" icon="🪪" />
           </div>
         </section>
 
