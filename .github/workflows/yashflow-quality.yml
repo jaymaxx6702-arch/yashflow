@@ -116,6 +116,15 @@ jobs:
           console.log(`ESLint: ${errors} error(s), ${warnings} warning(s)`);
           console.log(`Legacy error baseline: ${legacyErrorBaseline}`);
 
+          for (const file of report) {
+            for (const message of file.messages || []) {
+              if (message.severity !== 2) continue;
+              console.log(
+                `ESLint error: ${file.filePath}:${message.line || 0}:${message.column || 0} ${message.ruleId || "unknown"} — ${message.message}`
+              );
+            }
+          }
+
           if (errors > legacyErrorBaseline) {
             console.error(
               `New ESLint regression detected: ${errors} errors exceeds baseline ${legacyErrorBaseline}.`
