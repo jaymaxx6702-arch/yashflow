@@ -3,7 +3,6 @@
 type CapacitorBridge = {
   isNativePlatform?: () => boolean;
   getPlatform?: () => string;
-  isPluginAvailable?: (name: string) => boolean;
   nativePromise?: (
     pluginName: string,
     methodName: string,
@@ -82,9 +81,7 @@ export async function initialiseNativePermissions() {
   }
 
   try {
-    if (cap.isPluginAvailable?.("PushNotifications") !== false) {
-      await nativeCall("PushNotifications", "requestPermissions");
-    }
+    await nativeCall("PushNotifications", "requestPermissions");
   } catch (error) {
     console.warn("Native push notification permission failed", error);
   }
@@ -234,9 +231,6 @@ export async function registerNativeFcmToken(
     return { native: Boolean(cap), registered: false };
   }
 
-  if (cap.isPluginAvailable?.("PushNotifications") === false) {
-    return { native: true, registered: false };
-  }
 
   try {
     const permission = await nativeCall<Record<string, string>>(
