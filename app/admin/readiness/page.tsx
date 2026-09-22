@@ -189,6 +189,8 @@ export default function ProductionReadinessPage() {
         ["stage_checklist_items", "Stage Checklist Definitions"],
         ["order_stage_checklist_items", "Stage Checklist Snapshots"],
         ["order_stage_checklist_checks", "Stage Checklist Checks"],
+        ["order_stage_plans", "Stage Team Plans"],
+        ["order_stage_plan_workers", "Stage Team Plan Workers"],
         ["app_permissions", "Permission Master"],
       ] as const;
 
