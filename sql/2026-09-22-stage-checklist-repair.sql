@@ -101,15 +101,20 @@ begin
       and column_name = 'workflow_stage_id'
   ) then
     execute $sql$
-      update public.stage_checklist_items sci
-      set workflow_template_stage_id = (
-        select min(wts.id)
+      with unique_stage_map as (
+        select
+          wts.stage_id,
+          (array_agg(wts.id order by wts.sequence_no, wts.id))[1]
+            as workflow_template_stage_id
         from public.workflow_template_stages wts
-        where wts.stage_id = sci.workflow_stage_id::uuid
+        group by wts.stage_id
         having count(*) = 1
       )
+      update public.stage_checklist_items sci
+      set workflow_template_stage_id = m.workflow_template_stage_id
+      from unique_stage_map m
       where sci.workflow_template_stage_id is null
-        and sci.workflow_stage_id is not null
+        and sci.workflow_stage_id::uuid = m.stage_id
     $sql$;
   end if;
 
@@ -230,6 +235,35 @@ create table if not exists public.order_stage_checklist_items (
   created_at timestamptz not null default now()
 );
 
+do $repair_snapshot_id$
+declare
+  v_rows bigint := 0;
+  v_id_type text;
+begin
+  select count(*) into v_rows
+  from public.order_stage_checklist_items;
+
+  select data_type into v_id_type
+  from information_schema.columns
+  where table_schema = 'public'
+    and table_name = 'order_stage_checklist_items'
+    and column_name = 'id';
+
+  if v_id_type is null then
+    if v_rows > 0 then
+      raise exception
+        'order_stage_checklist_items has rows but no id column; manual inspection required.';
+    end if;
+    alter table public.order_stage_checklist_items
+      add column id uuid default gen_random_uuid();
+  elsif v_id_type <> 'uuid' then
+    raise exception
+      'order_stage_checklist_items.id type is %, expected uuid.',
+      v_id_type;
+  end if;
+end;
+$repair_snapshot_id$;
+
 alter table public.order_stage_checklist_items
   add column if not exists order_stage_work_id uuid,
   add column if not exists source_checklist_item_id uuid,
@@ -280,6 +314,15 @@ alter table public.order_stage_checklist_items
 
 do $snapshot_constraints$
 begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.order_stage_checklist_items'::regclass
+      and contype = 'p'
+  ) then
+    alter table public.order_stage_checklist_items
+      add constraint order_stage_checklist_items_pkey primary key (id);
+  end if;
+
   if not exists (
     select 1 from pg_constraint
     where conrelid = 'public.order_stage_checklist_items'::regclass
@@ -418,6 +461,35 @@ create table if not exists public.order_stage_checklist_checks (
   updated_at timestamptz not null default now()
 );
 
+do $repair_checks_id$
+declare
+  v_rows bigint := 0;
+  v_id_type text;
+begin
+  select count(*) into v_rows
+  from public.order_stage_checklist_checks;
+
+  select data_type into v_id_type
+  from information_schema.columns
+  where table_schema = 'public'
+    and table_name = 'order_stage_checklist_checks'
+    and column_name = 'id';
+
+  if v_id_type is null then
+    if v_rows > 0 then
+      raise exception
+        'order_stage_checklist_checks has rows but no id column; manual inspection required.';
+    end if;
+    alter table public.order_stage_checklist_checks
+      add column id uuid default gen_random_uuid();
+  elsif v_id_type <> 'uuid' then
+    raise exception
+      'order_stage_checklist_checks.id type is %, expected uuid.',
+      v_id_type;
+  end if;
+end;
+$repair_checks_id$;
+
 alter table public.order_stage_checklist_checks
   add column if not exists order_stage_work_id uuid,
   add column if not exists snapshot_item_id uuid,
@@ -466,6 +538,15 @@ begin
   if not exists (
     select 1 from pg_constraint
     where conrelid = 'public.order_stage_checklist_checks'::regclass
+      and contype = 'p'
+  ) then
+    alter table public.order_stage_checklist_checks
+      add constraint order_stage_checklist_checks_pkey primary key (id);
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.order_stage_checklist_checks'::regclass
       and conname = 'order_stage_checklist_checks_order_stage_work_id_fkey'
   ) then
     alter table public.order_stage_checklist_checks
@@ -485,6 +566,18 @@ begin
       foreign key (snapshot_item_id)
       references public.order_stage_checklist_items(id)
       on delete cascade;
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.order_stage_checklist_checks'::regclass
+      and conname = 'order_stage_checklist_checks_employee_id_fkey'
+  ) then
+    alter table public.order_stage_checklist_checks
+      add constraint order_stage_checklist_checks_employee_id_fkey
+      foreign key (employee_id)
+      references public.employees(id)
+      on delete set null;
   end if;
 end;
 $checks_constraints$;
