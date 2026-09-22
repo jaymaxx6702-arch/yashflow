@@ -1,16 +1,41 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+
+type BuildInfo = {
+  version: string;
+  versionCode: number;
+  buildType: "release" | "debug";
+  commit: string;
+};
 
 export default function InstallYashFlowPage() {
   const [message, setMessage] = useState("");
+  const [buildInfo, setBuildInfo] = useState<BuildInfo | null>(null);
 
   const apkPath = "/download/YashFlow.apk";
 
   const apkUrl = useMemo(() => {
     if (typeof window === "undefined") return apkPath;
     return `${window.location.origin}${apkPath}`;
+  }, []);
+
+  useEffect(() => {
+    void fetch("/download/version.json", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (
+          data &&
+          typeof data.version === "string" &&
+          typeof data.versionCode === "number"
+        ) {
+          setBuildInfo(data as BuildInfo);
+        }
+      })
+      .catch(() => {
+        // Older installs may not have build metadata yet.
+      });
   }, []);
 
   async function handleShare() {
@@ -45,11 +70,11 @@ export default function InstallYashFlowPage() {
       <div className="yf-container max-w-3xl py-6 sm:py-10">
         <section className="yf-card overflow-hidden">
           <div className="bg-gradient-to-br from-blue-700 to-blue-500 px-6 py-8 sm:px-10 sm:py-10 text-center text-white">
-            <div className="mx-auto h-20 w-20 rounded-3xl bg-white shadow-lg flex items-center justify-center overflow-hidden">
+            <div className="mx-auto h-20 w-20 rounded-3xl bg-[#1a2b4c] border border-white/20 shadow-lg flex items-center justify-center overflow-hidden p-2">
               <img
-                src="/icon-192.png"
+                src="/yashflow-logo.png"
                 alt="YashFlow"
-                className="h-full w-full object-cover"
+                className="h-full w-full object-contain"
               />
             </div>
 
@@ -79,7 +104,14 @@ export default function InstallYashFlowPage() {
                 <p className="text-[10px] font-black tracking-wide text-slate-500">
                   VERSION
                 </p>
-                <p className="mt-1 font-black text-slate-900">1.0.0</p>
+                <p className="mt-1 font-black text-slate-900">
+                  {buildInfo?.version || "Latest"}
+                </p>
+                {buildInfo && (
+                  <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                    {buildInfo.buildType} • #{buildInfo.versionCode}
+                  </p>
+                )}
               </div>
 
               <div className="yf-card-soft p-4">
@@ -89,6 +121,15 @@ export default function InstallYashFlowPage() {
                 <p className="mt-1 font-black text-slate-900">Yash Laser</p>
               </div>
             </div>
+
+            {buildInfo?.buildType === "debug" && (
+              <div className="yf-alert yf-alert-warning mt-5">
+                <p className="font-black">Testing APK</p>
+                <p className="mt-1 text-xs">
+                  Permanent Release signing હજુ configured નથી. Update install ન થાય તો જૂની YashFlow uninstall કરીને નવી APK install કરો.
+                </p>
+              </div>
+            )}
 
             <a
               href={apkPath}
