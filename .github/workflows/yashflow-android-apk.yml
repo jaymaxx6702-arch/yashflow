@@ -10,9 +10,19 @@ on:
       - "public/sounds/notification.wav"
       - ".github/workflows/yashflow-android-apk.yml"
 
+permissions:
+  contents: write
+
 jobs:
   build-apk:
     runs-on: ubuntu-latest
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      YASHFLOW_VERSION_CODE: ${{ github.run_number }}
+      YASHFLOW_VERSION_NAME: 1.0.${{ github.run_number }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -63,28 +73,212 @@ jobs:
           mkdir -p mobile/android/app/src/main/res/raw
           cp public/sounds/notification.wav mobile/android/app/src/main/res/raw/yashflow_notification.wav
 
-      - name: Set YashFlow Android launcher icon
+      - name: Build adaptive launcher and splash artwork
         run: |
-          for dir in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
-            mkdir -p "mobile/android/app/src/main/res/mipmap-$dir"
-            cp public/yashflow-logo.png "mobile/android/app/src/main/res/mipmap-$dir/ic_launcher.png"
-            cp public/yashflow-logo.png "mobile/android/app/src/main/res/mipmap-$dir/ic_launcher_round.png"
-            cp public/yashflow-logo.png "mobile/android/app/src/main/res/mipmap-$dir/ic_launcher_foreground.png"
-          done
+          python3 -m pip install --quiet pillow
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+
+          source = Image.open("public/yashflow-logo.png").convert("RGBA")
+          res = Path("mobile/android/app/src/main/res")
+          navy = (26, 43, 76, 255)
+
+          densities = {
+              "mdpi": 48,
+              "hdpi": 72,
+              "xhdpi": 96,
+              "xxhdpi": 144,
+              "xxxhdpi": 192,
+          }
+
+          def contain(image, canvas_px, max_ratio, background=None):
+              canvas = Image.new(
+                  "RGBA",
+                  (canvas_px, canvas_px),
+                  background if background is not None else (0, 0, 0, 0),
+              )
+              logo = image.copy()
+              max_px = int(canvas_px * max_ratio)
+              logo.thumbnail((max_px, max_px), Image.Resampling.LANCZOS)
+              x = (canvas_px - logo.width) // 2
+              y = (canvas_px - logo.height) // 2
+              canvas.alpha_composite(logo, (x, y))
+              return canvas
+
+          # Legacy launcher icons: generous safe area so circle/squircle masks
+          # never crop the YashFlow mark.
+          for density, px in densities.items():
+              folder = res / f"mipmap-{density}"
+              folder.mkdir(parents=True, exist_ok=True)
+              icon = contain(source, px, 0.66, navy)
+              icon.save(folder / "ic_launcher.png")
+              icon.save(folder / "ic_launcher_round.png")
+
+          # Adaptive foreground remains transparent; Android supplies the navy
+          # background and applies the device-specific mask.
+          drawable = res / "drawable-nodpi"
+          drawable.mkdir(parents=True, exist_ok=True)
+          contain(source, 432, 0.58).save(drawable / "yashflow_logo_foreground.png")
+
+          # Pre-Android-12 splash fallback: centered logo, never stretched.
+          splash_dir = res / "drawable"
+          splash_dir.mkdir(parents=True, exist_ok=True)
+          contain(source, 1024, 0.38, navy).save(splash_dir / "splash.png")
+          PY
+
+          mkdir -p mobile/android/app/src/main/res/values
+          cat > mobile/android/app/src/main/res/values/yashflow_launcher_colors.xml <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="yashflow_launcher_background">#1A2B4C</color>
+          </resources>
+          XML
+
+          mkdir -p mobile/android/app/src/main/res/drawable
+          cat > mobile/android/app/src/main/res/drawable/ic_launcher_foreground.xml <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+              <item
+                  android:left="18dp"
+                  android:top="18dp"
+                  android:right="18dp"
+                  android:bottom="18dp">
+                  <bitmap
+                      android:src="@drawable/yashflow_logo_foreground"
+                      android:gravity="center" />
+              </item>
+          </layer-list>
+          XML
+
+          mkdir -p mobile/android/app/src/main/res/mipmap-anydpi-v26
+          cat > mobile/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@color/yashflow_launcher_background" />
+              <foreground android:drawable="@drawable/ic_launcher_foreground" />
+          </adaptive-icon>
+          XML
+          cp mobile/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml \
+             mobile/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
 
       - name: Sync Capacitor
         working-directory: mobile
         run: npx cap sync android
 
-      - name: Build debug APK
+      - name: Apply Android version
+        run: |
+          python3 - <<'PY'
+          import os, re
+          from pathlib import Path
+
+          path = Path("mobile/android/app/build.gradle")
+          text = path.read_text()
+          version_code = os.environ["YASHFLOW_VERSION_CODE"]
+          version_name = os.environ["YASHFLOW_VERSION_NAME"]
+
+          text = re.sub(r'versionCode\s+\d+', f'versionCode {version_code}', text, count=1)
+          text = re.sub(
+              r'versionName\s+"[^"]+"',
+              f'versionName "{version_name}"',
+              text,
+              count=1,
+          )
+          path.write_text(text)
+          PY
+
+      - name: Configure permanent release signing
+        if: ${{ env.ANDROID_KEYSTORE_BASE64 != '' }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > mobile/android/app/yashflow-release.jks
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("mobile/android/app/build.gradle")
+          text = path.read_text()
+
+          if "signingConfigs {" not in text:
+              marker = "    buildTypes {"
+              signing = """    signingConfigs {
+                  release {
+                      storeFile file("yashflow-release.jks")
+                      storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                      keyAlias System.getenv("ANDROID_KEY_ALIAS")
+                      keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+                  }
+              }
+
+          """
+              text = text.replace(marker, signing + marker, 1)
+
+          release_marker = "        release {"
+          if "signingConfig signingConfigs.release" not in text:
+              text = text.replace(
+                  release_marker,
+                  release_marker + '\n            signingConfig signingConfigs.release',
+                  1,
+              )
+
+          path.write_text(text)
+          PY
+
+      - name: Build signed release APK
+        if: ${{ env.ANDROID_KEYSTORE_BASE64 != '' }}
+        working-directory: mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease
+
+      - name: Build debug APK fallback
+        if: ${{ env.ANDROID_KEYSTORE_BASE64 == '' }}
         working-directory: mobile/android
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug
 
+      - name: Select latest APK
+        run: |
+          mkdir -p /tmp/yashflow-apk
+          if [ -f mobile/android/app/build/outputs/apk/release/app-release.apk ]; then
+            cp mobile/android/app/build/outputs/apk/release/app-release.apk /tmp/yashflow-apk/YashFlow.apk
+            BUILD_TYPE="release"
+          else
+            cp mobile/android/app/build/outputs/apk/debug/app-debug.apk /tmp/yashflow-apk/YashFlow.apk
+            BUILD_TYPE="debug"
+          fi
+
+          cat > /tmp/yashflow-apk/version.json <<EOF
+          {
+            "version": "$YASHFLOW_VERSION_NAME",
+            "versionCode": $YASHFLOW_VERSION_CODE,
+            "buildType": "$BUILD_TYPE",
+            "commit": "${GITHUB_SHA}"
+          }
+          EOF
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: YashFlow-Android
-          path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          path: |
+            /tmp/yashflow-apk/YashFlow.apk
+            /tmp/yashflow-apk/version.json
           if-no-files-found: error
+
+      - name: Publish latest APK to install page
+        run: |
+          mkdir -p public/download
+          cp /tmp/yashflow-apk/YashFlow.apk public/download/YashFlow.apk
+          cp /tmp/yashflow-apk/version.json public/download/version.json
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f public/download/YashFlow.apk public/download/version.json
+
+          if git diff --cached --quiet; then
+            echo "Install APK already current."
+            exit 0
+          fi
+
+          git commit -m "Publish latest YashFlow Android APK [skip ci]"
+          git push
