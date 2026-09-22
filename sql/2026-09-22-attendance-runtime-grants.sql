@@ -30,13 +30,17 @@ grant select
 on table public.attendance_geofence_settings
 to service_role;
 
-grant select, insert, update
-on table public.offline_action_receipts
-to service_role;
+do $
+begin
+  if to_regclass('public.offline_action_receipts') is not null then
+    execute 'grant select, insert, update on table public.offline_action_receipts to service_role';
+  end if;
 
-grant select, insert
-on table public.notifications
-to service_role;
+  if to_regclass('public.notifications') is not null then
+    execute 'grant select, insert on table public.notifications to service_role';
+  end if;
+end
+$;
 
 alter table public.attendance enable row level security;
 
