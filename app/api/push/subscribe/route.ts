@@ -58,18 +58,20 @@ export async function POST(request: Request) {
       );
     }
 
-    if (auth.profile.role === "admin") {
-      const origin = new URL(request.url).origin;
+    // Any approved active employee subscription should keep the
+    // push processor enabled. Requiring an Admin to subscribe first meant
+    // employees could have a valid device subscription while the outbox
+    // cron still remained disabled.
+    const origin = new URL(request.url).origin;
 
-      await auth.db
-        .from("push_settings")
-        .update({
-          process_url: `${origin}/api/push/process`,
-          cron_enabled: true,
-          updated_at: now,
-        })
-        .eq("id", 1);
-    }
+    await auth.db
+      .from("push_settings")
+      .update({
+        process_url: `${origin}/api/push/process`,
+        cron_enabled: true,
+        updated_at: now,
+      })
+      .eq("id", 1);
 
     return NextResponse.json({ ok: true });
   } catch (error) {
