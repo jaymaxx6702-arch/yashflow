@@ -267,6 +267,12 @@ jobs:
 
       - name: Publish latest APK to install page
         run: |
+          # Other YashFlow web commits may land while the Android build runs.
+          # Always publish on top of the newest main instead of pushing the
+          # older checkout and causing a non-fast-forward failure.
+          git fetch origin main
+          git reset --hard origin/main
+
           mkdir -p public/download
           cp /tmp/yashflow-apk/YashFlow.apk public/download/YashFlow.apk
           cp /tmp/yashflow-apk/version.json public/download/version.json
@@ -281,4 +287,4 @@ jobs:
           fi
 
           git commit -m "Publish latest YashFlow Android APK [skip ci]"
-          git push
+          git push origin HEAD:main
