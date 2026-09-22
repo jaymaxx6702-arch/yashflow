@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { getNativeCurrentPosition } from "@/utils/native-app";
+import YashFlowIcon, { type YashFlowIconName } from "@/components/YashFlowIcon";
 import {
   enqueueOfflineAction,
   getOfflineActionsForEmployee,
@@ -87,7 +88,7 @@ function CompactTile({
 }: {
   label: string;
   value: string | number;
-  icon: string;
+  icon: YashFlowIconName;
   className?: string;
   onClick?: () => void;
 }) {
@@ -97,7 +98,7 @@ function CompactTile({
         <p className="text-[10px] font-black tracking-wide text-slate-500">
           {label}
         </p>
-        <span className="text-base">{icon}</span>
+        <span className="text-slate-600"><YashFlowIcon name={icon} size={17} /></span>
       </div>
       <p className="text-base sm:text-lg font-black text-slate-900 mt-1 truncate">
         {value}
@@ -132,17 +133,18 @@ function QuickApp({
   onClick,
 }: {
   label: string;
-  icon: string;
+  icon: YashFlowIconName;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 min-h-[84px] shadow-sm hover:shadow-md active:scale-[0.98] transition"
+      className="group relative flex flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/70 p-3 min-h-[84px] shadow-sm hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition duration-200 overflow-hidden"
     >
-      <div className="w-10 h-10 rounded-2xl bg-slate-100 flex items-center justify-center text-lg">
-        {icon}
+      <span className="pointer-events-none absolute inset-x-3 top-0 h-px bg-gradient-to-r from-transparent via-[#d4af37]/55 to-transparent opacity-0 group-hover:opacity-100 transition" />
+      <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 text-slate-700 flex items-center justify-center shadow-sm transition duration-200 group-hover:text-blue-700 group-hover:shadow-md">
+        <YashFlowIcon name={icon} size={20} />
       </div>
       <span className="text-[11px] font-black text-slate-700 text-center leading-tight">
         {label}
@@ -1591,12 +1593,12 @@ export default function EmployeeDashboard() {
             <CompactTile
               label="CHECK IN"
               value={formatTime(attendance?.check_in || null)}
-              icon="↘"
+              icon="arrow-down"
             />
             <CompactTile
               label="CHECK OUT"
               value={formatTime(attendance?.check_out || null)}
-              icon="↗"
+              icon="arrow-up"
             />
             <CompactTile
               label="WORKING"
@@ -1607,7 +1609,7 @@ export default function EmployeeDashboard() {
                   ? "Running"
                   : "-"
               }
-              icon="⏱️"
+              icon="clock"
             />
           </div>
 
@@ -1658,21 +1660,21 @@ export default function EmployeeDashboard() {
             <CompactTile
               label="ATTENDANCE"
               value={attendanceStatus}
-              icon="🕘"
+              icon="clock"
               onClick={() => openDrawer("attendance")}
             />
 
             <CompactTile
               label="DEPT. ORDERS"
               value={departmentOrderCount}
-              icon="📦"
+              icon="orders"
               onClick={() => openDrawer("department_orders")}
             />
 
             <CompactTile
               label="PENDING LEAVE"
               value={pendingLeaveCount}
-              icon="🗓️"
+              icon="calendar"
               onClick={() => openDrawer("pending_leave")}
             />
 
@@ -1685,7 +1687,7 @@ export default function EmployeeDashboard() {
                   ? "Running"
                   : "-"
               }
-              icon="⏱️"
+              icon="clock"
               onClick={() => openDrawer("working_today")}
             />
           </div>
@@ -1706,36 +1708,36 @@ export default function EmployeeDashboard() {
           <div className="grid grid-cols-4 gap-2 mt-3">
             <QuickApp
               label="Orders"
-              icon="📦"
+              icon="orders"
               onClick={() => router.push("/dashboard/orders")}
             />
             <QuickApp
               label="Tasks"
-              icon="📋"
+              icon="task"
               onClick={() => router.push("/dashboard/tasks")}
             />
             <QuickApp
               label="Completed Tasks"
-              icon="✅"
+              icon="check"
               onClick={() => router.push("/completed-tasks")}
             />
             {canCreateOrders && (
               <QuickApp
                 label="Create Order"
-                icon="➕"
+                icon="orders"
                 onClick={() => router.push("/dashboard/order-create")}
               />
             )}
             {canUseManagementAccess && (
               <QuickApp
                 label="Admin Access"
-                icon="🛠️"
+                icon="admin"
                 onClick={() => router.push("/dashboard/manage")}
               />
             )}
             <QuickApp
               label="Leave"
-              icon="🗓️"
+              icon="calendar"
               onClick={() => router.push("/dashboard/leave")}
             />
             <QuickApp
@@ -1752,7 +1754,7 @@ export default function EmployeeDashboard() {
             {canViewPurchase && (
               <QuickApp
                 label="Purchase"
-                icon="🛒"
+                icon="purchase"
                 onClick={() => router.push("/dashboard/purchase")}
               />
             )}
@@ -1760,7 +1762,7 @@ export default function EmployeeDashboard() {
             {canViewDispatch && (
               <QuickApp
                 label="Dispatch"
-                icon="🚚"
+                icon="dispatch"
                 onClick={() => router.push("/dashboard/dispatch")}
               />
             )}
@@ -1885,17 +1887,17 @@ export default function EmployeeDashboard() {
                           ? "Approved"
                           : "Rejected"
                       }
-                      icon="✅"
+                      icon="check"
                     />
                     <CompactTile
                       label="CHECK IN"
                       value={formatTime(attendance?.check_in || null)}
-                      icon="↘"
+                      icon="arrow-down"
                     />
                     <CompactTile
                       label="CHECK OUT"
                       value={formatTime(attendance?.check_out || null)}
-                      icon="↗"
+                      icon="arrow-up"
                     />
                     <CompactTile
                       label="LATE"
@@ -1911,7 +1913,7 @@ export default function EmployeeDashboard() {
                       value={formatWorkingMinutes(
                         attendance?.working_minutes || 0
                       )}
-                      icon="⏱️"
+                      icon="clock"
                     />
                   </div>
 
@@ -2026,12 +2028,12 @@ export default function EmployeeDashboard() {
                     <CompactTile
                       label="CHECK IN"
                       value={formatTime(attendance?.check_in || null)}
-                      icon="↘"
+                      icon="arrow-down"
                     />
                     <CompactTile
                       label="CHECK OUT"
                       value={formatTime(attendance?.check_out || null)}
-                      icon="↗"
+                      icon="arrow-up"
                     />
                   </div>
 
