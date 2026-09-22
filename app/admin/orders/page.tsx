@@ -4120,110 +4120,157 @@ export default function AdminOrdersPage() {
               )}
 
               {showEdit && (
-                <div className="yf-card p-4">
-                  <p className="font-black">Edit Order Details</p>
+                <div className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-5">
+                  <button
+                    type="button"
+                    aria-label="Close Edit Order Details"
+                    onClick={() => setShowEdit(false)}
+                    className="absolute inset-0 bg-slate-950/55 backdrop-blur-[1px]"
+                  />
 
-                  <div className="grid sm:grid-cols-2 gap-3 mt-4">
-                    <input
-                      value={editForm.customer_name}
-                      onChange={(event) =>
-                        setEditForm((current) => ({
-                          ...current,
-                          customer_name: event.target.value,
-                        }))
-                      }
-                      placeholder="Customer Name"
-                      className="yf-input"
-                    />
+                  <section
+                    className="relative z-10 w-full max-w-xl max-h-[90dvh] rounded-3xl bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <div className="shrink-0 border-b border-slate-200 bg-white px-4 py-3 flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-black tracking-[0.15em] text-blue-700">
+                          EDIT ORDER
+                        </p>
+                        <h3 className="text-lg font-black text-slate-900 mt-0.5">
+                          Edit Order Details
+                        </h3>
+                        <p className="text-[11px] font-semibold text-slate-500 mt-0.5 truncate">
+                          {selectedOrder.order_number} • {selectedOrder.customer_name}
+                        </p>
+                      </div>
 
-                    <input
-                      value={editForm.customer_mobile}
-                      onChange={(event) =>
-                        setEditForm((current) => ({
-                          ...current,
-                          customer_mobile: event.target.value,
-                        }))
-                      }
-                      placeholder="Mobile"
-                      className="yf-input"
-                    />
+                      <button
+                        type="button"
+                        onClick={() => setShowEdit(false)}
+                        className="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 font-black shrink-0"
+                      >
+                        ✕
+                      </button>
+                    </div>
 
-                    <input
-                      type="number"
-                      min="1"
-                      value={editForm.quantity}
-                      onChange={(event) =>
-                        setEditForm((current) => ({
-                          ...current,
-                          quantity: event.target.value,
-                        }))
-                      }
-                      className="yf-input"
-                    />
+                    <div className="flex-1 min-h-0 overflow-y-auto p-4">
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        <input
+                          value={editForm.customer_name}
+                          onChange={(event) =>
+                            setEditForm((current) => ({
+                              ...current,
+                              customer_name: event.target.value,
+                            }))
+                          }
+                          placeholder="Customer Name"
+                          className="yf-input"
+                        />
 
-                    <select
-                      value={editForm.priority}
-                      onChange={(event) =>
-                        setEditForm((current) => ({
-                          ...current,
-                          priority: event.target.value as Priority,
-                        }))
-                      }
-                      className="yf-input"
-                    >
-                      <option value="low">Low</option>
-                      <option value="normal">Normal</option>
-                      <option value="high">High</option>
-                      <option value="urgent">Urgent</option>
-                    </select>
+                        <input
+                          value={editForm.customer_mobile}
+                          onChange={(event) =>
+                            setEditForm((current) => ({
+                              ...current,
+                              customer_mobile: event.target.value,
+                            }))
+                          }
+                          placeholder="Mobile"
+                          className="yf-input"
+                        />
 
-                    <input
-                      type="date"
-                      value={editForm.due_date}
-                      onChange={(event) =>
-                        setEditForm((current) => ({
-                          ...current,
-                          due_date: event.target.value,
-                        }))
-                      }
-                      className="yf-input sm:col-span-2"
-                    />
+                        <input
+                          type="number"
+                          min="1"
+                          value={editForm.quantity}
+                          onChange={(event) =>
+                            setEditForm((current) => ({
+                              ...current,
+                              quantity: event.target.value,
+                            }))
+                          }
+                          placeholder="Quantity"
+                          className="yf-input"
+                        />
 
-                    <textarea
-                      rows={2}
-                      value={editForm.customer_note}
-                      onChange={(event) =>
-                        setEditForm((current) => ({
-                          ...current,
-                          customer_note: event.target.value,
-                        }))
-                      }
-                      placeholder="Customer Note"
-                      className="yf-input resize-none sm:col-span-2"
-                    />
+                        <select
+                          value={editForm.priority}
+                          onChange={(event) =>
+                            setEditForm((current) => ({
+                              ...current,
+                              priority: event.target.value as Priority,
+                            }))
+                          }
+                          className="yf-input"
+                        >
+                          <option value="low">Low</option>
+                          <option value="normal">Normal</option>
+                          <option value="high">High</option>
+                          <option value="urgent">Urgent</option>
+                        </select>
 
-                    <textarea
-                      rows={2}
-                      value={editForm.admin_note}
-                      onChange={(event) =>
-                        setEditForm((current) => ({
-                          ...current,
-                          admin_note: event.target.value,
-                        }))
-                      }
-                      placeholder="Admin Note"
-                      className="yf-input resize-none sm:col-span-2"
-                    />
+                        <input
+                          type="date"
+                          value={editForm.due_date}
+                          onChange={(event) =>
+                            setEditForm((current) => ({
+                              ...current,
+                              due_date: event.target.value,
+                            }))
+                          }
+                          className="yf-input sm:col-span-2"
+                        />
 
-                    <button
-                      type="button"
-                      onClick={saveOrderDetails}
-                      disabled={actionId === `edit-${selectedOrder.id}`}
-                      className="yf-btn yf-btn-primary sm:col-span-2"
-                    >
-                      Save Order Changes
-                    </button>
-                  </div>
+                        <textarea
+                          rows={3}
+                          value={editForm.customer_note}
+                          onChange={(event) =>
+                            setEditForm((current) => ({
+                              ...current,
+                              customer_note: event.target.value,
+                            }))
+                          }
+                          placeholder="Customer Note"
+                          className="yf-input resize-none sm:col-span-2"
+                        />
+
+                        <textarea
+                          rows={3}
+                          value={editForm.admin_note}
+                          onChange={(event) =>
+                            setEditForm((current) => ({
+                              ...current,
+                              admin_note: event.target.value,
+                            }))
+                          }
+                          placeholder="Admin Note"
+                          className="yf-input resize-none sm:col-span-2"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="shrink-0 border-t border-slate-200 bg-white p-3 grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowEdit(false)}
+                        className="yf-btn yf-btn-secondary justify-center"
+                      >
+                        Cancel
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={saveOrderDetails}
+                        disabled={actionId === `edit-${selectedOrder.id}`}
+                        className="yf-btn yf-btn-primary justify-center disabled:opacity-50"
+                      >
+                        {actionId === `edit-${selectedOrder.id}`
+                          ? "Saving..."
+                          : "Save Changes"}
+                      </button>
+                    </div>
+                  </section>
                 </div>
               )}
             </div>
