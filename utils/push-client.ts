@@ -54,11 +54,15 @@ export async function ensureWebPushSubscription() {
 
   const config = (await configResponse.json()) as {
     error?: string;
+    code?: string;
     publicKey?: string;
   };
 
   if (!configResponse.ok || !config.publicKey) {
-    throw new Error(config.error || "Push configuration મળ્યું નથી.");
+    const prefix = config.code ? `[${config.code}] ` : "";
+    throw new Error(
+      `${prefix}${config.error || "Push configuration મળ્યું નથી."}`
+    );
   }
 
   const registration = await navigator.serviceWorker.ready;
@@ -89,10 +93,14 @@ export async function ensureWebPushSubscription() {
 
   const saved = (await saveResponse.json()) as {
     error?: string;
+    code?: string;
   };
 
   if (!saveResponse.ok) {
-    throw new Error(saved.error || "Push subscription save failed.");
+    const prefix = saved.code ? `[${saved.code}] ` : "";
+    throw new Error(
+      `${prefix}${saved.error || "Push subscription save failed."}`
+    );
   }
 
   return subscription;
