@@ -7,7 +7,18 @@ import { ensureWebPushSubscription } from "@/utils/push-client";
 export default function PushSubscriptionManager() {
   const pathname = usePathname();
   const [permission, setPermission] =
-    useState<NotificationPermission | "unsupported">("unsupported");
+    useState<NotificationPermission | "unsupported">(() => {
+      if (
+        typeof window === "undefined" ||
+        !("Notification" in window) ||
+        !("serviceWorker" in navigator) ||
+        !("PushManager" in window)
+      ) {
+        return "unsupported";
+      }
+
+      return Notification.permission;
+    });
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -18,12 +29,10 @@ export default function PushSubscriptionManager() {
       !("serviceWorker" in navigator) ||
       !("PushManager" in window)
     ) {
-      setPermission("unsupported");
       return;
     }
 
     const current = Notification.permission;
-    setPermission(current);
 
     if (current !== "granted") {
       window.localStorage.setItem(
