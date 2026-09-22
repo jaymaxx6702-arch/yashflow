@@ -27,6 +27,7 @@ export async function GET(request: Request) {
           error instanceof Error
             ? error.message
             : "Push configuration failed.",
+        code: "PUSH_CONFIG_FAILED",
       },
       { status: 500 }
     );
