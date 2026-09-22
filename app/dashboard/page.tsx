@@ -983,6 +983,7 @@ export default function EmployeeDashboard() {
         enqueueOfflineAction(
           "attendance_check_in",
           {
+            employee_id: employee.id,
             latitude: location.latitude,
             longitude: location.longitude,
             accuracy: location.accuracy,
@@ -1023,6 +1024,7 @@ export default function EmployeeDashboard() {
             Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify({
+            employee_id: employee.id,
             latitude: locationToSubmit.latitude,
             longitude: locationToSubmit.longitude,
             accuracy: locationToSubmit.accuracy,
@@ -1254,6 +1256,7 @@ export default function EmployeeDashboard() {
             Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify({
+            employee_id: employee.id,
             latitude: locationToSubmit.latitude,
             longitude: locationToSubmit.longitude,
             accuracy: locationToSubmit.accuracy,
@@ -1336,6 +1339,7 @@ export default function EmployeeDashboard() {
         enqueueOfflineAction(
           "attendance_check_out",
           {
+            employee_id: employee.id,
             latitude: capturedLocation.latitude,
             longitude: capturedLocation.longitude,
             accuracy: capturedLocation.accuracy,
