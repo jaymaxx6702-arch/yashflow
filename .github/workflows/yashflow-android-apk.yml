@@ -44,6 +44,15 @@ jobs:
           mkdir -p mobile/android/app/src/main/res/raw
           cp public/sounds/notification.wav mobile/android/app/src/main/res/raw/yashflow_notification.wav
 
+      - name: Set YashFlow Android launcher icon
+        run: |
+          for dir in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            mkdir -p "mobile/android/app/src/main/res/mipmap-$dir"
+            cp public/yashflow-logo.png "mobile/android/app/src/main/res/mipmap-$dir/ic_launcher.png"
+            cp public/yashflow-logo.png "mobile/android/app/src/main/res/mipmap-$dir/ic_launcher_round.png"
+            cp public/yashflow-logo.png "mobile/android/app/src/main/res/mipmap-$dir/ic_launcher_foreground.png"
+          done
+
       - name: Sync Capacitor
         working-directory: mobile
         run: npx cap sync android
