@@ -15,7 +15,7 @@ const config: CapacitorConfig = {
   },
   plugins: {
     PushNotifications: {
-      presentationOptions: ["sound", "alert", "banner", "list"]
+      presentationOptions: []
     }
   }
 };
