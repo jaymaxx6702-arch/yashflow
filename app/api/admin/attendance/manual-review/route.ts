@@ -152,8 +152,13 @@ export async function POST(request: Request) {
     let existing = (existingRows || [])[0] || null;
 
     if (existingRows?.length) {
+      // Prefer the active/open attendance row. Legacy duplicate days can
+      // contain both an open row and an older closed row; selecting the
+      // closed row first can apply a manual correction to the wrong record.
       existing =
-        existingRows.find((row) => Boolean(row.check_out)) ||
+        existingRows.find(
+          (row) => Boolean(row.check_in) && !row.check_out
+        ) ||
         existingRows.find((row) => Boolean(row.check_in)) ||
         existingRows[0];
     }
