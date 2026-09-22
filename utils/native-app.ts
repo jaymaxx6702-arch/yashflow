@@ -301,6 +301,15 @@ export async function registerNativeBackHandler() {
     "addListener",
     { eventName: "backButton" },
     () => {
+      // Give the currently visible modal/drawer first chance to consume Back.
+      // Any overlay can listen for this event, call preventDefault(), and close
+      // itself without forcing a route change.
+      const backEvent = new CustomEvent("yashflow:native-back", {
+        cancelable: true,
+      });
+      window.dispatchEvent(backEvent);
+      if (backEvent.defaultPrevented) return;
+
       const path = window.location.pathname;
 
       // Root screens stay inside YashFlow instead of closing the Android app.
@@ -308,8 +317,18 @@ export async function registerNativeBackHandler() {
         return;
       }
 
-      // Use predictable in-app parent routes so hardware Back never jumps
-      // outside the remote WebView/browser history.
+      // Prefer browser history only when YashFlow has created an in-app entry.
+      // Otherwise use deterministic parent routes so Back never escapes the
+      // remote WebView to an external/blank screen.
+      if (
+        window.history.length > 1 &&
+        (window.history.state?.yfEmployeeDrawer ||
+          window.history.state?.yfYashFlowRoute)
+      ) {
+        window.history.back();
+        return;
+      }
+
       let target = "/";
 
       if (/^\/admin\/orders\/[^/]+/.test(path)) {
