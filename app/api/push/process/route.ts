@@ -6,6 +6,7 @@ import {
   sendEmptyWebPush,
   WebPushError,
 } from "@/utils/web-push-server";
+import { FcmError, sendNativeFcm } from "@/utils/fcm-server";
 
 function safeEqual(a: string, b: string) {
   const left = Buffer.from(a);
@@ -91,20 +92,28 @@ export async function POST(request: Request) {
       (row) => row.notification_id
     );
 
-    const [notificationsResult, subscriptionsResult] =
-      await Promise.all([
-        db
-          .from("notifications")
-          .select(
-            "id, employee_id, created_at"
-          )
-          .in("id", notificationIds),
-        db
-          .from("push_subscriptions")
-          .select("id, employee_id, endpoint")
-          .in("employee_id", employeeIds)
-          .eq("is_active", true),
-      ]);
+    const [
+      notificationsResult,
+      subscriptionsResult,
+      nativeTokensResult,
+    ] = await Promise.all([
+      db
+        .from("notifications")
+        .select(
+          "id, employee_id, title, message, related_type, related_id, created_at"
+        )
+        .in("id", notificationIds),
+      db
+        .from("push_subscriptions")
+        .select("id, employee_id, endpoint")
+        .in("employee_id", employeeIds)
+        .eq("is_active", true),
+      db
+        .from("native_push_tokens")
+        .select("id, employee_id, token")
+        .in("employee_id", employeeIds)
+        .eq("is_active", true),
+    ]);
 
     if (notificationsResult.error) {
       throw new Error(notificationsResult.error.message);
@@ -114,14 +123,27 @@ export async function POST(request: Request) {
       throw new Error(subscriptionsResult.error.message);
     }
 
+    if (nativeTokensResult.error) {
+      throw new Error(nativeTokensResult.error.message);
+    }
+
     const notifications =
       notificationsResult.data || [];
     const subscriptions =
       subscriptionsResult.data || [];
+    const nativeTokens =
+      nativeTokensResult.data || [];
 
     const latestNotificationByEmployee = new Map<
       string,
-      { id: string; created_at: string }
+      {
+        id: string;
+        title: string;
+        message: string;
+        related_type: string | null;
+        related_id: string | null;
+        created_at: string;
+      }
     >();
 
     for (const notification of notifications) {
@@ -138,6 +160,10 @@ export async function POST(request: Request) {
           notification.employee_id,
           {
             id: notification.id,
+            title: notification.title || "YashFlow",
+            message: notification.message || "New notification",
+            related_type: notification.related_type,
+            related_id: notification.related_id,
             created_at: notification.created_at,
           }
         );
@@ -156,10 +182,20 @@ export async function POST(request: Request) {
         (row) => row.employee_id === employeeId
       );
 
+      const employeeNativeTokens = nativeTokens.filter(
+        (row) => row.employee_id === employeeId
+      );
+
       const latest =
         latestNotificationByEmployee.get(employeeId);
 
-      if (!latest || employeeSubscriptions.length === 0) {
+      if (
+        !latest ||
+        (
+          employeeSubscriptions.length === 0 &&
+          employeeNativeTokens.length === 0
+        )
+      ) {
         await db
           .from("push_outbox")
           .update({
@@ -232,6 +268,64 @@ export async function POST(request: Request) {
                 updated_at: now,
               })
               .eq("id", subscription.id);
+          }
+        }
+      }
+
+      for (const nativeToken of employeeNativeTokens) {
+        try {
+          await sendNativeFcm({
+            token: nativeToken.token,
+            title: latest.title,
+            body: latest.message,
+            notificationId: latest.id,
+            relatedType: latest.related_type,
+            relatedId: latest.related_id,
+          });
+
+          success = true;
+          pushed += 1;
+
+          await db
+            .from("native_push_tokens")
+            .update({
+              last_success_at: now,
+              last_error: null,
+              updated_at: now,
+            })
+            .eq("id", nativeToken.id);
+        } catch (error) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Native push failed.";
+
+          const invalidToken =
+            error instanceof FcmError &&
+            (
+              error.responseText.includes("UNREGISTERED") ||
+              error.responseText.includes("registration-token-not-registered")
+            );
+
+          if (invalidToken) {
+            await db
+              .from("native_push_tokens")
+              .update({
+                is_active: false,
+                last_error: message,
+                updated_at: now,
+              })
+              .eq("id", nativeToken.id);
+          } else {
+            transientFailure = true;
+
+            await db
+              .from("native_push_tokens")
+              .update({
+                last_error: message,
+                updated_at: now,
+              })
+              .eq("id", nativeToken.id);
           }
         }
       }
