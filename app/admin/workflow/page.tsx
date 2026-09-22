@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import StageChecklistEditor from "./StageChecklistEditor";
 
 type TabKey = "stages" | "products" | "templates";
 
@@ -1953,6 +1954,11 @@ async function updateStageApproval(
                                 Default/Team listમાં આ Departmentના Primary અથવા Additional members જ બતાવવામાં આવે છે.
                               </div>
                             )}
+
+                            <StageChecklistEditor
+                              templateStageId={item.id}
+                              stageName={stage?.name || "Stage"}
+                            />
 
                             {(item.assignment_rule === "default_team" ||
                               item.assignment_rule === "auto_assign") && (
