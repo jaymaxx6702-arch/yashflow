@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import { showNativeYashFlowNotification } from "@/utils/native-app";
 import {
   disableWebPushSubscription,
   ensureWebPushSubscription,
@@ -315,6 +316,16 @@ export default function NotificationBell({ employeeId }: Props) {
       notificationId: string,
       relatedType: string | null
     ) => {
+      if (
+        await showNativeYashFlowNotification({
+          title: title || "YashFlow",
+          body: body || "New notification",
+          notificationId,
+        })
+      ) {
+        return;
+      }
+
       if (
         typeof window === "undefined" ||
         !("Notification" in window) ||
