@@ -55,6 +55,27 @@ export default function AccountsOrdersPage() {
 
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
+  useEffect(() => {
+    function handleNativeBack(event: Event) {
+      if (!selectedOrder) return;
+      event.preventDefault();
+      setSelectedOrder(null);
+    }
+
+    window.addEventListener(
+      "yashflow:native-back",
+      handleNativeBack as EventListener
+    );
+
+    return () => {
+      window.removeEventListener(
+        "yashflow:native-back",
+        handleNativeBack as EventListener
+      );
+    };
+  }, [selectedOrder]);
+
+
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentStatus, setPaymentStatus] =
     useState<OrderPayment["payment_status"]>("pending");
