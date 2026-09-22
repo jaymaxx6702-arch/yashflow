@@ -40,6 +40,27 @@ export default function PermissionOrderEditorPage() {
   const [message, setMessage] = useState("");
   const [searchText, setSearchText] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+
+  useEffect(() => {
+    function handleNativeBack(event: Event) {
+      if (!selectedOrder) return;
+      event.preventDefault();
+      setSelectedOrder(null);
+    }
+
+    window.addEventListener(
+      "yashflow:native-back",
+      handleNativeBack as EventListener
+    );
+
+    return () => {
+      window.removeEventListener(
+        "yashflow:native-back",
+        handleNativeBack as EventListener
+      );
+    };
+  }, [selectedOrder]);
+
   const [editorEmployeeId, setEditorEmployeeId] = useState<string | null>(null);
   const [form, setForm] = useState<EditForm>({
     customer_name: "",
