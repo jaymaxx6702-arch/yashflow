@@ -85,6 +85,26 @@ export default function AdminNotificationBell({ employeeId }: Props) {
   );
 
   useEffect(() => {
+    function handleNativeBack(event: Event) {
+      if (!open) return;
+      event.preventDefault();
+      setOpen(false);
+    }
+
+    window.addEventListener(
+      "yashflow:native-back",
+      handleNativeBack as EventListener
+    );
+
+    return () => {
+      window.removeEventListener(
+        "yashflow:native-back",
+        handleNativeBack as EventListener
+      );
+    };
+  }, [open]);
+
+  useEffect(() => {
     const audio = new Audio("/sounds/notification.wav");
     audio.preload = "auto";
     audio.volume = 1;
