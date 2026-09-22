@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import YashFlowIcon from "@/components/YashFlowIcon";
 
 type Product = {
   id: string;
@@ -873,8 +874,8 @@ async function saveValueDependencies(item: OptionValue) {
                         className="w-14 h-14 rounded-xl object-cover border"
                       />
                     ) : (
-                      <div className="w-14 h-14 rounded-xl bg-slate-100 flex items-center justify-center text-2xl">
-                        📦
+                      <div className="w-14 h-14 rounded-xl bg-slate-100 text-slate-600 border border-slate-200 flex items-center justify-center">
+                        <YashFlowIcon name="products" size={26} />
                       </div>
                     )}
 
