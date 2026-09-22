@@ -16,6 +16,16 @@ function safeEqual(a: string, b: string) {
   return timingSafeEqual(left, right);
 }
 
+function nativeTokenInvalid(error: unknown) {
+  return (
+    error instanceof FcmError &&
+    (
+      error.responseText.includes("UNREGISTERED") ||
+      error.responseText.includes("registration-token-not-registered")
+    )
+  );
+}
+
 export async function POST(request: Request) {
   const db = integrationSupabase();
 
@@ -36,9 +46,7 @@ export async function POST(request: Request) {
         .trim();
 
       if (token) {
-        const { data: userData } =
-          await db.auth.getUser(token);
-
+        const { data: userData } = await db.auth.getUser(token);
         const user = userData.user;
 
         if (user) {
@@ -118,249 +126,275 @@ export async function POST(request: Request) {
     if (notificationsResult.error) {
       throw new Error(notificationsResult.error.message);
     }
-
     if (subscriptionsResult.error) {
       throw new Error(subscriptionsResult.error.message);
     }
-
     if (nativeTokensResult.error) {
       throw new Error(nativeTokensResult.error.message);
     }
 
-    const notifications =
-      notificationsResult.data || [];
-    const subscriptions =
-      subscriptionsResult.data || [];
-    const nativeTokens =
-      nativeTokensResult.data || [];
+    const notificationById = new Map(
+      (notificationsResult.data || []).map((notification) => [
+        notification.id,
+        notification,
+      ])
+    );
 
-    const latestNotificationByEmployee = new Map<
+    const subscriptionsByEmployee = new Map<
       string,
-      {
-        id: string;
-        title: string;
-        message: string;
-        related_type: string | null;
-        related_id: string | null;
-        created_at: string;
-      }
+      typeof subscriptionsResult.data
     >();
+    for (const subscription of subscriptionsResult.data || []) {
+      const rows = subscriptionsByEmployee.get(subscription.employee_id) || [];
+      rows.push(subscription);
+      subscriptionsByEmployee.set(subscription.employee_id, rows);
+    }
 
-    for (const notification of notifications) {
-      const current = latestNotificationByEmployee.get(
-        notification.employee_id
-      );
-
-      if (
-        !current ||
-        new Date(notification.created_at).getTime() >
-          new Date(current.created_at).getTime()
-      ) {
-        latestNotificationByEmployee.set(
-          notification.employee_id,
-          {
-            id: notification.id,
-            title: notification.title || "YashFlow",
-            message: notification.message || "New notification",
-            related_type: notification.related_type,
-            related_id: notification.related_id,
-            created_at: notification.created_at,
-          }
-        );
-      }
+    const nativeTokensByEmployee = new Map<
+      string,
+      typeof nativeTokensResult.data
+    >();
+    for (const token of nativeTokensResult.data || []) {
+      const rows = nativeTokensByEmployee.get(token.employee_id) || [];
+      rows.push(token);
+      nativeTokensByEmployee.set(token.employee_id, rows);
     }
 
     let pushed = 0;
-    const now = new Date().toISOString();
+    let deliveredRows = 0;
+    let retryRows = 0;
 
-    for (const employeeId of employeeIds) {
-      const employeeOutbox = outboxRows.filter(
-        (row) => row.employee_id === employeeId
-      );
+    for (const row of outboxRows) {
+      const now = new Date().toISOString();
+      const notification = notificationById.get(row.notification_id);
 
-      const employeeSubscriptions = subscriptions.filter(
-        (row) => row.employee_id === employeeId
-      );
+      if (!notification) {
+        await db
+          .from("push_outbox")
+          .update({
+            sent_at: now,
+            last_error: "Notification record missing.",
+          })
+          .eq("id", row.id);
+        continue;
+      }
 
-      const employeeNativeTokens = nativeTokens.filter(
-        (row) => row.employee_id === employeeId
-      );
+      const nativeTokens =
+        nativeTokensByEmployee.get(row.employee_id) || [];
+      const webSubscriptions =
+        subscriptionsByEmployee.get(row.employee_id) || [];
 
-      const latest =
-        latestNotificationByEmployee.get(employeeId);
-
-      if (
-        !latest ||
-        (
-          employeeSubscriptions.length === 0 &&
-          employeeNativeTokens.length === 0
-        )
-      ) {
+      if (nativeTokens.length === 0 && webSubscriptions.length === 0) {
         await db
           .from("push_outbox")
           .update({
             sent_at: now,
             last_error: "No active push subscription.",
           })
-          .in(
-            "id",
-            employeeOutbox.map((row) => row.id)
-          );
-
+          .eq("id", row.id);
         continue;
       }
 
-      let success = false;
+      let delivered = false;
       let transientFailure = false;
+      let nativeHasTerminalOnly = nativeTokens.length > 0;
 
-      for (const subscription of employeeSubscriptions) {
-        await db
-          .from("push_subscriptions")
-          .update({
-            last_notification_id: latest.id,
-            updated_at: now,
-          })
-          .eq("id", subscription.id);
+      // Native Android is the preferred channel. When a native token exists,
+      // do not also send Web Push for the same outbox row; this avoids duplicate
+      // alerts and lets FCM transient failures retry independently.
+      if (nativeTokens.length > 0) {
+        for (const nativeToken of nativeTokens) {
+          try {
+            await sendNativeFcm({
+              token: nativeToken.token,
+              title: notification.title || "YashFlow",
+              body: notification.message || "New notification",
+              notificationId: notification.id,
+              relatedType: notification.related_type,
+              relatedId: notification.related_id,
+            });
 
-        try {
-          await sendEmptyWebPush(
-            subscription.endpoint,
-            settings
-          );
-
-          success = true;
-          pushed += 1;
-
-          await db
-            .from("push_subscriptions")
-            .update({
-              last_success_at: now,
-              last_error: null,
-              updated_at: now,
-            })
-            .eq("id", subscription.id);
-        } catch (error) {
-          const message =
-            error instanceof Error
-              ? error.message
-              : "Push failed.";
-
-          if (
-            error instanceof WebPushError &&
-            (error.status === 404 ||
-              error.status === 410)
-          ) {
-            await db
-              .from("push_subscriptions")
-              .update({
-                is_active: false,
-                last_error: message,
-                updated_at: now,
-              })
-              .eq("id", subscription.id);
-          } else {
-            transientFailure = true;
-
-            await db
-              .from("push_subscriptions")
-              .update({
-                last_error: message,
-                updated_at: now,
-              })
-              .eq("id", subscription.id);
-          }
-        }
-      }
-
-      for (const nativeToken of employeeNativeTokens) {
-        try {
-          await sendNativeFcm({
-            token: nativeToken.token,
-            title: latest.title,
-            body: latest.message,
-            notificationId: latest.id,
-            relatedType: latest.related_type,
-            relatedId: latest.related_id,
-          });
-
-          success = true;
-          pushed += 1;
-
-          await db
-            .from("native_push_tokens")
-            .update({
-              last_success_at: now,
-              last_error: null,
-              updated_at: now,
-            })
-            .eq("id", nativeToken.id);
-        } catch (error) {
-          const message =
-            error instanceof Error
-              ? error.message
-              : "Native push failed.";
-
-          const invalidToken =
-            error instanceof FcmError &&
-            (
-              error.responseText.includes("UNREGISTERED") ||
-              error.responseText.includes("registration-token-not-registered")
-            );
-
-          if (invalidToken) {
-            await db
-              .from("native_push_tokens")
-              .update({
-                is_active: false,
-                last_error: message,
-                updated_at: now,
-              })
-              .eq("id", nativeToken.id);
-          } else {
-            transientFailure = true;
+            delivered = true;
+            pushed += 1;
 
             await db
               .from("native_push_tokens")
               .update({
-                last_error: message,
+                last_success_at: now,
+                last_error: null,
                 updated_at: now,
               })
               .eq("id", nativeToken.id);
+          } catch (error) {
+            const message =
+              error instanceof Error
+                ? error.message
+                : "Native push failed.";
+
+            if (nativeTokenInvalid(error)) {
+              await db
+                .from("native_push_tokens")
+                .update({
+                  is_active: false,
+                  last_error: message,
+                  updated_at: now,
+                })
+                .eq("id", nativeToken.id);
+            } else {
+              nativeHasTerminalOnly = false;
+              transientFailure = true;
+
+              await db
+                .from("native_push_tokens")
+                .update({
+                  last_error: message,
+                  updated_at: now,
+                })
+                .eq("id", nativeToken.id);
+            }
           }
         }
       }
 
-      const ids = employeeOutbox.map((row) => row.id);
-
-      if (success || !transientFailure) {
+      // If at least one native device received the notification, the employee
+      // delivery is complete. Web Push is deliberately skipped to prevent a
+      // second alert for the same event.
+      if (delivered) {
         await db
           .from("push_outbox")
           .update({
             sent_at: now,
-            last_error: success
-              ? null
-              : "No deliverable push subscription.",
+            last_error: null,
           })
-          .in("id", ids);
-      } else {
-        for (const row of employeeOutbox) {
-          const attempts = Number(row.attempts || 0) + 1;
+          .eq("id", row.id);
+        deliveredRows += 1;
+        continue;
+      }
 
+      // Keep a native transient failure pending rather than masking it with a
+      // successful Web Push. This fixes closed-app Android notifications being
+      // silently lost when browser push happened to succeed first.
+      if (nativeTokens.length > 0 && transientFailure) {
+        const attempts = Number(row.attempts || 0) + 1;
+        await db
+          .from("push_outbox")
+          .update({
+            attempts,
+            last_error: "Temporary native push delivery failure.",
+            sent_at: attempts >= 5 ? now : null,
+          })
+          .eq("id", row.id);
+        retryRows += attempts >= 5 ? 0 : 1;
+        continue;
+      }
+
+      // Native tokens were absent or all became terminally invalid. Fall back
+      // to Web Push, if available.
+      transientFailure = false;
+
+      if (
+        webSubscriptions.length > 0 &&
+        (nativeTokens.length === 0 || nativeHasTerminalOnly)
+      ) {
+        for (const subscription of webSubscriptions) {
           await db
-            .from("push_outbox")
+            .from("push_subscriptions")
             .update({
-              attempts,
-              last_error: "Temporary push delivery failure.",
-              sent_at: attempts >= 5 ? now : null,
+              last_notification_id: notification.id,
+              updated_at: now,
             })
-            .eq("id", row.id);
+            .eq("id", subscription.id);
+
+          try {
+            await sendEmptyWebPush(
+              subscription.endpoint,
+              settings
+            );
+
+            delivered = true;
+            pushed += 1;
+
+            await db
+              .from("push_subscriptions")
+              .update({
+                last_success_at: now,
+                last_error: null,
+                updated_at: now,
+              })
+              .eq("id", subscription.id);
+          } catch (error) {
+            const message =
+              error instanceof Error
+                ? error.message
+                : "Push failed.";
+
+            if (
+              error instanceof WebPushError &&
+              (error.status === 404 || error.status === 410)
+            ) {
+              await db
+                .from("push_subscriptions")
+                .update({
+                  is_active: false,
+                  last_error: message,
+                  updated_at: now,
+                })
+                .eq("id", subscription.id);
+            } else {
+              transientFailure = true;
+
+              await db
+                .from("push_subscriptions")
+                .update({
+                  last_error: message,
+                  updated_at: now,
+                })
+                .eq("id", subscription.id);
+            }
+          }
         }
       }
+
+      if (delivered) {
+        await db
+          .from("push_outbox")
+          .update({
+            sent_at: now,
+            last_error: null,
+          })
+          .eq("id", row.id);
+        deliveredRows += 1;
+        continue;
+      }
+
+      if (transientFailure) {
+        const attempts = Number(row.attempts || 0) + 1;
+        await db
+          .from("push_outbox")
+          .update({
+            attempts,
+            last_error: "Temporary push delivery failure.",
+            sent_at: attempts >= 5 ? now : null,
+          })
+          .eq("id", row.id);
+        retryRows += attempts >= 5 ? 0 : 1;
+        continue;
+      }
+
+      await db
+        .from("push_outbox")
+        .update({
+          sent_at: now,
+          last_error: "No deliverable push subscription.",
+        })
+        .eq("id", row.id);
     }
 
     return NextResponse.json({
       ok: true,
       processed: outboxRows.length,
+      deliveredRows,
+      retryRows,
       pushed,
     });
   } catch (error) {
