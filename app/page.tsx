@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import { ensureWebPushSubscription } from "@/utils/push-client";
 
 function requestLoginNotificationPermission(): Promise<NotificationPermission | "unsupported"> {
   if (typeof window === "undefined" || !("Notification" in window)) {
@@ -330,10 +331,19 @@ export default function Home() {
       }
     }
 
-    void notificationPermissionPromise.then((permission) => {
-      if (permission === "granted") {
-        void showLoginNotification(employee.full_name, gpsRequired);
-      }
+    void notificationPermissionPromise.then(async (permission) => {
+      if (permission !== "granted") return;
+
+      window.localStorage.setItem(
+        "yashflow-system-notifications-enabled",
+        "true"
+      );
+
+      await ensureWebPushSubscription().catch((error) => {
+        console.warn("Login push subscription setup failed:", error);
+      });
+
+      await showLoginNotification(employee.full_name, gpsRequired);
     });
 
     /*
