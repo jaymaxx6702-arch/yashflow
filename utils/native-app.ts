@@ -93,7 +93,6 @@ export async function showNativeYashFlowNotification(options: {
           channelId: "yashflow_alerts",
           schedule: { at: new Date(Date.now() + 150) },
           sound: "yashflow_notification.wav",
-          smallIcon: "ic_stat_icon_config_sample",
         },
       ],
     });
