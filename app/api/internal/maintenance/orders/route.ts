@@ -107,6 +107,61 @@ export async function POST(request: Request) {
     });
   }
 
+  // Prefer the existing atomic order-delete RPC over broad table DELETE
+  // privileges. The RPC enforces "latest + unstarted" safety and performs its
+  // own child cleanup. Process highest order number first so the full test
+  // sequence can be removed without ever renumbering production history.
+  const sortable = [...(existing || [])].sort((a, b) =>
+    String(b.order_number || "").localeCompare(
+      String(a.order_number || ""),
+      undefined,
+      { numeric: true, sensitivity: "base" }
+    )
+  );
+
+  let rpcDeleted = 0;
+  let rpcUnavailable = false;
+  let rpcErrorMessage = "";
+
+  for (const order of sortable) {
+    const { error: rpcError } = await db.rpc(
+      "admin_delete_latest_unstarted_order",
+      {
+        p_order_id: order.id,
+      }
+    );
+
+    if (rpcError) {
+      rpcUnavailable = true;
+      rpcErrorMessage = rpcError.message;
+      break;
+    }
+
+    rpcDeleted += 1;
+  }
+
+  if (!rpcUnavailable) {
+    return NextResponse.json({
+      ok: true,
+      deleted: rpcDeleted,
+      orders: existing,
+      method: "admin_delete_latest_unstarted_order",
+    });
+  }
+
+  if (rpcDeleted > 0) {
+    return NextResponse.json(
+      {
+        error:
+          "Safe order-delete RPC stopped after partial cleanup: " +
+          rpcErrorMessage,
+        deleted: rpcDeleted,
+        orders: existing,
+      },
+      { status: 500 }
+    );
+  }
+
   const proofResult = await db
     .from("order_stage_proofs")
     .select("id, file_path")
