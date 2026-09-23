@@ -263,7 +263,7 @@ export async function POST(request: Request) {
       const { data: workRows, error: workLoadError } = await adminDb
         .from("order_stage_work")
         .select(
-          "id, status, primary_employee_id, started_at, completed_at, hold_reason, rework_reason, approved_by, approved_at"
+          "id, status, primary_employee_id, started_at, completed_at, hold_reason, rework_reason, approved_by, approved_at, created_at"
         )
         .eq("order_id", order.id);
 
@@ -280,18 +280,47 @@ export async function POST(request: Request) {
         );
       }
 
-      const workSnapshots = workRows || [];
+      const workSnapshots = [...(workRows || [])].sort(
+        (a, b) =>
+          String(b.created_at || "").localeCompare(
+            String(a.created_at || "")
+          )
+      );
       const orderSnapshot = {
         workflow_status: order.workflow_status,
         completed_at: order.completed_at,
       };
 
       let resetFailed = "";
+      const activeStatuses = new Set([
+        "waiting",
+        "assigned",
+        "in_progress",
+        "ready_for_approval",
+        "hold",
+        "rework",
+      ]);
 
-      for (const work of workSnapshots) {
-        const safeStatus = work.primary_employee_id
-          ? "assigned"
-          : "waiting";
+      let keepActiveIndex = workSnapshots.findIndex((work) =>
+        activeStatuses.has(String(work.status || ""))
+      );
+
+      if (keepActiveIndex < 0) {
+        keepActiveIndex = 0;
+      }
+
+      for (
+        let workIndex = 0;
+        workIndex < workSnapshots.length;
+        workIndex += 1
+      ) {
+        const work = workSnapshots[workIndex];
+        const keepActive = workIndex === keepActiveIndex;
+        const safeStatus = keepActive
+          ? work.primary_employee_id
+            ? "assigned"
+            : "waiting"
+          : "cancelled";
 
         const { error: resetWorkError } = await adminDb
           .from("order_stage_work")
@@ -316,8 +345,9 @@ export async function POST(request: Request) {
       }
 
       if (!resetFailed) {
-        const firstWork = workSnapshots[0];
-        const safeOrderStatus = firstWork?.primary_employee_id
+        const activeWork =
+          workSnapshots[keepActiveIndex] || workSnapshots[0];
+        const safeOrderStatus = activeWork?.primary_employee_id
           ? "assigned"
           : "waiting";
 
