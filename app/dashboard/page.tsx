@@ -1541,7 +1541,7 @@ export default function EmployeeDashboard() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-[10px] font-black tracking-[0.14em] text-blue-700">
-                TODAY'S ATTENDANCE
+                TODAY&apos;S ATTENDANCE
               </p>
               <h3 className="text-lg font-black text-slate-900 mt-0.5">
                 આજની હાજરી
