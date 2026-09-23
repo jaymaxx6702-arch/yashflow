@@ -103,9 +103,16 @@ jobs:
           )
           PY
 
-          curl -fsS             -X POST             -H "Authorization: Bearer $TOKEN"             -H "Content-Type: application/json"             --data-binary @/tmp/delete-body.json             "$MAINTENANCE_ENDPOINT"             | tee /tmp/delete-result.json
+          STATUS="$(curl -sS -o /tmp/delete-result.json -w '%{http_code}' -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" --data-binary @/tmp/delete-body.json "$MAINTENANCE_ENDPOINT")"
 
+          cat /tmp/delete-result.json
           echo
+
+          if [ "$STATUS" != "200" ]; then
+            echo "Delete request failed with HTTP $STATUS"
+            exit 1
+          fi
+
           python3 - <<'PY'
           import json
           from pathlib import Path
