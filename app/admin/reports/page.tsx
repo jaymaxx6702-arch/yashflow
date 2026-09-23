@@ -6,6 +6,8 @@ import { createClient } from "@/utils/supabase/client";
 import YashFlowIcon from "@/components/YashFlowIcon";
 import { canonicalAttendanceMap } from "@/utils/business-rules";
 
+// Report exports combine several Supabase result shapes dynamically.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyRow = Record<string, any>;
 
 type Employee = {
