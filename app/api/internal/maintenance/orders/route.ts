@@ -280,7 +280,7 @@ export async function POST(request: Request) {
         );
       }
 
-      const workSnapshots = [...(workRows || [])].sort(
+      let workSnapshots = [...(workRows || [])].sort(
         (a, b) =>
           String(b.created_at || "").localeCompare(
             String(a.created_at || "")
@@ -309,18 +309,54 @@ export async function POST(request: Request) {
         keepActiveIndex = 0;
       }
 
+      // The DB allows only one active stage-work row per order. For these
+      // explicitly allow-listed pre-production test orders, remove older stage
+      // rows first so the remaining row can be reset to an unstarted state and
+      // passed through the normal safe-delete RPC.
+      if (workSnapshots.length > 1) {
+        const keepWork =
+          workSnapshots[keepActiveIndex] || workSnapshots[0];
+
+        for (const work of workSnapshots) {
+          if (work.id === keepWork.id) continue;
+
+          let { error: deleteOldWorkError } = await adminDb
+            .from("order_stage_work")
+            .delete()
+            .eq("id", work.id);
+
+          if (deleteOldWorkError) {
+            const serviceDelete = await db
+              .from("order_stage_work")
+              .delete()
+              .eq("id", work.id);
+
+            deleteOldWorkError = serviceDelete.error;
+          }
+
+          if (deleteOldWorkError) {
+            resetFailed =
+              "Old stage-work purge failed: " +
+              deleteOldWorkError.message;
+            break;
+          }
+        }
+
+        if (!resetFailed) {
+          workSnapshots = [keepWork];
+          keepActiveIndex = 0;
+        }
+      }
+
       for (
         let workIndex = 0;
-        workIndex < workSnapshots.length;
+        workIndex < workSnapshots.length && !resetFailed;
         workIndex += 1
       ) {
         const work = workSnapshots[workIndex];
-        const keepActive = workIndex === keepActiveIndex;
-        const safeStatus = keepActive
-          ? work.primary_employee_id
-            ? "assigned"
-            : "waiting"
-          : "cancelled";
+        const safeStatus = work.primary_employee_id
+          ? "assigned"
+          : "waiting";
 
         const { error: resetWorkError } = await adminDb
           .from("order_stage_work")
@@ -345,8 +381,7 @@ export async function POST(request: Request) {
       }
 
       if (!resetFailed) {
-        const activeWork =
-          workSnapshots[keepActiveIndex] || workSnapshots[0];
+        const activeWork = workSnapshots[0];
         const safeOrderStatus = activeWork?.primary_employee_id
           ? "assigned"
           : "waiting";
