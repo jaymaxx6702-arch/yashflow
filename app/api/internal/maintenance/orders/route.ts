@@ -168,8 +168,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    // Remove storage objects before deleting their DB metadata.
-    const proofPaths = (proofRows || [])
+    // Remove storage objects when the service role can read proof metadata.
+    const proofPaths = proofRows
       .map((item) => item.file_path)
       .filter(Boolean);
 
@@ -179,34 +179,36 @@ export async function POST(request: Request) {
         .remove(proofPaths);
 
       if (storageError) {
-        console.warn(
-          "Test-order proof storage cleanup warning:",
-          storageError.message
+        cleanupWarnings.push(
+          `workflow-proofs: ${storageError.message}`
         );
       }
     }
 
-    // Work-level children first.
+    // These child deletions are best-effort for permissions/missing optional
+    // tables. A real database/FK error still stops the reset with its exact
+    // table name so we never silently leave inconsistent test data.
     if (workIds.length > 0) {
       await deleteRows(
         "order_stage_checklist_checks",
         "order_stage_work_id",
         workIds,
-      true
-    );
+        true
+      );
       await deleteRows(
         "order_stage_checklist_items",
         "order_stage_work_id",
-        workIds
+        workIds,
+        true
       );
       await deleteRows(
         "order_stage_workers",
         "order_stage_work_id",
-        workIds
+        workIds,
+        true
       );
     }
 
-    // Direct order children and historical rows.
     await deleteRows(
       "order_stage_proofs",
       "order_id",
@@ -216,58 +218,74 @@ export async function POST(request: Request) {
     await deleteRows(
       "order_inventory_consumptions",
       "order_id",
-      foundIds
+      foundIds,
+      true
     );
-    await deleteRows("order_payments", "order_id", foundIds, true);
-    await deleteRows("order_billing", "order_id", foundIds, true);
+    await deleteRows(
+      "order_payments",
+      "order_id",
+      foundIds,
+      true
+    );
+    await deleteRows(
+      "order_billing",
+      "order_id",
+      foundIds,
+      true
+    );
     await deleteRows(
       "order_dispatch_records",
       "order_id",
-      foundIds
+      foundIds,
+      true
     );
     await deleteRows(
       "order_operation_details",
       "order_id",
-      foundIds
+      foundIds,
+      true
     );
     await deleteRows(
       "order_product_configurations",
       "order_id",
-      foundIds
+      foundIds,
+      true
     );
     await deleteRows(
       "order_stage_history",
       "order_id",
-      foundIds
+      foundIds,
+      true
     );
     await deleteRows(
       "order_workflow_history",
       "order_id",
-      foundIds
+      foundIds,
+      true
     );
     await deleteRows(
       "order_stage_plans",
       "order_id",
-      foundIds
+      foundIds,
+      true
     );
     await deleteRows(
       "website_order_imports",
       "yashflow_order_id",
-      foundIds
+      foundIds,
+      true
     );
-
-    // Remove active work only after its worker/checklist/history children.
     await deleteRows(
       "order_stage_work",
       "order_id",
-      foundIds
+      foundIds,
+      true
     );
-
-    // Loose references not enforced by an order FK.
     await deleteRows(
       "notifications",
       "related_id",
-      foundIds
+      foundIds,
+      true
     );
 
     const { error: auditError } = await db
