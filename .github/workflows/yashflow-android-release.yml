@@ -1,0 +1,142 @@
+name: Build YashFlow Final Android Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "mobile/**"
+      - "public/sounds/notification.wav"
+      - "public/yashflow-logo.png"
+      - "scripts/prepare-android-release.py"
+      - ".github/workflows/yashflow-android-release.yml"
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    env:
+      YASHFLOW_VERSION_CODE: 2000${{ github.run_number }}
+      YASHFLOW_VERSION_NAME: 2.0.${{ github.run_number }}
+      YASHFLOW_SIGNING_ENDPOINT: https://yashflow-production-b03c.up.railway.app/api/internal/android-signing
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "21"
+
+      - name: Install mobile dependencies
+        working-directory: mobile
+        run: npm install
+
+      - name: Create Android project
+        working-directory: mobile
+        run: npx cap add android
+
+      - name: Add Firebase config
+        run: cp mobile/google-services.json mobile/android/app/google-services.json
+
+      - name: Install release artwork dependency
+        run: python3 -m pip install --quiet pillow
+
+      - name: Get permanent signing material with GitHub OIDC
+        run: |
+          set -euo pipefail
+
+          OIDC_JSON="$(curl -fsS \
+            -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=yashflow-android-signing")"
+
+          OIDC_TOKEN="$(printf '%s' "$OIDC_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])')"
+
+          curl -fsS \
+            -H "Authorization: Bearer $OIDC_TOKEN" \
+            "$YASHFLOW_SIGNING_ENDPOINT" \
+            -o /tmp/yashflow-signing.json
+
+      - name: Prepare Android release
+        run: python3 scripts/prepare-android-release.py
+
+      - name: Sync Capacitor
+        working-directory: mobile
+        run: npx cap sync android
+
+      - name: Build signed release APK
+        working-directory: mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease
+
+      - name: Verify APK signature
+        run: |
+          set -euo pipefail
+          APK="mobile/android/app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner 2>/dev/null | sort -V | tail -1 || true)"
+          if [ -n "$APKSIGNER" ]; then
+            "$APKSIGNER" verify --verbose --print-certs "$APK"
+          else
+            jarsigner -verify -strict "$APK"
+          fi
+
+      - name: Package final APK
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/yashflow-final
+          cp mobile/android/app/build/outputs/apk/release/app-release.apk \
+             /tmp/yashflow-final/YashFlow.apk
+
+          cat > /tmp/yashflow-final/version.json <<EOF
+          {
+            "version": "$YASHFLOW_VERSION_NAME",
+            "versionCode": $YASHFLOW_VERSION_CODE,
+            "buildType": "release",
+            "commit": "${GITHUB_SHA}"
+          }
+          EOF
+
+      - name: Upload final APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: YashFlow-Final-Release
+          path: |
+            /tmp/yashflow-final/YashFlow.apk
+            /tmp/yashflow-final/version.json
+          if-no-files-found: error
+
+      - name: Publish signed release to install page
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git reset --hard origin/main
+
+          mkdir -p public/download
+          cp /tmp/yashflow-final/YashFlow.apk public/download/YashFlow.apk
+          cp /tmp/yashflow-final/version.json public/download/version.json
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f public/download/YashFlow.apk public/download/version.json
+
+          if git diff --cached --quiet; then
+            echo "Signed install APK already current."
+            exit 0
+          fi
+
+          git commit -m "Publish signed YashFlow Android release [skip ci]"
+          git push origin HEAD:main
