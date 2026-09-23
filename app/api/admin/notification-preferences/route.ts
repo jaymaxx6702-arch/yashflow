@@ -49,7 +49,7 @@ async function ensurePreferenceMaster(
 ) {
   const rows = ADMIN_NOTIFICATION_PREFERENCES.map((item, index) => ({
     permission_key: item.key,
-    label: \`\${item.label} Notifications\`,
+    label: `${item.label} Notifications`,
     description: item.description,
     category: "Admin Notification",
     sort_order: (index + 1) * 10,
