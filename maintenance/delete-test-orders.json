@@ -1,0 +1,12 @@
+{
+  "reason": "Remove all pre-production test orders before YashFlow v2.0.6 rollout",
+  "ids": [
+    "d7e12e7d-9afd-4ce9-acad-1acb1c9f353b",
+    "adedbf55-a430-42a3-94d0-78dfbf07c6bb",
+    "427cb531-2435-421f-a689-01f65b61d207",
+    "77b288be-d17a-4c3c-a294-aba51519cc04",
+    "c319d19e-e003-45f0-aa3a-7e5f4750aa9e",
+    "df693574-a36e-4e2b-9c40-d422b23c0cbc",
+    "abe7c7dd-3190-40bc-b0f9-15c442800042"
+  ]
+}
