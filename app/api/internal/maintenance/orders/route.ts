@@ -231,7 +231,7 @@ export async function POST(request: Request) {
     order_number: string | null;
     created_at: string | null;
   }) {
-    const match = String(order.order_number || "").match(/^YL-(\\d{4})$/);
+    const match = String(order.order_number || "").match(/^YL-(\d{4})$/);
     const numeric = match ? Number(match[1]) : Number.NaN;
     const createdAt = order.created_at
       ? new Date(order.created_at)
