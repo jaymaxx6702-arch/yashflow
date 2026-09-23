@@ -107,20 +107,14 @@ export async function POST(request: Request) {
     });
   }
 
-  const { data: proofRows, error: proofLoadError } = await db
+  const proofResult = await db
     .from("order_stage_proofs")
     .select("id, file_path")
     .in("order_id", foundIds);
 
-  if (proofLoadError) {
-    return NextResponse.json(
-      {
-        error: `order_stage_proofs: ${proofLoadError.message}`,
-        matched: existing,
-      },
-      { status: 500 }
-    );
-  }
+  const proofRows = proofResult.error
+    ? []
+    : proofResult.data || [];
 
   const { data: workRows, error: workLoadError } = await db
     .from("order_stage_work")
@@ -139,10 +133,13 @@ export async function POST(request: Request) {
 
   const workIds = (workRows || []).map((item) => item.id);
 
+  const cleanupWarnings: string[] = [];
+
   async function deleteRows(
     table: string,
     column: string,
-    values: string[]
+    values: string[],
+    optional = false
   ) {
     if (values.length === 0) return;
 
@@ -151,9 +148,23 @@ export async function POST(request: Request) {
       .delete()
       .in(column, values);
 
-    if (error) {
-      throw new Error(`${table}: ${error.message}`);
+    if (!error) return;
+
+    const message = `${table}: ${error.message}`;
+
+    if (
+      optional &&
+      (
+        error.message.toLowerCase().includes("permission denied") ||
+        error.message.toLowerCase().includes("could not find the table") ||
+        error.message.toLowerCase().includes("schema cache")
+      )
+    ) {
+      cleanupWarnings.push(message);
+      return;
     }
+
+    throw new Error(message);
   }
 
   try {
@@ -195,7 +206,12 @@ export async function POST(request: Request) {
     }
 
     // Direct order children and historical rows.
-    await deleteRows("order_stage_proofs", "order_id", foundIds);
+    await deleteRows(
+      "order_stage_proofs",
+      "order_id",
+      foundIds,
+      true
+    );
     await deleteRows(
       "order_inventory_consumptions",
       "order_id",
@@ -293,5 +309,6 @@ export async function POST(request: Request) {
     ok: true,
     deleted: foundIds.length,
     orders: existing,
+    warnings: cleanupWarnings,
   });
 }
