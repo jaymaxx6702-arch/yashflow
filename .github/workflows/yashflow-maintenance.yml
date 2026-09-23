@@ -1,0 +1,125 @@
+name: YashFlow Production Maintenance
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/yashflow-maintenance.yml"
+      - "maintenance/delete-test-orders.json"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  orders-maintenance:
+    runs-on: ubuntu-latest
+    env:
+      MAINTENANCE_ENDPOINT: https://yashflow-production-b03c.up.railway.app/api/internal/maintenance/orders
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get GitHub OIDC token
+        run: |
+          set -euo pipefail
+
+          OIDC_JSON="$(curl -fsS             -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN"             "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=yashflow-maintenance")"
+
+          printf '%s' "$OIDC_JSON"             | python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])'             > /tmp/yashflow-maintenance-token
+
+      - name: Wait for maintenance endpoint
+        run: |
+          set -euo pipefail
+          TOKEN="$(cat /tmp/yashflow-maintenance-token)"
+
+          for attempt in $(seq 1 20); do
+            STATUS="$(curl -sS -o /tmp/orders.json -w '%{http_code}'               -H "Authorization: Bearer $TOKEN"               "$MAINTENANCE_ENDPOINT" || true)"
+
+            if [ "$STATUS" = "200" ]; then
+              exit 0
+            fi
+
+            echo "Maintenance endpoint not ready yet ($STATUS), retry $attempt/20"
+            sleep 10
+          done
+
+          echo "Maintenance endpoint did not become ready."
+          cat /tmp/orders.json || true
+          exit 1
+
+      - name: Show current orders
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          data = json.loads(Path("/tmp/orders.json").read_text())
+          print(f"CURRENT ORDERS: {data.get('count', 0)}")
+
+          for item in data.get("orders", []):
+              print(
+                  " | ".join(
+                      [
+                          str(item.get("id", "")),
+                          str(item.get("order_number", "")),
+                          str(item.get("customer_name", "")),
+                          str(item.get("product_name", "")),
+                          str(item.get("workflow_status", "")),
+                          str(item.get("created_at", "")),
+                      ]
+                  )
+              )
+          PY
+
+      - name: Delete explicitly selected test orders
+        if: ${{ hashFiles('maintenance/delete-test-orders.json') != '' }}
+        run: |
+          set -euo pipefail
+          TOKEN="$(cat /tmp/yashflow-maintenance-token)"
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          source = json.loads(
+              Path("maintenance/delete-test-orders.json").read_text()
+          )
+
+          ids = source.get("ids", [])
+          if not isinstance(ids, list) or not ids:
+              raise SystemExit("No explicit order IDs supplied.")
+
+          Path("/tmp/delete-body.json").write_text(
+              json.dumps(
+                  {
+                      "ids": ids,
+                      "confirm": True,
+                  }
+              )
+          )
+          PY
+
+          curl -fsS             -X POST             -H "Authorization: Bearer $TOKEN"             -H "Content-Type: application/json"             --data-binary @/tmp/delete-body.json             "$MAINTENANCE_ENDPOINT"             | tee /tmp/delete-result.json
+
+          echo
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          data = json.loads(Path("/tmp/delete-result.json").read_text())
+          print(f"DELETED ORDERS: {data.get('deleted', 0)}")
+          for item in data.get("orders", []):
+              print(
+                  f"- {item.get('order_number')} | "
+                  f"{item.get('customer_name')} | "
+                  f"{item.get('product_name')}"
+              )
+          PY
+
+      - name: Cleanup token
+        if: always()
+        run: rm -f /tmp/yashflow-maintenance-token /tmp/delete-body.json
