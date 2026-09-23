@@ -191,8 +191,9 @@ export async function POST(request: Request) {
       await deleteRows(
         "order_stage_checklist_checks",
         "order_stage_work_id",
-        workIds
-      );
+        workIds,
+      true
+    );
       await deleteRows(
         "order_stage_checklist_items",
         "order_stage_work_id",
@@ -217,8 +218,8 @@ export async function POST(request: Request) {
       "order_id",
       foundIds
     );
-    await deleteRows("order_payments", "order_id", foundIds);
-    await deleteRows("order_billing", "order_id", foundIds);
+    await deleteRows("order_payments", "order_id", foundIds, true);
+    await deleteRows("order_billing", "order_id", foundIds, true);
     await deleteRows(
       "order_dispatch_records",
       "order_id",
@@ -279,7 +280,7 @@ export async function POST(request: Request) {
       );
 
     if (auditError) {
-      throw new Error(
+      cleanupWarnings.push(
         `audit_activity: ${auditError.message}`
       );
     }
