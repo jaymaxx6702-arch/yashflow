@@ -8,6 +8,8 @@ import { createClient } from "@/utils/supabase/client";
 import AdminNotificationBell from "./AdminNotificationBell";
 import YashFlowIcon, { type YashFlowIconName } from "@/components/YashFlowIcon";
 
+// Dashboard aggregates heterogeneous Supabase rows by dynamic column names.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyRow = Record<string, any>;
 
 type DashboardCounts = {
