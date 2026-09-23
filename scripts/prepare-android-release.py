@@ -209,11 +209,11 @@ if (yashflowSigningPropertiesFile.exists()) {
             raise RuntimeError("Android buildTypes block was not found.")
         text = text.replace(marker, signing + marker, 1)
 
-    build_type_pattern = r"(buildTypes\\s*\\{\\s*release\\s*\\{)"
+    build_type_pattern = r"(buildTypes\s*\{\s*release\s*\{)"
     if "signingConfig signingConfigs.release" not in text:
         text, replacements = re.subn(
             build_type_pattern,
-            r"\\1\n            signingConfig signingConfigs.release",
+            r"\1\n            signingConfig signingConfigs.release",
             text,
             count=1,
         )
