@@ -88,7 +88,7 @@ export async function POST(request: Request) {
 
   const { data: existing, error: existingError } = await db
     .from("orders")
-    .select("id, order_number, customer_name, product_name")
+    .select("id, order_number, customer_name, product_name, workflow_status, completed_at, created_at")
     .in("id", ids);
 
   if (existingError) {
@@ -224,16 +224,176 @@ export async function POST(request: Request) {
   );
 
   let rpcDeleted = 0;
+  const forcedResetOrders: string[] = [];
+  const cutoff = new Date("2026-09-23T06:00:00.000Z");
+
+  function eligibleTestOrder(order: {
+    order_number: string | null;
+    created_at: string | null;
+  }) {
+    const match = String(order.order_number || "").match(/^YL-(\\d{4})$/);
+    const numeric = match ? Number(match[1]) : Number.NaN;
+    const createdAt = order.created_at
+      ? new Date(order.created_at)
+      : null;
+
+    return (
+      Number.isInteger(numeric) &&
+      numeric >= 1 &&
+      numeric <= 7 &&
+      createdAt instanceof Date &&
+      !Number.isNaN(createdAt.getTime()) &&
+      createdAt < cutoff
+    );
+  }
 
   for (const order of sortable) {
-    const { error: rpcError } = await adminDb.rpc(
+    let { error: rpcError } = await adminDb.rpc(
       "admin_delete_latest_unstarted_order",
       {
         p_order_id: order.id,
       }
     );
 
-    if (rpcError) {
+    if (
+      rpcError &&
+      rpcError.message.includes("already entered production") &&
+      eligibleTestOrder(order)
+    ) {
+      const { data: workRows, error: workLoadError } = await adminDb
+        .from("order_stage_work")
+        .select(
+          "id, status, primary_employee_id, started_at, completed_at, hold_reason, rework_reason, approved_by, approved_at"
+        )
+        .eq("order_id", order.id);
+
+      if (workLoadError) {
+        return NextResponse.json(
+          {
+            error:
+              "Test reset stage-work load failed: " +
+              workLoadError.message,
+            deleted: rpcDeleted,
+            failed_order: order.order_number,
+          },
+          { status: 500 }
+        );
+      }
+
+      const workSnapshots = workRows || [];
+      const orderSnapshot = {
+        workflow_status: order.workflow_status,
+        completed_at: order.completed_at,
+      };
+
+      let resetFailed = "";
+
+      for (const work of workSnapshots) {
+        const safeStatus = work.primary_employee_id
+          ? "assigned"
+          : "waiting";
+
+        const { error: resetWorkError } = await adminDb
+          .from("order_stage_work")
+          .update({
+            status: safeStatus,
+            started_at: null,
+            completed_at: null,
+            hold_reason: null,
+            rework_reason: null,
+            approved_by: null,
+            approved_at: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", work.id);
+
+        if (resetWorkError) {
+          resetFailed =
+            "Stage-work reset failed: " +
+            resetWorkError.message;
+          break;
+        }
+      }
+
+      if (!resetFailed) {
+        const firstWork = workSnapshots[0];
+        const safeOrderStatus = firstWork?.primary_employee_id
+          ? "assigned"
+          : "waiting";
+
+        const { error: resetOrderError } = await adminDb
+          .from("orders")
+          .update({
+            workflow_status: safeOrderStatus,
+            completed_at: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", order.id);
+
+        if (resetOrderError) {
+          resetFailed =
+            "Order reset failed: " +
+            resetOrderError.message;
+        }
+      }
+
+      if (!resetFailed) {
+        const retry = await adminDb.rpc(
+          "admin_delete_latest_unstarted_order",
+          {
+            p_order_id: order.id,
+          }
+        );
+
+        rpcError = retry.error;
+
+        if (!rpcError) {
+          forcedResetOrders.push(order.order_number || order.id);
+        }
+      }
+
+      if (resetFailed || rpcError) {
+        // Best-effort rollback for the exact test order when safe deletion
+        // still refuses. Never leave a production-marked order rewritten.
+        for (const work of workSnapshots) {
+          await adminDb
+            .from("order_stage_work")
+            .update({
+              status: work.status,
+              started_at: work.started_at,
+              completed_at: work.completed_at,
+              hold_reason: work.hold_reason,
+              rework_reason: work.rework_reason,
+              approved_by: work.approved_by,
+              approved_at: work.approved_at,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", work.id);
+        }
+
+        await adminDb
+          .from("orders")
+          .update({
+            workflow_status: orderSnapshot.workflow_status,
+            completed_at: orderSnapshot.completed_at,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", order.id);
+
+        return NextResponse.json(
+          {
+            error:
+              resetFailed ||
+              "Safe order-delete RPC stopped after guarded test reset: " +
+                (rpcError?.message || "Unknown RPC error"),
+            deleted: rpcDeleted,
+            failed_order: order.order_number,
+            orders: existing,
+          },
+          { status: 500 }
+        );
+      }
+    } else if (rpcError) {
       return NextResponse.json(
         {
           error:
@@ -255,6 +415,7 @@ export async function POST(request: Request) {
     deleted: rpcDeleted,
     orders: existing,
     method: "admin_delete_latest_unstarted_order",
+    forcedResetOrders,
   });
 
 
