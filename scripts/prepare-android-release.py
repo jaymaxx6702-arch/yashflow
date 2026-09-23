@@ -209,15 +209,16 @@ if (yashflowSigningPropertiesFile.exists()) {
             raise RuntimeError("Android buildTypes block was not found.")
         text = text.replace(marker, signing + marker, 1)
 
-    release_marker = "        release {"
+    build_type_pattern = r"(buildTypes\\s*\\{\\s*release\\s*\\{)"
     if "signingConfig signingConfigs.release" not in text:
-        if release_marker not in text:
-            raise RuntimeError("Android release buildType was not found.")
-        text = text.replace(
-            release_marker,
-            release_marker + "\n            signingConfig signingConfigs.release",
-            1,
+        text, replacements = re.subn(
+            build_type_pattern,
+            r"\\1\n            signingConfig signingConfigs.release",
+            text,
+            count=1,
         )
+        if replacements != 1:
+            raise RuntimeError("Android release buildType was not found.")
 
     gradle.write_text(text)
 
