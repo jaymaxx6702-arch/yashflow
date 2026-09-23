@@ -107,33 +107,182 @@ export async function POST(request: Request) {
     });
   }
 
-  // Remove loose audit/notification references that are not protected by
-  // order foreign keys. Push outbox rows cascade from notifications.
-  await Promise.all([
-    db
-      .from("notifications")
+  const { data: proofRows, error: proofLoadError } = await db
+    .from("order_stage_proofs")
+    .select("id, file_path")
+    .in("order_id", foundIds);
+
+  if (proofLoadError) {
+    return NextResponse.json(
+      {
+        error: `order_stage_proofs: ${proofLoadError.message}`,
+        matched: existing,
+      },
+      { status: 500 }
+    );
+  }
+
+  const { data: workRows, error: workLoadError } = await db
+    .from("order_stage_work")
+    .select("id")
+    .in("order_id", foundIds);
+
+  if (workLoadError) {
+    return NextResponse.json(
+      {
+        error: `order_stage_work: ${workLoadError.message}`,
+        matched: existing,
+      },
+      { status: 500 }
+    );
+  }
+
+  const workIds = (workRows || []).map((item) => item.id);
+
+  async function deleteRows(
+    table: string,
+    column: string,
+    values: string[]
+  ) {
+    if (values.length === 0) return;
+
+    const { error } = await db
+      .from(table)
       .delete()
-      .eq("related_type", "order")
-      .in("related_id", foundIds),
-    db
+      .in(column, values);
+
+    if (error) {
+      throw new Error(`${table}: ${error.message}`);
+    }
+  }
+
+  try {
+    // Remove storage objects before deleting their DB metadata.
+    const proofPaths = (proofRows || [])
+      .map((item) => item.file_path)
+      .filter(Boolean);
+
+    if (proofPaths.length > 0) {
+      const { error: storageError } = await db.storage
+        .from("workflow-proofs")
+        .remove(proofPaths);
+
+      if (storageError) {
+        console.warn(
+          "Test-order proof storage cleanup warning:",
+          storageError.message
+        );
+      }
+    }
+
+    // Work-level children first.
+    if (workIds.length > 0) {
+      await deleteRows(
+        "order_stage_checklist_checks",
+        "order_stage_work_id",
+        workIds
+      );
+      await deleteRows(
+        "order_stage_checklist_items",
+        "order_stage_work_id",
+        workIds
+      );
+      await deleteRows(
+        "order_stage_workers",
+        "order_stage_work_id",
+        workIds
+      );
+    }
+
+    // Direct order children and historical rows.
+    await deleteRows("order_stage_proofs", "order_id", foundIds);
+    await deleteRows(
+      "order_inventory_consumptions",
+      "order_id",
+      foundIds
+    );
+    await deleteRows("order_payments", "order_id", foundIds);
+    await deleteRows("order_billing", "order_id", foundIds);
+    await deleteRows(
+      "order_dispatch_records",
+      "order_id",
+      foundIds
+    );
+    await deleteRows(
+      "order_operation_details",
+      "order_id",
+      foundIds
+    );
+    await deleteRows(
+      "order_product_configurations",
+      "order_id",
+      foundIds
+    );
+    await deleteRows(
+      "order_stage_history",
+      "order_id",
+      foundIds
+    );
+    await deleteRows(
+      "order_workflow_history",
+      "order_id",
+      foundIds
+    );
+    await deleteRows(
+      "order_stage_plans",
+      "order_id",
+      foundIds
+    );
+    await deleteRows(
+      "website_order_imports",
+      "yashflow_order_id",
+      foundIds
+    );
+
+    // Remove active work only after its worker/checklist/history children.
+    await deleteRows(
+      "order_stage_work",
+      "order_id",
+      foundIds
+    );
+
+    // Loose references not enforced by an order FK.
+    await deleteRows(
+      "notifications",
+      "related_id",
+      foundIds
+    );
+
+    const { error: auditError } = await db
       .from("audit_activity")
       .delete()
       .eq("entity_type", "order")
       .in(
         "entity_id",
         foundIds.map((id) => String(id))
-      ),
-  ]);
+      );
 
-  const { error: deleteError } = await db
-    .from("orders")
-    .delete()
-    .in("id", foundIds);
+    if (auditError) {
+      throw new Error(
+        `audit_activity: ${auditError.message}`
+      );
+    }
 
-  if (deleteError) {
+    const { error: deleteError } = await db
+      .from("orders")
+      .delete()
+      .in("id", foundIds);
+
+    if (deleteError) {
+      throw new Error(`orders: ${deleteError.message}`);
+    }
+  } catch (error) {
     return NextResponse.json(
       {
-        error: deleteError.message,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Order cleanup failed.",
         matched: existing,
       },
       { status: 500 }
