@@ -68,12 +68,12 @@ jobs:
             "$YASHFLOW_SIGNING_ENDPOINT" \
             -o /tmp/yashflow-signing.json
 
-      - name: Prepare Android release
-        run: python3 scripts/prepare-android-release.py
-
       - name: Sync Capacitor
         working-directory: mobile
         run: npx cap sync android
+
+      - name: Prepare Android release
+        run: python3 scripts/prepare-android-release.py
 
       - name: Build signed release APK
         working-directory: mobile/android
