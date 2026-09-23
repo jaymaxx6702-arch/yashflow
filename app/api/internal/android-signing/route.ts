@@ -1,4 +1,4 @@
-import { createPublicKey, verify } from "node:crypto";
+import { createPublicKey, verify, type JsonWebKey } from "node:crypto";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
