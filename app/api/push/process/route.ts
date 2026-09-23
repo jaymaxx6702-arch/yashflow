@@ -7,6 +7,7 @@ import {
   WebPushError,
 } from "@/utils/web-push-server";
 import { FcmError, sendNativeFcm } from "@/utils/fcm-server";
+import { notificationPreferenceKey } from "@/utils/admin-notification-preferences";
 
 function safeEqual(a: string, b: string) {
   const left = Buffer.from(a);
@@ -104,11 +105,12 @@ export async function POST(request: Request) {
       notificationsResult,
       subscriptionsResult,
       nativeTokensResult,
+      employeesResult,
     ] = await Promise.all([
       db
         .from("notifications")
         .select(
-          "id, employee_id, title, message, related_type, related_id, created_at"
+          "id, employee_id, notification_type, title, message, related_type, related_id, created_at"
         )
         .in("id", notificationIds),
       db
@@ -121,6 +123,10 @@ export async function POST(request: Request) {
         .select("id, employee_id, token")
         .in("employee_id", employeeIds)
         .eq("is_active", true),
+      db
+        .from("employees")
+        .select("id, role")
+        .in("id", employeeIds),
     ]);
 
     if (notificationsResult.error) {
@@ -131,6 +137,74 @@ export async function POST(request: Request) {
     }
     if (nativeTokensResult.error) {
       throw new Error(nativeTokensResult.error.message);
+    }
+    if (employeesResult.error) {
+      throw new Error(employeesResult.error.message);
+    }
+
+    const adminEmployeeIds = new Set(
+      (employeesResult.data || [])
+        .filter((employee) => employee.role === "admin")
+        .map((employee) => employee.id)
+    );
+
+    const { data: preferencePermissions, error: preferencePermissionError } =
+      await db
+        .from("app_permissions")
+        .select("id, permission_key")
+        .eq("category", "Admin Notification")
+        .eq("is_active", true);
+
+    if (preferencePermissionError) {
+      throw new Error(preferencePermissionError.message);
+    }
+
+    const preferenceIds = (preferencePermissions || []).map(
+      (permission) => permission.id
+    );
+
+    const { data: preferenceAssignments, error: preferenceAssignmentError } =
+      preferenceIds.length > 0 && adminEmployeeIds.size > 0
+        ? await db
+            .from("employee_app_permissions")
+            .select("employee_id, permission_id, is_allowed")
+            .in("employee_id", Array.from(adminEmployeeIds))
+            .in("permission_id", preferenceIds)
+        : { data: [], error: null };
+
+    if (preferenceAssignmentError) {
+      throw new Error(preferenceAssignmentError.message);
+    }
+
+    const preferenceKeyById = new Map(
+      (preferencePermissions || []).map((permission) => [
+        permission.id,
+        permission.permission_key,
+      ])
+    );
+
+    const adminPreferenceRows = new Map<
+      string,
+      { configured: boolean; enabled: Set<string> }
+    >();
+
+    for (const adminId of adminEmployeeIds) {
+      adminPreferenceRows.set(adminId, {
+        configured: false,
+        enabled: new Set<string>(),
+      });
+    }
+
+    for (const assignment of preferenceAssignments || []) {
+      const state = adminPreferenceRows.get(assignment.employee_id);
+      const key = preferenceKeyById.get(assignment.permission_id);
+
+      if (!state || !key) continue;
+
+      state.configured = true;
+      if (assignment.is_allowed === true) {
+        state.enabled.add(key);
+      }
     }
 
     const notificationById = new Map(
@@ -177,6 +251,38 @@ export async function POST(request: Request) {
           })
           .eq("id", row.id);
         continue;
+      }
+
+      if (adminEmployeeIds.has(row.employee_id)) {
+        const preference = adminPreferenceRows.get(row.employee_id);
+        const preferenceKey = notificationPreferenceKey(
+          notification.notification_type,
+          notification.related_type
+        );
+
+        if (
+          preference?.configured &&
+          !preference.enabled.has(preferenceKey)
+        ) {
+          await Promise.all([
+            db
+              .from("push_outbox")
+              .update({
+                sent_at: now,
+                last_error: "Admin notification preference disabled.",
+              })
+              .eq("id", row.id),
+            db
+              .from("notifications")
+              .update({
+                is_read: true,
+                read_at: now,
+              })
+              .eq("id", notification.id)
+              .eq("employee_id", row.employee_id),
+          ]);
+          continue;
+        }
       }
 
       const nativeTokens =
