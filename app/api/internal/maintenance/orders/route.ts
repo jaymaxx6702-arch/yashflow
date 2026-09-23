@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import { integrationSupabase } from "@/utils/supabase/integration-server";
 import { verifyGithubActionsOidc } from "@/utils/github-actions-oidc";
 
@@ -107,10 +108,113 @@ export async function POST(request: Request) {
     });
   }
 
-  // Prefer the existing atomic order-delete RPC over broad table DELETE
-  // privileges. The RPC enforces "latest + unstarted" safety and performs its
-  // own child cleanup. Process highest order number first so the full test
-  // sequence can be removed without ever renumbering production history.
+  // Use a short-lived Admin auth session to call the existing atomic
+  // admin_delete_latest_unstarted_order RPC. This keeps the database's own
+  // "latest + unstarted + admin" safeguards and avoids granting broad DELETE
+  // privileges to service_role.
+  const { data: adminProfile, error: adminProfileError } = await db
+    .from("employees")
+    .select("id, auth_user_id, mobile")
+    .eq("role", "admin")
+    .eq("approval_status", "approved")
+    .eq("is_active", true)
+    .not("auth_user_id", "is", null)
+    .not("mobile", "is", null)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (adminProfileError || !adminProfile?.mobile) {
+    return NextResponse.json(
+      {
+        error:
+          "Maintenance Admin profile unavailable: " +
+          (adminProfileError?.message || "No active approved Admin."),
+        orders: existing,
+      },
+      { status: 500 }
+    );
+  }
+
+  const adminEmail = `91${String(adminProfile.mobile).trim()}@yashflow.app`;
+
+  const { data: linkData, error: linkError } =
+    await db.auth.admin.generateLink({
+      type: "magiclink",
+      email: adminEmail,
+    });
+
+  const tokenHash = linkData?.properties?.hashed_token;
+
+  if (linkError || !tokenHash) {
+    return NextResponse.json(
+      {
+        error:
+          "Maintenance Admin session link failed: " +
+          (linkError?.message || "No token hash returned."),
+        orders: existing,
+      },
+      { status: 500 }
+    );
+  }
+
+  const { data: verifyData, error: verifyError } =
+    await db.auth.verifyOtp({
+      token_hash: tokenHash,
+      type: "magiclink",
+    });
+
+  const adminAccessToken = verifyData.session?.access_token;
+
+  if (verifyError || !adminAccessToken) {
+    return NextResponse.json(
+      {
+        error:
+          "Maintenance Admin session verify failed: " +
+          (verifyError?.message || "No access token returned."),
+        orders: existing,
+      },
+      { status: 500 }
+    );
+  }
+
+  const supabaseUrl = (
+    process.env.SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    ""
+  ).trim();
+
+  const publishableKey = (
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || ""
+  ).trim();
+
+  if (!supabaseUrl || !publishableKey) {
+    return NextResponse.json(
+      {
+        error:
+          "Maintenance Admin client is not configured.",
+        orders: existing,
+      },
+      { status: 500 }
+    );
+  }
+
+  const adminDb = createClient(
+    supabaseUrl,
+    publishableKey,
+    {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+      global: {
+        headers: {
+          Authorization: `Bearer ${adminAccessToken}`,
+        },
+      },
+    }
+  );
+
   const sortable = [...(existing || [])].sort((a, b) =>
     String(b.order_number || "").localeCompare(
       String(a.order_number || ""),
@@ -120,11 +224,9 @@ export async function POST(request: Request) {
   );
 
   let rpcDeleted = 0;
-  let rpcUnavailable = false;
-  let rpcErrorMessage = "";
 
   for (const order of sortable) {
-    const { error: rpcError } = await db.rpc(
+    const { error: rpcError } = await adminDb.rpc(
       "admin_delete_latest_unstarted_order",
       {
         p_order_id: order.id,
@@ -132,270 +234,28 @@ export async function POST(request: Request) {
     );
 
     if (rpcError) {
-      rpcUnavailable = true;
-      rpcErrorMessage = rpcError.message;
-      break;
+      return NextResponse.json(
+        {
+          error:
+            "Safe order-delete RPC stopped: " +
+            rpcError.message,
+          deleted: rpcDeleted,
+          failed_order: order.order_number,
+          orders: existing,
+        },
+        { status: 500 }
+      );
     }
 
     rpcDeleted += 1;
   }
 
-  if (!rpcUnavailable) {
-    return NextResponse.json({
-      ok: true,
-      deleted: rpcDeleted,
-      orders: existing,
-      method: "admin_delete_latest_unstarted_order",
-    });
-  }
-
-  if (rpcDeleted > 0) {
-    return NextResponse.json(
-      {
-        error:
-          "Safe order-delete RPC stopped after partial cleanup: " +
-          rpcErrorMessage,
-        deleted: rpcDeleted,
-        orders: existing,
-      },
-      { status: 500 }
-    );
-  }
-
-  if (rpcUnavailable) {
-    return NextResponse.json(
-      {
-        error:
-          "Safe order-delete RPC unavailable: " +
-          rpcErrorMessage,
-        deleted: 0,
-        orders: existing,
-      },
-      { status: 500 }
-    );
-  }
-
-  const proofResult = await db
-    .from("order_stage_proofs")
-    .select("id, file_path")
-    .in("order_id", foundIds);
-
-  const proofRows = proofResult.error
-    ? []
-    : proofResult.data || [];
-
-  const { data: workRows, error: workLoadError } = await db
-    .from("order_stage_work")
-    .select("id")
-    .in("order_id", foundIds);
-
-  if (workLoadError) {
-    return NextResponse.json(
-      {
-        error: `order_stage_work: ${workLoadError.message}`,
-        matched: existing,
-      },
-      { status: 500 }
-    );
-  }
-
-  const workIds = (workRows || []).map((item) => item.id);
-
-  const cleanupWarnings: string[] = [];
-
-  async function deleteRows(
-    table: string,
-    column: string,
-    values: string[],
-    optional = false
-  ) {
-    if (values.length === 0) return;
-
-    const { error } = await db
-      .from(table)
-      .delete()
-      .in(column, values);
-
-    if (!error) return;
-
-    const message = `${table}: ${error.message}`;
-
-    if (
-      optional &&
-      (
-        error.message.toLowerCase().includes("permission denied") ||
-        error.message.toLowerCase().includes("could not find the table") ||
-        error.message.toLowerCase().includes("schema cache")
-      )
-    ) {
-      cleanupWarnings.push(message);
-      return;
-    }
-
-    throw new Error(message);
-  }
-
-  try {
-    // Remove storage objects when the service role can read proof metadata.
-    const proofPaths = proofRows
-      .map((item) => item.file_path)
-      .filter(Boolean);
-
-    if (proofPaths.length > 0) {
-      const { error: storageError } = await db.storage
-        .from("workflow-proofs")
-        .remove(proofPaths);
-
-      if (storageError) {
-        cleanupWarnings.push(
-          `workflow-proofs: ${storageError.message}`
-        );
-      }
-    }
-
-    // These child deletions are best-effort for permissions/missing optional
-    // tables. A real database/FK error still stops the reset with its exact
-    // table name so we never silently leave inconsistent test data.
-    if (workIds.length > 0) {
-      await deleteRows(
-        "order_stage_checklist_checks",
-        "order_stage_work_id",
-        workIds,
-        true
-      );
-      await deleteRows(
-        "order_stage_checklist_items",
-        "order_stage_work_id",
-        workIds,
-        true
-      );
-      await deleteRows(
-        "order_stage_workers",
-        "order_stage_work_id",
-        workIds,
-        true
-      );
-    }
-
-    await deleteRows(
-      "order_stage_proofs",
-      "order_id",
-      foundIds,
-      true
-    );
-    await deleteRows(
-      "order_inventory_consumptions",
-      "order_id",
-      foundIds,
-      true
-    );
-    await deleteRows(
-      "order_payments",
-      "order_id",
-      foundIds,
-      true
-    );
-    await deleteRows(
-      "order_billing",
-      "order_id",
-      foundIds,
-      true
-    );
-    await deleteRows(
-      "order_dispatch_records",
-      "order_id",
-      foundIds,
-      true
-    );
-    await deleteRows(
-      "order_operation_details",
-      "order_id",
-      foundIds,
-      true
-    );
-    await deleteRows(
-      "order_product_configurations",
-      "order_id",
-      foundIds,
-      true
-    );
-    await deleteRows(
-      "order_stage_history",
-      "order_id",
-      foundIds,
-      true
-    );
-    await deleteRows(
-      "order_workflow_history",
-      "order_id",
-      foundIds,
-      true
-    );
-    await deleteRows(
-      "order_stage_plans",
-      "order_id",
-      foundIds,
-      true
-    );
-    await deleteRows(
-      "website_order_imports",
-      "yashflow_order_id",
-      foundIds,
-      true
-    );
-    await deleteRows(
-      "order_stage_work",
-      "order_id",
-      foundIds,
-      true
-    );
-    await deleteRows(
-      "notifications",
-      "related_id",
-      foundIds,
-      true
-    );
-
-    const { error: auditError } = await db
-      .from("audit_activity")
-      .delete()
-      .eq("entity_type", "order")
-      .in(
-        "entity_id",
-        foundIds.map((id) => String(id))
-      );
-
-    if (auditError) {
-      cleanupWarnings.push(
-        `audit_activity: ${auditError.message}`
-      );
-    }
-
-    const { error: deleteError } = await db
-      .from("orders")
-      .delete()
-      .in("id", foundIds);
-
-    if (deleteError) {
-      throw new Error(`orders: ${deleteError.message}`);
-    }
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Order cleanup failed.",
-        matched: existing,
-      },
-      { status: 500 }
-    );
-  }
-
   return NextResponse.json({
     ok: true,
-    deleted: foundIds.length,
+    deleted: rpcDeleted,
     orders: existing,
-    warnings: cleanupWarnings,
+    method: "admin_delete_latest_unstarted_order",
   });
+
+
 }
