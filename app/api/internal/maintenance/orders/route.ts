@@ -162,6 +162,19 @@ export async function POST(request: Request) {
     );
   }
 
+  if (rpcUnavailable) {
+    return NextResponse.json(
+      {
+        error:
+          "Safe order-delete RPC unavailable: " +
+          rpcErrorMessage,
+        deleted: 0,
+        orders: existing,
+      },
+      { status: 500 }
+    );
+  }
+
   const proofResult = await db
     .from("order_stage_proofs")
     .select("id, file_path")
