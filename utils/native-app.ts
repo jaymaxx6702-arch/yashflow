@@ -366,3 +366,61 @@ export async function registerNativeBackHandler() {
     },
   };
 }
+
+
+export async function getNativeYashFlowAppInfo() {
+  const cap = bridge();
+  if (!cap) return null;
+
+  try {
+    return await nativeCall<{
+      name?: string;
+      id?: string;
+      build?: string;
+      version?: string;
+    }>("App", "getInfo");
+  } catch (error) {
+    console.warn("Native app info unavailable", error);
+    return null;
+  }
+}
+
+export async function startNativeYashFlowUpdate(downloadUrl: string) {
+  const cap = bridge();
+  if (!cap) {
+    return {
+      native: false,
+      started: false,
+      permissionRequired: false,
+    };
+  }
+
+  try {
+    const result = await nativeCall<{
+      started?: boolean;
+      permissionRequired?: boolean;
+      downloadId?: number;
+    }>("YashFlowUpdater", "downloadAndInstall", {
+      url: downloadUrl,
+    });
+
+    return {
+      native: true,
+      started: result?.started === true,
+      permissionRequired: result?.permissionRequired === true,
+      downloadId: result?.downloadId,
+    };
+  } catch (error) {
+    console.warn("Native YashFlow updater unavailable", error);
+
+    return {
+      native: true,
+      started: false,
+      permissionRequired: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Native updater unavailable.",
+    };
+  }
+}
