@@ -8,8 +8,10 @@ const EXPECTED_ISSUER = "https://token.actions.githubusercontent.com";
 const EXPECTED_AUDIENCE = "yashflow-android-signing";
 const EXPECTED_REPOSITORY = "jaymaxx6702-arch/yashflow";
 const EXPECTED_REF = "refs/heads/main";
-const EXPECTED_WORKFLOW_PREFIX =
-  "jaymaxx6702-arch/yashflow/.github/workflows/yashflow-android-apk.yml@";
+const ALLOWED_WORKFLOW_PREFIXES = [
+  "jaymaxx6702-arch/yashflow/.github/workflows/yashflow-android-apk.yml@",
+  "jaymaxx6702-arch/yashflow/.github/workflows/yashflow-android-release.yml@",
+];
 
 type JwtHeader = {
   alg?: string;
@@ -86,7 +88,14 @@ async function verifyGithubOidc(token: string) {
   if (payload.nbf && payload.nbf > now + 30) return false;
   if (payload.repository !== EXPECTED_REPOSITORY) return false;
   if (payload.ref !== EXPECTED_REF) return false;
-  if (!payload.workflow_ref?.startsWith(EXPECTED_WORKFLOW_PREFIX)) return false;
+  if (
+    !payload.workflow_ref ||
+    !ALLOWED_WORKFLOW_PREFIXES.some((prefix) =>
+      payload.workflow_ref?.startsWith(prefix)
+    )
+  ) {
+    return false;
+  }
   if (!payload.workflow_ref.endsWith("@refs/heads/main")) return false;
 
   return (
