@@ -29,7 +29,29 @@ def prepare_manifest() -> None:
             "\n    " + "\n    ".join(missing) + "\n\n    <application",
             1,
         )
-        path.write_text(text)
+
+    text = re.sub(
+        r'android:icon="[^"]+"',
+        'android:icon="@mipmap/yashflow_launcher"',
+        text,
+        count=1,
+    )
+
+    if re.search(r'android:roundIcon="[^"]+"', text):
+        text = re.sub(
+            r'android:roundIcon="[^"]+"',
+            'android:roundIcon="@mipmap/yashflow_launcher_round"',
+            text,
+            count=1,
+        )
+    else:
+        text = text.replace(
+            "<application",
+            '<application android:roundIcon="@mipmap/yashflow_launcher_round"',
+            1,
+        )
+
+    path.write_text(text)
 
 
 def contain(
@@ -54,7 +76,7 @@ def contain(
 
 def prepare_brand_assets() -> None:
     source = Image.open(ROOT / "public" / "yashflow-logo.png").convert("RGBA")
-    navy = (26, 43, 76, 255)
+    white = (255, 255, 255, 255)
 
     densities = {
         "mdpi": 48,
@@ -64,34 +86,40 @@ def prepare_brand_assets() -> None:
         "xxxhdpi": 192,
     }
 
+    # Use unique YashFlow resource names so Capacitor's default ic_launcher
+    # resources can never win through resource merging or launcher caching.
     for density, px in densities.items():
         folder = RES / f"mipmap-{density}"
         folder.mkdir(parents=True, exist_ok=True)
-        icon = contain(source, px, 0.66, navy)
-        icon.save(folder / "ic_launcher.png")
-        icon.save(folder / "ic_launcher_round.png")
 
+        icon = contain(source, px, 0.68, white)
+        icon.save(folder / "yashflow_launcher.png")
+        icon.save(folder / "yashflow_launcher_round.png")
+
+    # Adaptive icon foreground: exact YashFlow logo with generous safe area.
     drawable_nodpi = RES / "drawable-nodpi"
     drawable_nodpi.mkdir(parents=True, exist_ok=True)
-    contain(source, 432, 0.58).save(
+    contain(source, 432, 0.60).save(
         drawable_nodpi / "yashflow_logo_foreground.png"
     )
 
     drawable = RES / "drawable"
     drawable.mkdir(parents=True, exist_ok=True)
-    contain(source, 1024, 0.38, navy).save(drawable / "splash.png")
+
+    # Splash uses the same exact logo, centered instead of stretched.
+    contain(source, 1024, 0.38, white).save(drawable / "splash.png")
 
     values = RES / "values"
     values.mkdir(parents=True, exist_ok=True)
     (values / "yashflow_launcher_colors.xml").write_text(
         """<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="yashflow_launcher_background">#1A2B4C</color>
+    <color name="yashflow_launcher_background">#FFFFFF</color>
 </resources>
 """
     )
 
-    (drawable / "ic_launcher_foreground.xml").write_text(
+    (drawable / "yashflow_launcher_foreground.xml").write_text(
         """<?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item
@@ -109,14 +137,16 @@ def prepare_brand_assets() -> None:
 
     adaptive = RES / "mipmap-anydpi-v26"
     adaptive.mkdir(parents=True, exist_ok=True)
+
     adaptive_xml = """<?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@color/yashflow_launcher_background" />
-    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+    <foreground android:drawable="@drawable/yashflow_launcher_foreground" />
 </adaptive-icon>
 """
-    (adaptive / "ic_launcher.xml").write_text(adaptive_xml)
-    (adaptive / "ic_launcher_round.xml").write_text(adaptive_xml)
+
+    (adaptive / "yashflow_launcher.xml").write_text(adaptive_xml)
+    (adaptive / "yashflow_launcher_round.xml").write_text(adaptive_xml)
 
     raw = RES / "raw"
     raw.mkdir(parents=True, exist_ok=True)
