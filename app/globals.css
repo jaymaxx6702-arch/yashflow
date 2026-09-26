@@ -1045,3 +1045,120 @@ textarea.yf-input {
   box-shadow: var(--focus-ring);
 }
 
+
+
+/* =========================================================
+   YASHFLOW LIGHT MOTION SYSTEM
+   GPU-friendly: transform + opacity only.
+   No continuous decorative animation.
+   ========================================================= */
+
+@keyframes yf-fade-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes yf-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.015);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes yf-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes yf-success-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.yf-motion-enter {
+  animation: yf-fade-up 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  will-change: transform, opacity;
+}
+
+.yf-motion-pop {
+  animation: yf-pop 200ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  will-change: transform, opacity;
+}
+
+.yf-success-pop {
+  animation: yf-success-pop 380ms cubic-bezier(0.2, 0.9, 0.25, 1.2) both;
+  will-change: transform, opacity;
+}
+
+.yf-collapse-body {
+  animation: yf-fade-up 180ms ease-out both;
+}
+
+.yf-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: #eef1f4;
+  border-radius: 10px;
+}
+
+.yf-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.72) 50%,
+    transparent 100%
+  );
+  animation: yf-shimmer 1.25s ease-in-out infinite;
+}
+
+.yf-modal-backdrop {
+  animation: yf-fade-up 140ms ease-out both;
+}
+
+.yf-modal-panel {
+  animation: yf-pop 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .yf-motion-enter,
+  .yf-motion-pop,
+  .yf-success-pop,
+  .yf-collapse-body,
+  .yf-modal-backdrop,
+  .yf-modal-panel,
+  .yf-skeleton::after {
+    animation: none !important;
+  }
+}
