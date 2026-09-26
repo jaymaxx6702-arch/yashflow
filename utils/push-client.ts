@@ -170,3 +170,32 @@ export async function disableWebPushSubscription() {
     await subscription.unsubscribe().catch(() => false);
   }
 }
+
+
+export async function processPendingPushNotifications() {
+  const token = await accessToken();
+
+  const response = await fetch("/api/push/process", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+  });
+
+  if (response.ok) {
+    return true;
+  }
+
+  // Non-admin sessions may not be allowed to process the shared queue.
+  // Treat 401/403 as a silent no-op so notification UI is unaffected.
+  if (response.status === 401 || response.status === 403) {
+    return false;
+  }
+
+  const body = (await response.json().catch(() => null)) as
+    | { error?: string }
+    | null;
+
+  throw new Error(body?.error || "Push processing failed.");
+}
