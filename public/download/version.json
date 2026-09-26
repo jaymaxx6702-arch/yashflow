@@ -1,6 +1,6 @@
 {
-  "version": "2.0.9",
-  "versionCode": 20009,
-  "buildType": "release",
+  "version": "1.0.14",
+  "versionCode": 14,
+  "buildType": "debug",
   "commit": "e9c2b40947a09c69204427f43690a54b70346d35"
 }
