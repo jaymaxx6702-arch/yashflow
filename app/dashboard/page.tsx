@@ -1538,9 +1538,6 @@ export default function EmployeeDashboard() {
           </div>
         )}
 
-        <UpcomingOrders employeeId={employee.id} />
-        <TodaysWork employeeId={employee.id} />
-
         <section className="yf-card mt-3 p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -1643,6 +1640,10 @@ export default function EmployeeDashboard() {
             </button>
           </div>
         </section>
+
+        <UpcomingOrders employeeId={employee.id} />
+        <TodaysWork employeeId={employee.id} />
+
 
         <section className="yf-card mt-3 p-4">
           <div className="flex items-center justify-between gap-3">
