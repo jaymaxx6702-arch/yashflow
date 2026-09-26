@@ -711,7 +711,7 @@ export default function TodaysWork({ employeeId }: Props) {
         </button>
 
         {todayWorkOpen && (
-          <div className="p-5 sm:p-6">
+          <div className="p-5 sm:p-6 yf-collapse-body">
       {message && (
         <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
           {message}
@@ -970,7 +970,7 @@ export default function TodaysWork({ employeeId }: Props) {
         </button>
 
         {tasksOpen && (
-          <div className="p-5 sm:p-6">
+          <div className="p-5 sm:p-6 yf-collapse-body">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <p className="text-xs font-black tracking-[0.12em] text-slate-400">
