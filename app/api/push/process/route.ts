@@ -92,6 +92,12 @@ export async function POST(request: Request) {
         .order("created_at", { ascending: false })
         .limit(8);
 
+      const { data: recentNativeTokens } = await db
+        .from("native_push_tokens")
+        .select("last_error, last_success_at, updated_at, is_active, platform")
+        .order("updated_at", { ascending: false })
+        .limit(5);
+
       console.info("[push-process] summary", {
         processed: 0,
         pushed: 0,
@@ -102,6 +108,13 @@ export async function POST(request: Request) {
           attempts: Number(row.attempts || 0),
           error: row.last_error || null,
           createdAt: row.created_at,
+        })),
+        nativeStatus: (recentNativeTokens || []).map((row) => ({
+          active: row.is_active,
+          platform: row.platform,
+          lastSuccessAt: row.last_success_at,
+          updatedAt: row.updated_at,
+          error: row.last_error || null,
         })),
       });
 
