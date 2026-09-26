@@ -12,6 +12,7 @@ import {
   offlineQueueEventName,
 } from "@/utils/offline-queue";
 import TodaysWork from "./TodaysWork";
+import TeamProductionFlow from "./TeamProductionFlow";
 import UpcomingOrders from "./orders/UpcomingOrders";
 import NotificationBell from "./NotificationBell";
 import ManualPunchRequest from "./ManualPunchRequest";
@@ -1643,6 +1644,7 @@ export default function EmployeeDashboard() {
 
         <UpcomingOrders employeeId={employee.id} />
         <TodaysWork employeeId={employee.id} />
+        <TeamProductionFlow />
 
 
         <section className="yf-card mt-3 p-4">
