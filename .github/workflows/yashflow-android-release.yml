@@ -7,6 +7,9 @@ on:
       - main
     paths:
       - "mobile/**"
+      - "utils/native-app.ts"
+      - "app/NativeAppBootstrap.tsx"
+      - "app/NativeUpdateManager.tsx"
       - "public/sounds/notification.wav"
       - "public/yashflow-logo.png"
       - "scripts/prepare-android-release.py"
