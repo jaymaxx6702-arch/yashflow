@@ -16,6 +16,7 @@ import TeamProductionFlow from "./TeamProductionFlow";
 import UpcomingOrders from "./orders/UpcomingOrders";
 import NotificationBell from "./NotificationBell";
 import ManualPunchRequest from "./ManualPunchRequest";
+import ChangePinModal from "./ChangePinModal";
 
 type Employee = {
   id: string;
@@ -181,6 +182,7 @@ export default function EmployeeDashboard() {
   const [message, setMessage] = useState("");
   const [summaryDrawer, setSummaryDrawer] =
     useState<SummaryDrawerKey>(null);
+  const [changePinOpen, setChangePinOpen] = useState(false);
 
   function setOfflineAttendanceState(
     kind: "check_in" | "check_out",
@@ -1396,12 +1398,35 @@ export default function EmployeeDashboard() {
 
   if (loading) {
     return (
-      <main className="yf-page flex items-center justify-center">
-        <div className="yf-card px-6 py-5 flex items-center gap-3">
-          <div className="w-3 h-3 rounded-full bg-blue-600 animate-pulse" />
-          <p className="font-bold text-slate-700">
-            Dashboard લોડ થઈ રહ્યું છે...
-          </p>
+      <main className="yf-page">
+        <div className="yf-header">
+          <div className="yf-container py-4">
+            <div className="yf-skeleton h-8 w-40 bg-white/15" />
+          </div>
+        </div>
+
+        <div className="yf-container space-y-3">
+          <section className="yf-card p-4 yf-motion-enter">
+            <div className="yf-skeleton h-4 w-24" />
+            <div className="yf-skeleton h-7 w-44 mt-3" />
+            <div className="grid grid-cols-2 gap-2 mt-4">
+              <div className="yf-skeleton h-16" />
+              <div className="yf-skeleton h-16" />
+            </div>
+          </section>
+
+          <section className="yf-card p-4 yf-motion-enter">
+            <div className="yf-skeleton h-5 w-32" />
+            <div className="yf-skeleton h-12 w-full mt-4" />
+          </section>
+
+          <section className="yf-card p-4 yf-motion-enter">
+            <div className="yf-skeleton h-5 w-40" />
+            <div className="grid grid-cols-2 gap-2 mt-4">
+              <div className="yf-skeleton h-20" />
+              <div className="yf-skeleton h-20" />
+            </div>
+          </section>
         </div>
       </main>
     );
@@ -1642,9 +1667,15 @@ export default function EmployeeDashboard() {
           </div>
         </section>
 
-        <UpcomingOrders employeeId={employee.id} />
-        <TodaysWork employeeId={employee.id} />
-        <TeamProductionFlow />
+        <div className="yf-motion-enter">
+          <UpcomingOrders employeeId={employee.id} />
+        </div>
+        <div className="yf-motion-enter">
+          <TodaysWork employeeId={employee.id} />
+        </div>
+        <div className="yf-motion-enter">
+          <TeamProductionFlow />
+        </div>
 
 
         <section className="yf-card mt-3 p-4">
@@ -1727,6 +1758,11 @@ export default function EmployeeDashboard() {
               label="Completed Tasks"
               icon="check"
               onClick={() => router.push("/completed-tasks")}
+            />
+            <QuickApp
+              label="Change PIN"
+              icon="admin"
+              onClick={() => setChangePinOpen(true)}
             />
             {canCreateOrders && (
               <QuickApp
@@ -1831,6 +1867,12 @@ export default function EmployeeDashboard() {
           </button>
         </div>
       </nav>
+
+      <ChangePinModal
+        open={changePinOpen}
+        mobile={employee.mobile}
+        onClose={() => setChangePinOpen(false)}
+      />
 
       {summaryDrawer && (
         <div className="fixed inset-0 z-[90]">
