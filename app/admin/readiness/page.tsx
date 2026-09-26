@@ -60,8 +60,9 @@ export default function ProductionReadinessPage() {
     async function load() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
 
-      if (!user) {
+      if (!user || !session) {
         router.replace("/");
         return;
       }
@@ -191,7 +192,6 @@ export default function ProductionReadinessPage() {
         ["order_stage_checklist_checks", "Stage Checklist Checks"],
         ["order_stage_plans", "Stage Team Plans"],
         ["order_stage_plan_workers", "Stage Team Plan Workers"],
-        ["native_push_tokens", "Native Push Tokens"],
         ["app_permissions", "Permission Master"],
       ] as const;
 
@@ -212,6 +212,54 @@ export default function ProductionReadinessPage() {
           } satisfies Check;
         })
       );
+
+      let nativePushCheck: Check;
+
+      try {
+        const nativePushResponse = await fetch(
+          "/api/admin/readiness/native-push",
+          {
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+            },
+            cache: "no-store",
+          }
+        );
+
+        const nativePushData = (await nativePushResponse.json()) as {
+          ok?: boolean;
+          total?: number;
+          active?: number;
+          lastSuccessAt?: string | null;
+          error?: string;
+        };
+
+        const lastSuccessText = nativePushData.lastSuccessAt
+          ? new Date(nativePushData.lastSuccessAt).toLocaleString()
+          : "No successful push yet";
+
+        nativePushCheck = {
+          key: "native_push_tokens",
+          label: "Native Push Tokens",
+          ok: nativePushResponse.ok && nativePushData.ok === true,
+          detail:
+            nativePushResponse.ok && nativePushData.ok === true
+              ? `Secure server check • ${nativePushData.active ?? 0} active / ${nativePushData.total ?? 0} total • Last success: ${lastSuccessText}`
+              : nativePushData.error || "Native push readiness check failed",
+          required: true,
+        };
+      } catch (error) {
+        nativePushCheck = {
+          key: "native_push_tokens",
+          label: "Native Push Tokens",
+          ok: false,
+          detail:
+            error instanceof Error
+              ? error.message
+              : "Native push readiness check failed",
+          required: true,
+        };
+      }
 
       const requiredPermissionKeys = [
         "orders.view",
@@ -344,6 +392,7 @@ export default function ProductionReadinessPage() {
 
       setDbChecks([
         ...results,
+        nativePushCheck,
         ...permissionChecks,
         ...checklistChecks,
         gpsSettingCheck,
