@@ -63,6 +63,10 @@ export default function EmployeeApprovalPage() {
   const [editPermissionIds, setEditPermissionIds] = useState<string[]>([]);
 
   const [message, setMessage] = useState("");
+  const [resetPinInfo, setResetPinInfo] = useState<{
+    employeeName: string;
+    pin: string;
+  } | null>(null);
 
   async function loadDepartments() {
     const supabase = createClient();
@@ -328,6 +332,60 @@ export default function EmployeeApprovalPage() {
     setUpdatingId(null);
   }
 
+  async function resetEmployeePin(employee: Employee) {
+    const confirmed = window.confirm(
+      `${employee.full_name} માટે login PIN reset કરવો છે? Temporary PIN generate થશે.`
+    );
+
+    if (!confirmed) return;
+
+    setUpdatingId(employee.id);
+    setMessage("");
+    setResetPinInfo(null);
+
+    const supabase = createClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session?.access_token) {
+      setMessage("Admin session મળ્યો નથી. ફરી login કરો.");
+      setUpdatingId(null);
+      return;
+    }
+
+    const response = await fetch("/api/admin/employees/reset-pin", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ employeeId: employee.id }),
+    });
+
+    const result = (await response.json().catch(() => null)) as
+      | {
+          ok?: boolean;
+          employeeName?: string;
+          temporaryPin?: string;
+          error?: string;
+        }
+      | null;
+
+    if (!response.ok || !result?.ok || !result.temporaryPin) {
+      setMessage(result?.error || "PIN reset થઈ શક્યો નથી.");
+      setUpdatingId(null);
+      return;
+    }
+
+    setResetPinInfo({
+      employeeName: result.employeeName || employee.full_name,
+      pin: result.temporaryPin,
+    });
+
+    setUpdatingId(null);
+  }
+
   function startDepartmentEdit(employee: Employee) {
     const currentAssignments = employeeAssignments(employee.id);
     const primary = currentAssignments.find((item) => item.is_primary);
@@ -556,6 +614,44 @@ export default function EmployeeApprovalPage() {
           </div>
         )}
 
+        {resetPinInfo && (
+          <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 yf-motion-pop">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <p className="text-xs font-black tracking-[0.12em] text-amber-700">
+                  TEMPORARY LOGIN PIN
+                </p>
+                <p className="font-black text-slate-900 mt-1">
+                  {resetPinInfo.employeeName}
+                </p>
+                <p className="text-3xl font-black tracking-[0.18em] text-amber-900 mt-1">
+                  {resetPinInfo.pin}
+                </p>
+                <p className="text-xs font-semibold text-amber-800 mt-2">
+                  Employeeને આ PIN આપો. Login થયા પછી Change PINથી પોતાનો PIN રાખી શકે.
+                </p>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => void navigator.clipboard.writeText(resetPinInfo.pin)}
+                  className="yf-btn yf-btn-secondary"
+                >
+                  Copy PIN
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setResetPinInfo(null)}
+                  className="yf-btn yf-btn-ghost"
+                >
+                  Hide
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="yf-card mt-5 overflow-hidden">
           {loading ? (
             <div className="p-8 text-center text-slate-500">
@@ -658,6 +754,15 @@ export default function EmployeeApprovalPage() {
                           className="yf-btn yf-btn-primary"
                         >
                           Manage Departments
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={updatingId === employee.id}
+                          onClick={() => void resetEmployeePin(employee)}
+                          className="yf-btn yf-btn-secondary disabled:opacity-50"
+                        >
+                          {updatingId === employee.id ? "Please wait..." : "Reset PIN"}
                         </button>
 
                         <button
