@@ -145,15 +145,32 @@ export default function Home() {
       const supabase = createClient();
 
       const {
-        data: { user },
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (cancelled) return;
+
+      if (!session?.user) {
+        setSessionChecking(false);
+        return;
+      }
+
+      let currentUser = session.user;
+
+      const {
+        data: { user: verifiedUser },
         error: userError,
       } = await supabase.auth.getUser();
 
       if (cancelled) return;
 
-      if (userError || !user) {
-        setSessionChecking(false);
-        return;
+      if (!userError && verifiedUser) {
+        currentUser = verifiedUser;
+      } else if (userError) {
+        console.warn(
+          "Session verification temporarily failed; using existing session:",
+          userError.message
+        );
       }
 
       const { data: employee, error: employeeError } = await supabase
@@ -164,7 +181,7 @@ export default function Home() {
           approval_status,
           is_active
         `)
-        .eq("auth_user_id", user.id)
+        .eq("auth_user_id", currentUser.id)
         .maybeSingle();
 
       if (cancelled) return;
