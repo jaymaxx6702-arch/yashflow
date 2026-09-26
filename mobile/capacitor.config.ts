@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: "YashFlow",
   webDir: "www",
   server: {
-    url: "https://app2.yashlaser.in",
+    url: process.env.YASHFLOW_APP_URL || "https://app2.yashlaser.in",
     cleartext: false,
     androidScheme: "https"
   },
