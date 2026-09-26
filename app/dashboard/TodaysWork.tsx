@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 
@@ -178,6 +178,9 @@ export default function TodaysWork({ employeeId }: Props) {
 
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [todayWorkOpen, setTodayWorkOpen] = useState(false);
+  const [tasksOpen, setTasksOpen] = useState(false);
+  const tasksSectionRef = useRef<HTMLElement | null>(null);
 
   const stageMap = useMemo(
     () =>
@@ -614,6 +617,30 @@ export default function TodaysWork({ employeeId }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employeeId]);
 
+  useEffect(() => {
+    function openTasksInline() {
+      setTasksOpen(true);
+      window.requestAnimationFrame(() => {
+        tasksSectionRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      });
+    }
+
+    window.addEventListener(
+      "yashflow:open-employee-tasks",
+      openTasksInline
+    );
+
+    return () => {
+      window.removeEventListener(
+        "yashflow:open-employee-tasks",
+        openTasksInline
+      );
+    };
+  }, []);
+
   const orderInProgress = works.filter(
     (work) =>
       work.status === "in_progress"
@@ -637,50 +664,36 @@ export default function TodaysWork({ employeeId }: Props) {
     works.length + tasks.length;
 
   return (
-    <section className="yf-card p-5 sm:p-6 mt-5">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-xs font-black tracking-[0.15em] text-blue-700">
-            TODAY&apos;S WORK
-          </p>
+    <>
+      <section className="yf-card mt-5 overflow-hidden" id="todays-work">
+        <button
+          type="button"
+          onClick={() => setTodayWorkOpen((current) => !current)}
+          aria-expanded={todayWorkOpen}
+          className="w-full text-left p-4 border-b border-slate-200 bg-white"
+        >
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-black tracking-[0.15em] text-blue-700">
+                TODAY&apos;S WORK
+              </p>
+              <h2 className="text-xl font-black text-slate-900 mt-0.5">
+                આજનું Pending Work
+              </h2>
+              <p className="text-xs font-semibold text-slate-500 mt-1">
+                Assigned Orders અને priority work.
+              </p>
+            </div>
 
-          <h2 className="yf-section-title mt-1">
-            આજનું Pending Work
-          </h2>
+            <span className="shrink-0 text-xs font-black text-blue-700">
+              {!loading ? `${totalActive} • ` : ""}
+              {todayWorkOpen ? "Close ▲" : "Open ▼"}
+            </span>
+          </div>
+        </button>
 
-          <p className="yf-section-subtitle mt-1">
-            Assigned Orders અને Tasks બંને અહીં
-            priority પ્રમાણે દેખાશે.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() =>
-              router.push(
-                "/dashboard/orders"
-              )
-            }
-            className="yf-btn yf-btn-primary"
-          >
-            All Assigned Orders →
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              router.push(
-                "/dashboard/tasks"
-              )
-            }
-            className="yf-btn yf-btn-secondary"
-          >
-            My Tasks →
-          </button>
-        </div>
-      </div>
-
+        {todayWorkOpen && (
+          <div className="p-5 sm:p-6">
       {message && (
         <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
           {message}
@@ -903,7 +916,43 @@ export default function TodaysWork({ employeeId }: Props) {
         </div>
       </div>
 
-      <div className="mt-7 border-t border-slate-100 pt-6">
+          </div>
+        )}
+      </section>
+
+      <section
+        ref={tasksSectionRef}
+        id="employee-tasks"
+        className="yf-card mt-3 overflow-hidden scroll-mt-4"
+      >
+        <button
+          type="button"
+          onClick={() => setTasksOpen((current) => !current)}
+          aria-expanded={tasksOpen}
+          className="w-full text-left p-4 border-b border-slate-200 bg-white"
+        >
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-black tracking-[0.15em] text-indigo-700">
+                TASKS
+              </p>
+              <h2 className="text-xl font-black text-slate-900 mt-0.5">
+                My Tasks
+              </h2>
+              <p className="text-xs font-semibold text-slate-500 mt-1">
+                Assigned અને support tasks.
+              </p>
+            </div>
+
+            <span className="shrink-0 text-xs font-black text-indigo-700">
+              {!loading ? `${tasks.length} • ` : ""}
+              {tasksOpen ? "Close ▲" : "Open ▼"}
+            </span>
+          </div>
+        </button>
+
+        {tasksOpen && (
+          <div className="p-5 sm:p-6">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <p className="text-xs font-black tracking-[0.12em] text-slate-400">
@@ -1012,7 +1061,9 @@ export default function TodaysWork({ employeeId }: Props) {
               View All Tasks →
             </button>
           )}
-      </div>
-    </section>
+          </div>
+        )}
+      </section>
+    </>
   );
 }
