@@ -495,6 +495,10 @@ export default function EmployeeDashboard() {
     return employee?.department ? [employee.department] : [];
   }
 
+  function openTasksInline() {
+    window.dispatchEvent(new CustomEvent("yashflow:open-employee-tasks"));
+  }
+
   function openDrawer(key: Exclude<SummaryDrawerKey, null>) {
     if (typeof window !== "undefined") {
       const currentState =
@@ -1714,7 +1718,7 @@ export default function EmployeeDashboard() {
             <QuickApp
               label="Tasks"
               icon="task"
-              onClick={() => router.push("/dashboard/tasks")}
+              onClick={openTasksInline}
             />
             <QuickApp
               label="Completed Tasks"
@@ -1798,7 +1802,7 @@ export default function EmployeeDashboard() {
 
           <button
             type="button"
-            onClick={() => router.push("/dashboard/tasks")}
+            onClick={openTasksInline}
             className="flex flex-col items-center gap-1 py-1 text-[10px] font-black text-slate-600"
           >
             <span className="text-lg">📋</span>
