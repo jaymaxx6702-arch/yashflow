@@ -13,6 +13,7 @@ type Order = {
   quantity: number;
   order_source: string;
   current_stage: string;
+  workflow_status: string;
   priority: string;
   order_date: string;
   due_date: string | null;
@@ -64,6 +65,8 @@ export default function OrderDetailPage() {
   const [order, setOrder] = useState<Order | null>(null);
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [message, setMessage] = useState("");
+  const [completeLoading, setCompleteLoading] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     async function loadPage() {
@@ -113,6 +116,7 @@ export default function OrderDetailPage() {
           quantity,
           order_source,
           current_stage,
+          workflow_status,
           priority,
           order_date,
           due_date,
@@ -174,7 +178,56 @@ export default function OrderDetailPage() {
     if (orderId) {
       loadPage();
     }
-  }, [orderId, router]);
+  }, [orderId, router, refreshKey]);
+
+  async function completeOrderDirectly() {
+    if (!order) return;
+
+    const confirmed = window.confirm(
+      `${order.order_number} ને Direct Complete કરવો છે?\n\nCurrent stage સહિત બધા active stages બંધ થશે અને Order Completed થશે. આ action આગળના normal workflow steps bypass કરશે.\n\nContinue?`
+    );
+
+    if (!confirmed) return;
+
+    setCompleteLoading(true);
+    setMessage("");
+
+    const supabase = createClient();
+    const { data, error } = await supabase.rpc(
+      "admin_complete_order_v1",
+      {
+        p_order_id: order.id,
+        p_note: "Admin direct completed order from Full Details / History",
+      }
+    );
+
+    if (error) {
+      setMessage(`Direct Complete Error: ${error.message}`);
+      setCompleteLoading(false);
+      return;
+    }
+
+    const result = (data || {}) as {
+      ok?: boolean;
+      already_completed?: boolean;
+    };
+
+    setMessage(
+      result.already_completed
+        ? `${order.order_number} પહેલેથી Completed છે ✅`
+        : `${order.order_number} Completed ✅`
+    );
+
+    setCompleteLoading(false);
+    setRefreshKey((current) => current + 1);
+  }
+
+  const canDirectComplete =
+    Boolean(order) &&
+    order?.current_stage !== "completed" &&
+    order?.workflow_status !== "completed" &&
+    order?.current_stage !== "cancelled" &&
+    order?.workflow_status !== "cancelled";
 
   if (loading) {
     return (
@@ -412,6 +465,42 @@ export default function OrderDetailPage() {
                   </div>
                 )}
               </div>
+            </section>
+
+            <section className="bg-white border border-slate-200 rounded-2xl mt-5 p-6">
+              <p className="text-sm font-bold text-slate-500">
+                ADMIN ORDER ACTION
+              </p>
+
+              <h2 className="text-xl font-black text-slate-900 mt-1">
+                Order Completion
+              </h2>
+
+              {canDirectComplete ? (
+                <>
+                  <p className="text-sm font-semibold text-slate-600 mt-2">
+                    Direct Complete current workflowને bypass કરીને Orderને Completed કરશે.
+                    જરૂરી હોય ત્યારે જ આ action વાપરો.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={completeOrderDirectly}
+                    disabled={completeLoading}
+                    className="mt-4 rounded-xl bg-green-600 px-4 py-3 text-sm font-black text-white hover:bg-green-700 disabled:opacity-50"
+                  >
+                    {completeLoading
+                      ? "Completing..."
+                      : "✓ Complete Order"}
+                  </button>
+                </>
+              ) : (
+                <div className="mt-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-black text-green-700">
+                  {order.completed_at
+                    ? `Order Completed • ${formatDateTime(order.completed_at)}`
+                    : "Order completion action unavailable for this status."}
+                </div>
+              )}
             </section>
           </>
         )}
