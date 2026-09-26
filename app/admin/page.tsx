@@ -1156,24 +1156,50 @@ const manualPunchRows = (
     async function loadPage() {
       const supabase = createClient();
 
+      // Browser sessions can briefly fail getUser() while the local session is
+      // still valid (for example after a deploy/service-worker refresh). Using
+      // getSession() first prevents an /admin -> / -> /admin redirect loop.
       const {
-        data: { user },
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.user) {
+        router.replace("/");
+        return;
+      }
+
+      let currentUser = session.user;
+
+      const {
+        data: { user: verifiedUser },
         error: userError,
       } = await supabase.auth.getUser();
 
-      if (userError || !user) {
-        router.replace("/");
-        return;
+      if (!userError && verifiedUser) {
+        currentUser = verifiedUser;
+      } else if (userError) {
+        console.warn(
+          "Admin user verification temporarily failed; using existing session:",
+          userError.message
+        );
       }
 
       const { data: adminProfile, error: adminError } = await supabase
         .from("employees")
         .select("id, role, approval_status, is_active")
-        .eq("auth_user_id", user.id)
+        .eq("auth_user_id", currentUser.id)
         .single();
 
+      if (adminError) {
+        console.warn(
+          "Admin profile check temporarily failed; keeping current page:",
+          adminError.message
+        );
+        setLoading(false);
+        return;
+      }
+
       if (
-        adminError ||
         !adminProfile ||
         adminProfile.role !== "admin" ||
         adminProfile.approval_status !== "approved" ||
