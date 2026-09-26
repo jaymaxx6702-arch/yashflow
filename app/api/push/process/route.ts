@@ -86,6 +86,13 @@ export async function POST(request: Request) {
     }
 
     if (!outboxRows?.length) {
+      console.info("[push-process] summary", {
+        processed: 0,
+        pushed: 0,
+        deliveredRows: 0,
+        retryRows: 0,
+      });
+
       return NextResponse.json({
         ok: true,
         processed: 0,
@@ -291,6 +298,11 @@ export async function POST(request: Request) {
         subscriptionsByEmployee.get(row.employee_id) || [];
 
       if (nativeTokens.length === 0 && webSubscriptions.length === 0) {
+        console.warn("[push-process] no-subscription", {
+          employeeId: row.employee_id,
+          notificationId: row.notification_id,
+        });
+
         await db
           .from("push_outbox")
           .update({
@@ -323,6 +335,11 @@ export async function POST(request: Request) {
             delivered = true;
             pushed += 1;
 
+            console.info("[push-process] native-success", {
+              employeeId: row.employee_id,
+              notificationId: row.notification_id,
+            });
+
             await db
               .from("native_push_tokens")
               .update({
@@ -336,6 +353,12 @@ export async function POST(request: Request) {
               error instanceof Error
                 ? error.message
                 : "Native push failed.";
+
+            console.warn("[push-process] native-error", {
+              employeeId: row.employee_id,
+              notificationId: row.notification_id,
+              message: message.slice(0, 500),
+            });
 
             if (nativeTokenInvalid(error)) {
               await db
@@ -495,6 +518,15 @@ export async function POST(request: Request) {
         })
         .eq("id", row.id);
     }
+
+    console.info("[push-process] summary", {
+      processed: outboxRows.length,
+      deliveredRows,
+      retryRows,
+      pushed,
+      nativeTokenCount: nativeTokensResult.data?.length || 0,
+      webSubscriptionCount: subscriptionsResult.data?.length || 0,
+    });
 
     return NextResponse.json({
       ok: true,
