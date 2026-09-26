@@ -2585,15 +2585,6 @@ export default function AdminOrdersPage() {
     return effectiveWorkflowStatus(order) === "ready_for_approval";
   }
 
-  function canDirectComplete(order: Order) {
-    return (
-      order.current_stage !== "completed" &&
-      order.workflow_status !== "completed" &&
-      order.current_stage !== "cancelled" &&
-      order.workflow_status !== "cancelled"
-    );
-  }
-
   function isProductionOrder(order: Order) {
     const isOpen =
       order.current_stage !== "completed" &&
@@ -3098,20 +3089,6 @@ export default function AdminOrdersPage() {
                     </div>
 
                     <div className="shrink-0 flex items-center gap-2">
-                      {canDirectComplete(order) && (
-                        <button
-                          type="button"
-                          onClick={() => void completeOrder(order)}
-                          disabled={actionId === `complete-${order.id}`}
-                          className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-[10px] font-black text-green-700 hover:bg-green-100 disabled:opacity-50"
-                          title="Admin can directly complete this order from its current stage"
-                        >
-                          {actionId === `complete-${order.id}`
-                            ? "Completing..."
-                            : "✓ Complete"}
-                        </button>
-                      )}
-
                       <button
                         type="button"
                         onClick={() => openOrder(order)}
