@@ -11,7 +11,7 @@ jobs:
   orders-maintenance:
     runs-on: ubuntu-latest
     env:
-      MAINTENANCE_ENDPOINT: https://yashflow-production-b03c.up.railway.app/api/internal/maintenance/orders
+      MAINTENANCE_ENDPOINT: ${{ vars.YASHFLOW_MAINTENANCE_ENDPOINT || 'https://yashflow-production-b03c.up.railway.app/api/internal/maintenance/orders' }}
 
     steps:
       - name: Checkout
