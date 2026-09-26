@@ -183,7 +183,7 @@ export default function TeamProductionFlow() {
       </button>
 
       {open && (
-        <div className="p-4 sm:p-5">
+        <div className="p-4 sm:p-5 yf-collapse-body">
           {message && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">
               {message}
@@ -191,9 +191,17 @@ export default function TeamProductionFlow() {
           )}
 
           {loading && !data ? (
-            <p className="text-sm font-semibold text-slate-500">
-              Team Production Flow load થઈ રહ્યું છે...
-            </p>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                <div className="yf-skeleton h-16" />
+                <div className="yf-skeleton h-16" />
+                <div className="yf-skeleton h-16" />
+                <div className="yf-skeleton h-16" />
+                <div className="yf-skeleton h-16 col-span-2 sm:col-span-1" />
+              </div>
+              <div className="yf-skeleton h-24 w-full" />
+              <div className="yf-skeleton h-24 w-full" />
+            </div>
           ) : (
             <>
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
