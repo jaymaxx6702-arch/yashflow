@@ -53,5 +53,39 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json({ ok: true });
+  // Self-heal the live push dispatcher whenever a native Android device
+  // registers. The pg_cron job already calls yf_dispatch_push_outbox(); these
+  // settings tell that job where to send the queued notifications.
+  const processUrl = `${new URL(request.url).origin}/api/push/process`;
+  const { error: settingsError } = await auth.db
+    .from("push_settings")
+    .update({
+      process_url: processUrl,
+      cron_enabled: true,
+      updated_at: now,
+    })
+    .eq("id", 1);
+
+  if (settingsError) {
+    return NextResponse.json(
+      {
+        error: settingsError.message,
+        code: "PUSH_DISPATCHER_CONFIG_FAILED",
+      },
+      { status: 500 }
+    );
+  }
+
+  // Kick the dispatcher once immediately so a just-registered device does not
+  // have to wait for the next one-minute cron tick. The recurring cron remains
+  // the normal delivery mechanism for subsequent notifications.
+  const { error: dispatchError } = await auth.db.rpc(
+    "yf_dispatch_push_outbox"
+  );
+
+  return NextResponse.json({
+    ok: true,
+    dispatcherConfigured: true,
+    dispatchQueued: !dispatchError,
+  });
 }
