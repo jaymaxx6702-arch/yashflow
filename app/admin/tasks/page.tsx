@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import { processPendingPushNotifications } from "@/utils/push-client";
 
 type Employee = {
   id: string;
@@ -330,6 +331,10 @@ export default function AdminTasksPage() {
       }
     }
 
+    await processPendingPushNotifications().catch((pushError) => {
+      console.warn("Immediate task push processing failed:", pushError);
+    });
+
     setTitle("");
     setDescription("");
     setAssignedTo("");
@@ -482,6 +487,10 @@ export default function AdminTasksPage() {
       setMessage(`Task Update Error: ${error.message}`);
       return;
     }
+
+    await processPendingPushNotifications().catch((pushError) => {
+      console.warn("Immediate task update push processing failed:", pushError);
+    });
 
     setMessage("Task status update થયો ✅");
 
