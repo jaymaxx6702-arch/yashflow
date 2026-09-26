@@ -43,7 +43,11 @@ export async function GET(request: Request) {
     }
 
     // Best-effort immediate dispatch. Recurring pg_cron remains the normal path.
-    await auth.db.rpc("yf_dispatch_push_outbox").catch(() => null);
+    try {
+      await auth.db.rpc("yf_dispatch_push_outbox");
+    } catch {
+      // The config response should still succeed; the recurring cron can retry.
+    }
 
     return NextResponse.json({
       ok: true,
