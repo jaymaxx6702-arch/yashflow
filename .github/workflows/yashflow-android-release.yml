@@ -25,6 +25,7 @@ jobs:
     env:
       YASHFLOW_VERSION_CODE: 2000${{ github.run_number }}
       YASHFLOW_VERSION_NAME: 2.0.${{ github.run_number }}
+      YASHFLOW_APP_URL: ${{ vars.YASHFLOW_APP_URL || 'https://app2.yashlaser.in' }}
       YASHFLOW_SIGNING_ENDPOINT: ${{ vars.YASHFLOW_SIGNING_ENDPOINT || 'https://yashflow-production-b03c.up.railway.app/api/internal/android-signing' }}
 
     steps:
