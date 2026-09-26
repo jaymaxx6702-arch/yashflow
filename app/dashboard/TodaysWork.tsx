@@ -475,14 +475,12 @@ export default function TodaysWork({ employeeId }: Props) {
 
     const errors: string[] = [];
 
-    const initialError =
+    const primaryError =
       primaryWorkResult.error ||
-      supportWorkLinkResult.error ||
-      primaryTaskResult.error ||
-      supportTaskLinkResult.error;
+      primaryTaskResult.error;
 
-    if (initialError) {
-      setMessage(`Today's Work Load Error: ${initialError.message}`);
+    if (primaryError) {
+      setMessage(`Today's Work Load Error: ${primaryError.message}`);
       setWorks([]);
       setOrders([]);
       setStages([]);
@@ -491,9 +489,29 @@ export default function TodaysWork({ employeeId }: Props) {
       return;
     }
 
+    if (supportWorkLinkResult.error) {
+      console.warn(
+        "Support Order Work lookup failed:",
+        supportWorkLinkResult.error.message
+      );
+      errors.push(
+        `Support Order Work: ${supportWorkLinkResult.error.message}`
+      );
+    }
+
+    if (supportTaskLinkResult.error) {
+      console.warn(
+        "Support Task lookup failed:",
+        supportTaskLinkResult.error.message
+      );
+      errors.push(
+        `Support Tasks: ${supportTaskLinkResult.error.message}`
+      );
+    }
+
     const supportWorkIds = Array.from(
       new Set(
-        (supportWorkLinkResult.data || [])
+        (supportWorkLinkResult.error ? [] : supportWorkLinkResult.data || [])
           .map((row) => row.order_stage_work_id)
           .filter(Boolean)
       )
@@ -501,7 +519,7 @@ export default function TodaysWork({ employeeId }: Props) {
 
     const supportTaskIds = Array.from(
       new Set(
-        (supportTaskLinkResult.data || [])
+        (supportTaskLinkResult.error ? [] : supportTaskLinkResult.data || [])
           .map((row) => row.task_id)
           .filter(Boolean)
       )
@@ -605,7 +623,7 @@ export default function TodaysWork({ employeeId }: Props) {
     setTasks(Array.from(taskMap.values()));
 
     if (errors.length > 0) {
-      setMessage(`Today's Work Load Error: ${errors.join(" | ")}`);
+      console.warn("Today's Work partial load:", errors.join(" | "));
     }
 
     setLoading(false);
