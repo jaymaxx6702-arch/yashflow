@@ -86,11 +86,23 @@ export async function POST(request: Request) {
     }
 
     if (!outboxRows?.length) {
+      const { data: recentRows } = await db
+        .from("push_outbox")
+        .select("sent_at, last_error, attempts, created_at")
+        .order("created_at", { ascending: false })
+        .limit(8);
+
       console.info("[push-process] summary", {
         processed: 0,
         pushed: 0,
         deliveredRows: 0,
         retryRows: 0,
+        recent: (recentRows || []).map((row) => ({
+          sent: Boolean(row.sent_at),
+          attempts: Number(row.attempts || 0),
+          error: row.last_error || null,
+          createdAt: row.created_at,
+        })),
       });
 
       return NextResponse.json({
