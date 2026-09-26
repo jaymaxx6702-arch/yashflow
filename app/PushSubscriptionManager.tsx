@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import YashFlowIcon from "@/components/YashFlowIcon";
-import { ensureWebPushSubscription } from "@/utils/push-client";
+import { ensureWebPushSubscription, processPendingPushNotifications } from "@/utils/push-client";
 
 export default function PushSubscriptionManager() {
   const pathname = usePathname();
@@ -51,6 +51,31 @@ export default function PushSubscriptionManager() {
     void ensureWebPushSubscription().catch((error) => {
       console.warn("Background push subscription refresh failed:", error);
     });
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!pathname.startsWith("/admin")) return;
+
+    let cancelled = false;
+
+    const run = async () => {
+      if (cancelled) return;
+      try {
+        await processPendingPushNotifications();
+      } catch (error) {
+        console.warn("Push processor fallback failed:", error);
+      }
+    };
+
+    void run();
+    const timer = window.setInterval(() => {
+      void run();
+    }, 15000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
   }, [pathname]);
 
   async function enableNotifications() {
