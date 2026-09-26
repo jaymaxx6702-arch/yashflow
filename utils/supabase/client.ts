@@ -1,8 +1,10 @@
 import { createBrowserClient } from "@supabase/ssr";
 
-type SupabaseBrowserClient = ReturnType<typeof createBrowserClient>;
-
-let browserClient: SupabaseBrowserClient | undefined;
+// YashFlow intentionally uses dynamic Supabase rows across many modules.
+// Keep the shared browser client unparameterized while reusing one instance
+// so auth refreshes cannot race each other in the same tab.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let browserClient: any = null;
 
 export function createClient() {
   if (browserClient) return browserClient;
