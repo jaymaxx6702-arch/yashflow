@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   createPrivateKey,
   generateKeyPairSync,
@@ -6,9 +7,7 @@ import {
   type JsonWebKey,
 } from "node:crypto";
 
-type SupabaseLike = {
-  from: (table: string) => any;
-};
+type SupabaseLike = Pick<SupabaseClient, "from">;
 
 export type PushSettings = {
   id: number;
